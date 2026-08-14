@@ -531,9 +531,18 @@ export default function Home() {
           const movesRight = imageResize.axis.includes("right");
           const movesTop = imageResize.axis.includes("top");
           const movesBottom = imageResize.axis.includes("bottom");
+          const isCorner = (movesLeft || movesRight) && (movesTop || movesBottom);
           let nextWidth = movesLeft ? imageResize.startWidth - deltaX : movesRight ? imageResize.startWidth + deltaX : imageResize.startWidth;
           let nextHeight = movesTop ? imageResize.startHeight - deltaY : movesBottom ? imageResize.startHeight + deltaY : imageResize.startHeight;
-          if (event.shiftKey) {
+          if (isCorner) {
+            const widthScale = nextWidth / imageResize.startWidth;
+            const heightScale = nextHeight / imageResize.startHeight;
+            const dominantScale = Math.abs(deltaX / Math.max(1, imageResize.startWidth)) >= Math.abs(deltaY / Math.max(1, imageResize.startHeight)) ? widthScale : heightScale;
+            const minimumScale = Math.max(60 / imageResize.startWidth, 60 / imageResize.startHeight);
+            const scale = Math.max(minimumScale, dominantScale);
+            nextWidth = imageResize.startWidth * scale;
+            nextHeight = imageResize.startHeight * scale;
+          } else if (event.shiftKey) {
             if (movesLeft || movesRight) nextHeight = nextWidth / imageResize.aspectRatio;
             if (movesTop || movesBottom) nextWidth = nextHeight * imageResize.aspectRatio;
           }
