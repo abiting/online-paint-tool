@@ -1104,6 +1104,15 @@ export default function Home() {
     toast.success(`畫布已調整為 ${nextWidth} × ${nextHeight}`);
   };
 
+  const applyResolutionPreset = (width: number, height: number) => {
+    const widthInput = document.getElementById("canvas-width") as HTMLInputElement | null;
+    const heightInput = document.getElementById("canvas-height") as HTMLInputElement | null;
+    if (!widthInput || !heightInput) return;
+    widthInput.value = String(width);
+    heightInput.value = String(height);
+    resizeCanvas();
+  };
+
   const removeBackground = () => {
     const canvas = canvasRef.current;
     const context = canvas?.getContext("2d");
@@ -1185,16 +1194,28 @@ export default function Home() {
     image.onload = () => {
       const canvas = canvasRef.current;
       if (!canvas) return;
-      const maxDimension = 1600;
-      const ratio = Math.min(1, maxDimension / Math.max(image.naturalWidth, image.naturalHeight));
-      const width = Math.max(240, Math.round(image.naturalWidth * ratio));
-      const height = Math.max(180, Math.round(image.naturalHeight * ratio));
+      const width = Math.max(1, image.naturalWidth);
+      const height = Math.max(1, image.naturalHeight);
+      const scaleX = width / canvasSize.width;
+      const scaleY = height / canvasSize.height;
+      const previousCanvas = document.createElement("canvas");
+      previousCanvas.width = canvas.width;
+      previousCanvas.height = canvas.height;
+      previousCanvas.getContext("2d")?.drawImage(canvas, 0, 0);
+      canvas.width = width;
+      canvas.height = height;
+      const canvasContext = canvas.getContext("2d");
+      if (canvasContext) {
+        canvasContext.fillStyle = PAPER;
+        canvasContext.fillRect(0, 0, width, height);
+        canvasContext.drawImage(previousCanvas, 0, 0, width, height);
+      }
       const nextImage: ImageLayer = {
         id: makeId("image"),
         name: file.name,
         src: image.src,
-        x: Math.max(0, (canvasSize.width - width) / 2),
-        y: Math.max(0, (canvasSize.height - height) / 2),
+        x: 0,
+        y: 0,
         width,
         height,
         rotation: 0,
@@ -1203,15 +1224,18 @@ export default function Home() {
         contrast: 0,
         saturation: 100,
       };
-      syncImages([...imagesRef.current, nextImage]);
-      setFileMeta({ name: file.name, size: formatBytes(file.size) });
+      syncLayers(layersRef.current.map((layer) => ({ ...layer, x: layer.x * scaleX, y: layer.y * scaleY, fontSize: layer.fontSize * Math.min(scaleX, scaleY) })));
+      syncShapes(shapesRef.current.map((shape) => ({ ...shape, x: shape.x * scaleX, y: shape.y * scaleY, width: shape.width * scaleX, height: shape.height * scaleY, outlineWidth: shape.outlineWidth * Math.min(scaleX, scaleY), shadowBlur: shape.shadowBlur * Math.min(scaleX, scaleY), shadowX: shape.shadowX * scaleX, shadowY: shape.shadowY * scaleY })));
+      syncImages([...imagesRef.current.map((existing) => ({ ...existing, x: existing.x * scaleX, y: existing.y * scaleY, width: existing.width * scaleX, height: existing.height * scaleY })), nextImage]);
+      setCanvasSize({ width, height });
+      setFileMeta({ name: file.name, size: `${width} × ${height}` });
       setDocumentNameDraft(file.name);
       setSelectedImageId(nextImage.id);
       setSelectedTextId(null);
       setSelectedShapeId(null);
       setHasArtwork(true);
       captureHistory();
-      toast.success("影像已加入畫布，可以直接移動與拉伸");
+      toast.success(`影像已加入畫布，解析度 ${width} × ${height}`);
     };
     image.src = URL.createObjectURL(file);
     event.target.value = "";
@@ -1548,12 +1572,9 @@ export default function Home() {
           <div className="rail-label">TOOLS</div>
           <div className="tool-group">
             <ToolButton label="移動" active={tool === "move"} icon={<Move size={18} />} onClick={() => setTool("move")} />
-            <ToolButton label="筆刷" active={tool === "brush"} icon={<Pencil size={18} />} onClick={() => setTool("brush")} />
-            <ToolButton label="橡皮擦" active={tool === "eraser"} icon={<Eraser size={18} />} onClick={() => setTool("eraser")} />
-            <ToolButton label="填色桶" active={tool === "fill"} icon={<PaintBucket size={18} />} onClick={() => setTool("fill")} />
+            <ToolButton label="油線筆" active={tool === "brush"} icon={<Pencil size={18} />} onClick={() => { setBrushKind("oil"); setTool("brush"); }} />
             <ToolButton label="文字工具" active={tool === "text"} icon={<Type size={18} />} onClick={() => setTool("text")} />
             <ToolButton label="圖形工具" active={tool === "shape"} icon={<Shapes size={18} />} onClick={() => setTool("shape")} />
-            <ToolButton label="移除瑕疵" active={tool === "retouch"} icon={<WandSparkles size={18} />} onClick={() => setTool("retouch")} />
           </div>
           <div className="rail-rule" />
           <div className="tool-group rail-secondary">
@@ -1747,6 +1768,11 @@ export default function Home() {
 
         <aside className="inspector" aria-label="屬性與調整">
           <div className="inspector-scroll">
+            <div className="resolution-focus-card">
+              <span className="eyebrow">RESOLUTION WORKFLOW</span>
+              <strong>{canvasSize.width} × {canvasSize.height}</strong>
+              <p>先設定畫布尺寸，再匯入影像、加上文字或使用油線筆微調。</p>
+            </div>
             <SectionTitle
               eyebrow="TOOL SETTINGS"
               title={toolPanelTitle}
@@ -1755,11 +1781,7 @@ export default function Home() {
 
             {(tool === "brush" || tool === "eraser") && !selectedText && !selectedShape && !selectedImage && (
               <div className="inspector-section">
-                <div className="brush-choice-grid" role="group" aria-label="筆刷類型">
-                  <button type="button" className={`brush-choice ${brushKind === "oil" ? "is-active" : ""}`} onClick={() => setBrushKind("oil")}><span className="brush-choice-mark brush-choice-mark-oil" /><span>油線筆</span></button>
-                  <button type="button" className={`brush-choice ${brushKind === "pencil" ? "is-active" : ""}`} onClick={() => setBrushKind("pencil")}><span className="brush-choice-mark brush-choice-mark-pencil" /><span>鉛筆</span></button>
-                  <button type="button" className={`brush-choice ${brushKind === "watercolor" ? "is-active" : ""}`} onClick={() => setBrushKind("watercolor")}><span className="brush-choice-mark brush-choice-mark-watercolor" /><span>水彩</span></button>
-                </div>
+                <div className="tool-panel-callout brush-lockup"><span className="field-label">油線筆</span><p>目前保留的繪筆工具，適合在調整尺寸後做簡單修飾。</p></div>
                 <div className="color-row">
                   <div>
                     <span className="field-label">前景色</span>
@@ -1905,7 +1927,12 @@ export default function Home() {
                 <span className="dimension-mark">×</span>
                 <label><span>高度</span><input id="canvas-height" type="number" min={180} max={1800} defaultValue={canvasSize.height} key={`height-${canvasSize.height}`} /></label>
               </div>
-              <button type="button" className="secondary-button full-width" onClick={resizeCanvas}>套用新尺寸</button>
+              <button type="button" className="secondary-button full-width" onClick={resizeCanvas}>套用解析度</button>
+              <div className="resolution-preset-row">
+                <button type="button" className="resolution-preset" onClick={() => applyResolutionPreset(800, 800)}>800 × 800</button>
+                <button type="button" className="resolution-preset" onClick={() => applyResolutionPreset(1200, 1200)}>1200 × 1200</button>
+                <button type="button" className="resolution-preset" onClick={() => applyResolutionPreset(1600, 1600)}>1600 × 1600</button>
+              </div>
               <div className="canvas-meta"><span>比例</span><span className="mono-value">{(canvasSize.width / canvasSize.height).toFixed(2)} : 1</span></div>
             </div>
 
