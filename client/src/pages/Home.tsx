@@ -1561,11 +1561,8 @@ export default function Home() {
           <button type="button" className="primary-button" onClick={() => exportImage("png")}>
             <Download size={15} /> 匯出 PNG
           </button>
-          <button type="button" className="secondary-button" onClick={() => exportImage("jpeg")}>
+          <button type="button" className="primary-button" onClick={() => exportImage("jpeg")}>
             <Download size={15} /> 匯出 JPG
-          </button>
-          <button type="button" className="icon-button" title="更多" aria-label="更多">
-            <MoreHorizontal size={18} />
           </button>
         </div>
         <input ref={fileInputRef} type="file" accept="image/*" onChange={handleImport} hidden />
@@ -1623,7 +1620,7 @@ export default function Home() {
                 <div className="canvas-content">
                   <canvas
                     ref={canvasRef}
-                    style={{ filter: canvasFilter, opacity: adjustments.opacity / 100 }}
+                    style={{ filter: canvasFilter, opacity: adjustments.opacity / 100, pointerEvents: "none" }}
                     onPointerDown={handleCanvasPointerDown}
                     onPointerMove={handleCanvasPointerMove}
                     onPointerUp={finishStroke}
