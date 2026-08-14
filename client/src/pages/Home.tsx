@@ -1743,10 +1743,6 @@ export default function Home() {
 
         <aside className="inspector" aria-label="屬性與調整">
           <div className="inspector-scroll">
-            <div className="resolution-focus-card">
-              <span className="eyebrow">RESOLUTION WORKFLOW</span>
-              <strong>{canvasSize.width} × {canvasSize.height}</strong>
-            </div>
             {/*
               <div className="legacy-tool-settings">
                 <SectionTitle
@@ -1919,7 +1915,6 @@ export default function Home() {
 
             <div className="inspector-section">
               <SectionTitle eyebrow="IMAGE ADJUSTMENTS" title="影像調整" action={<SlidersHorizontal size={15} className="section-icon" />} />
-              <div className="adjustment-target"><span>調整對象</span><strong>{activeAdjustmentTarget}</strong></div>
               <RangeControl label="曝光" value={activeAdjustmentValues.exposure} min={-60} max={60} suffix="%" onChange={(value) => updateActiveAdjustment({ exposure: value })} />
               <RangeControl label="對比" value={activeAdjustmentValues.contrast} min={-60} max={60} suffix="%" onChange={(value) => updateActiveAdjustment({ contrast: value })} />
               <RangeControl label="飽和度" value={activeAdjustmentValues.saturation} min={0} max={200} suffix="%" onChange={(value) => updateActiveAdjustment({ saturation: value })} />
