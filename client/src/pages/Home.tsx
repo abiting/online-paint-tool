@@ -40,6 +40,7 @@ import { toast } from "sonner";
 
 type Tool = "brush" | "eraser" | "fill" | "text" | "shape" | "retouch";
 type ShapeKind = "rectangle" | "circle" | "star" | "heart" | "triangle" | "pentagon";
+type ShapeResizeAxis = "left" | "right" | "top" | "bottom" | "top-left" | "top-right" | "bottom-left" | "bottom-right";
 
 type CanvasPoint = {
   x: number;
@@ -67,6 +68,7 @@ type ShapeLayer = {
   width: number;
   height: number;
   cornerRadius: number;
+  rotation: number;
   fill: string;
   opacity: number;
   outline: string;
@@ -237,13 +239,21 @@ export default function Home() {
   } | null>(null);
   const shapeResizeRef = useRef<{
     id: string;
-    axis: "width" | "height" | "both";
+    axis: ShapeResizeAxis;
     startPointX: number;
     startPointY: number;
     startWidth: number;
     startHeight: number;
     startX: number;
     startY: number;
+    aspectRatio: number;
+  } | null>(null);
+  const shapeRotateRef = useRef<{
+    id: string;
+    centerX: number;
+    centerY: number;
+    startAngle: number;
+    startRotation: number;
   } | null>(null);
   const historyRef = useRef<HistoryItem[]>([]);
   const historyIndexRef = useRef(-1);
@@ -386,18 +396,44 @@ export default function Home() {
       const drag = textDragRef.current;
       const shapeDrag = shapeDragRef.current;
       const resize = shapeResizeRef.current;
+      const rotate = shapeRotateRef.current;
       const point = getCanvasPoint(event.clientX, event.clientY);
+      if (rotate) {
+        const currentAngle = Math.atan2(point.y - rotate.centerY, point.x - rotate.centerX);
+        let nextRotation = rotate.startRotation + ((currentAngle - rotate.startAngle) * 180) / Math.PI;
+        if (event.shiftKey) nextRotation = Math.round(nextRotation / 15) * 15;
+        syncShapes(shapesRef.current.map((shape) => shape.id === rotate.id ? { ...shape, rotation: nextRotation } : shape));
+        return;
+      }
       if (resize) {
         const nextShapes = shapesRef.current.map((shape) => {
           if (shape.id !== resize.id) return shape;
-          const nextWidth = resize.axis === "height" ? resize.startWidth : clamp(resize.startWidth + point.x - resize.startPointX, 60, canvasSize.width);
-          const nextHeight = resize.axis === "width" ? resize.startHeight : clamp(resize.startHeight + point.y - resize.startPointY, 60, canvasSize.height);
+          const deltaX = point.x - resize.startPointX;
+          const deltaY = point.y - resize.startPointY;
+          const movesLeft = resize.axis.includes("left");
+          const movesRight = resize.axis.includes("right");
+          const movesTop = resize.axis.includes("top");
+          const movesBottom = resize.axis.includes("bottom");
+          let nextWidth = movesLeft ? resize.startWidth - deltaX : movesRight ? resize.startWidth + deltaX : resize.startWidth;
+          let nextHeight = movesTop ? resize.startHeight - deltaY : movesBottom ? resize.startHeight + deltaY : resize.startHeight;
+          if (event.shiftKey) {
+            if (movesLeft || movesRight) nextHeight = nextWidth / resize.aspectRatio;
+            if (movesTop || movesBottom) nextWidth = nextHeight * resize.aspectRatio;
+          }
+          const centerX = resize.startX + resize.startWidth / 2;
+          const centerY = resize.startY + resize.startHeight / 2;
+          const maxCenteredWidth = Math.max(60, Math.min(canvasSize.width, centerX * 2, (canvasSize.width - centerX) * 2));
+          const maxCenteredHeight = Math.max(60, Math.min(canvasSize.height, centerY * 2, (canvasSize.height - centerY) * 2));
+          nextWidth = clamp(nextWidth, 60, event.altKey ? maxCenteredWidth : canvasSize.width);
+          nextHeight = clamp(nextHeight, 60, event.altKey ? maxCenteredHeight : canvasSize.height);
+          const nextX = event.altKey ? centerX - nextWidth / 2 : movesLeft ? resize.startX + resize.startWidth - nextWidth : resize.startX;
+          const nextY = event.altKey ? centerY - nextHeight / 2 : movesTop ? resize.startY + resize.startHeight - nextHeight : resize.startY;
           return {
             ...shape,
             width: nextWidth,
             height: nextHeight,
-            x: clamp(resize.startX, 0, canvasSize.width - nextWidth),
-            y: clamp(resize.startY, 0, canvasSize.height - nextHeight),
+            x: clamp(nextX, 0, canvasSize.width - nextWidth),
+            y: clamp(nextY, 0, canvasSize.height - nextHeight),
             cornerRadius: Math.min(shape.cornerRadius, Math.min(nextWidth, nextHeight) / 2),
           };
         });
@@ -422,10 +458,11 @@ export default function Home() {
       }
     };
     const handleUp = () => {
-      if (!textDragRef.current && !shapeDragRef.current && !shapeResizeRef.current) return;
+      if (!textDragRef.current && !shapeDragRef.current && !shapeResizeRef.current && !shapeRotateRef.current) return;
       textDragRef.current = null;
       shapeDragRef.current = null;
       shapeResizeRef.current = null;
+      shapeRotateRef.current = null;
       captureHistory();
     };
     window.addEventListener("pointermove", handleMove);
@@ -439,9 +476,16 @@ export default function Home() {
   useEffect(() => {
     const handleShortcut = (event: KeyboardEvent) => {
       const target = event.target as HTMLElement | null;
-      if (target?.tagName === "INPUT" || target?.tagName === "TEXTAREA" || target?.tagName === "SELECT") return;
+      if (target?.tagName === "INPUT" || target?.tagName === "TEXTAREA" || target?.tagName === "SELECT" || target?.isContentEditable) return;
       const key = event.key.toLowerCase();
       const modifier = event.ctrlKey || event.metaKey;
+      if (key === "delete" || key === "backspace") {
+        if (selectedTextId || selectedShapeId) {
+          event.preventDefault();
+          if (selectedTextId) deleteSelectedText(); else deleteSelectedShape();
+        }
+        return;
+      }
       if (modifier && key === "z") {
         event.preventDefault();
         if (event.shiftKey) redo(); else undo();
@@ -464,7 +508,7 @@ export default function Home() {
     };
     window.addEventListener("keydown", handleShortcut);
     return () => window.removeEventListener("keydown", handleShortcut);
-  }, []);
+  }, [selectedShapeId, selectedTextId]);
 
   const drawStroke = (from: CanvasPoint, to: CanvasPoint) => {
     const context = canvasRef.current?.getContext("2d");
@@ -591,6 +635,7 @@ export default function Home() {
       width,
       height,
       cornerRadius: kind === "rectangle" ? 12 : 0,
+      rotation: 0,
       fill: shapeFill,
       opacity: 100,
       outline: shapeOutline,
@@ -951,27 +996,29 @@ export default function Home() {
       context.fillStyle = shape.fill;
       context.strokeStyle = shape.outline;
       context.lineWidth = shape.outlineWidth;
+      context.translate(shape.x + shape.width / 2, shape.y + shape.height / 2);
+      context.rotate((shape.rotation * Math.PI) / 180);
       context.beginPath();
       if (shape.kind === "rectangle") {
-        context.roundRect(shape.x, shape.y, shape.width, shape.height, Math.min(shape.cornerRadius, Math.min(shape.width, shape.height) / 2));
+        context.roundRect(-shape.width / 2, -shape.height / 2, shape.width, shape.height, Math.min(shape.cornerRadius, Math.min(shape.width, shape.height) / 2));
       } else if (shape.kind === "circle") {
-        context.ellipse(shape.x + shape.width / 2, shape.y + shape.height / 2, shape.width / 2, shape.height / 2, 0, 0, Math.PI * 2);
+        context.ellipse(0, 0, shape.width / 2, shape.height / 2, 0, 0, Math.PI * 2);
       } else {
         if (shape.kind === "heart") {
-          const x = shape.x; const y = shape.y; const w = shape.width; const h = shape.height;
-          context.moveTo(x + w / 2, y + h * 0.9);
+          const w = shape.width; const h = shape.height; const x = -w / 2; const y = -h / 2;
+          context.moveTo(0, y + h * 0.9);
           context.bezierCurveTo(x + w * 0.06, y + h * 0.62, x + w * 0.12, y + h * 0.16, x + w * 0.34, y + h * 0.2);
-          context.bezierCurveTo(x + w * 0.45, y + h * 0.22, x + w * 0.49, y + h * 0.34, x + w / 2, y + h * 0.42);
+          context.bezierCurveTo(x + w * 0.45, y + h * 0.22, x + w * 0.49, y + h * 0.34, 0, y + h * 0.42);
           context.bezierCurveTo(x + w * 0.51, y + h * 0.34, x + w * 0.55, y + h * 0.22, x + w * 0.66, y + h * 0.2);
-          context.bezierCurveTo(x + w * 0.88, y + h * 0.16, x + w * 0.94, y + h * 0.62, x + w / 2, y + h * 0.9);
+          context.bezierCurveTo(x + w * 0.88, y + h * 0.16, x + w * 0.94, y + h * 0.62, 0, y + h * 0.9);
           context.closePath();
         } else {
           const sides = shape.kind === "triangle" ? 3 : shape.kind === "pentagon" ? 5 : 10;
           for (let index = 0; index < sides; index += 1) {
             const angle = -Math.PI / 2 + (index * Math.PI * 2) / sides;
             const radius = shape.kind === "star" ? (index % 2 === 0 ? 0.48 : 0.22) : 0.46;
-            const x = shape.x + shape.width / 2 + Math.cos(angle) * shape.width * radius;
-            const y = shape.y + shape.height / 2 + Math.sin(angle) * shape.height * radius;
+            const x = Math.cos(angle) * shape.width * radius;
+            const y = Math.sin(angle) * shape.height * radius;
             if (index === 0) context.moveTo(x, y); else context.lineTo(x, y);
           }
           context.closePath();
@@ -1028,7 +1075,7 @@ export default function Home() {
     };
   };
 
-  const handleShapeResizePointerDown = (event: ReactPointerEvent<SVGRectElement>, shape: ShapeLayer, axis: "width" | "height" | "both") => {
+  const handleShapeResizePointerDown = (event: ReactPointerEvent<SVGRectElement>, shape: ShapeLayer, axis: ShapeResizeAxis) => {
     event.stopPropagation();
     event.currentTarget.setPointerCapture(event.pointerId);
     const point = getCanvasPoint(event.clientX, event.clientY);
@@ -1045,6 +1092,27 @@ export default function Home() {
       startHeight: shape.height,
       startX: shape.x,
       startY: shape.y,
+      aspectRatio: shape.width / Math.max(1, shape.height),
+    };
+  };
+
+  const handleShapeRotatePointerDown = (event: ReactPointerEvent<SVGCircleElement>, shape: ShapeLayer) => {
+    event.stopPropagation();
+    event.currentTarget.setPointerCapture(event.pointerId);
+    const point = getCanvasPoint(event.clientX, event.clientY);
+    const centerX = shape.x + shape.width / 2;
+    const centerY = shape.y + shape.height / 2;
+    setSelectedShapeId(shape.id);
+    setSelectedTextId(null);
+    textDragRef.current = null;
+    shapeDragRef.current = null;
+    shapeResizeRef.current = null;
+    shapeRotateRef.current = {
+      id: shape.id,
+      centerX,
+      centerY,
+      startAngle: Math.atan2(point.y - centerY, point.x - centerX),
+      startRotation: shape.rotation,
     };
   };
 
@@ -1207,6 +1275,7 @@ export default function Home() {
                         top: `${shape.y}px`,
                         width: `${shape.width}px`,
                         height: `${shape.height}px`,
+                        transform: `rotate(${shape.rotation}deg)`,
                         opacity: shape.opacity / 100,
                         filter: shape.shadow ? `drop-shadow(${shape.shadowX}px ${shape.shadowY}px ${shape.shadowBlur}px ${hexToRgba(shape.shadowColor, shape.shadowOpacity / 100)})` : "none",
                       }}
@@ -1223,9 +1292,17 @@ export default function Home() {
                       {shape.kind === "pentagon" && <polygon points={PENTAGON_POINTS} fill={shape.fill} stroke={shape.outline} strokeWidth={shape.outlineWidth * 0.8} strokeLinejoin="round" />}
                       {selectedShapeId === shape.id && (
                         <>
-                          <rect className="shape-resize-handle shape-resize-handle-right" x="96" y="43" width="8" height="14" onPointerDown={(event) => handleShapeResizePointerDown(event, shape, "width")} />
-                          <rect className="shape-resize-handle shape-resize-handle-bottom" x="43" y="96" width="14" height="8" onPointerDown={(event) => handleShapeResizePointerDown(event, shape, "height")} />
-                          <rect className="shape-resize-handle shape-resize-handle-corner" x="94" y="94" width="12" height="12" onPointerDown={(event) => handleShapeResizePointerDown(event, shape, "both")} />
+                          <rect className="shape-resize-handle shape-resize-handle-left" x="-4" y="43" width="8" height="14" onPointerDown={(event) => handleShapeResizePointerDown(event, shape, "left")} />
+                          <rect className="shape-resize-handle shape-resize-handle-right" x="96" y="43" width="8" height="14" onPointerDown={(event) => handleShapeResizePointerDown(event, shape, "right")} />
+                          <rect className="shape-resize-handle shape-resize-handle-top" x="43" y="-4" width="14" height="8" onPointerDown={(event) => handleShapeResizePointerDown(event, shape, "top")} />
+                          <rect className="shape-resize-handle shape-resize-handle-bottom" x="43" y="96" width="14" height="8" onPointerDown={(event) => handleShapeResizePointerDown(event, shape, "bottom")} />
+                          <rect className="shape-resize-handle shape-resize-handle-corner shape-resize-handle-top-left" x="-6" y="-6" width="12" height="12" onPointerDown={(event) => handleShapeResizePointerDown(event, shape, "top-left")} />
+                          <rect className="shape-resize-handle shape-resize-handle-corner shape-resize-handle-top-right" x="94" y="-6" width="12" height="12" onPointerDown={(event) => handleShapeResizePointerDown(event, shape, "top-right")} />
+                          <rect className="shape-resize-handle shape-resize-handle-corner shape-resize-handle-bottom-left" x="-6" y="94" width="12" height="12" onPointerDown={(event) => handleShapeResizePointerDown(event, shape, "bottom-left")} />
+                          <rect className="shape-resize-handle shape-resize-handle-corner shape-resize-handle-bottom-right" x="94" y="94" width="12" height="12" onPointerDown={(event) => handleShapeResizePointerDown(event, shape, "bottom-right")} />
+                          <line className="shape-rotation-stem" x1="50" y1="0" x2="50" y2="-16" />
+                          <circle className="shape-rotation-handle" cx="50" cy="-24" r="7" onPointerDown={(event) => handleShapeRotatePointerDown(event, shape)} />
+                          <text className="shape-rotation-label" x="50" y="-34" textAnchor="middle">{Math.round(shape.rotation)}°</text>
                         </>
                       )}
                     </svg>
@@ -1319,6 +1396,7 @@ export default function Home() {
                     <div className="color-row"><span className="field-label">輪廓</span><label className="color-picker"><input type="color" value={selectedShape.outline} onChange={(event) => updateShape({ outline: event.target.value })} aria-label="圖形輪廓顏色" /><span style={{ backgroundColor: selectedShape.outline }} /></label></div>
                     <RangeControl label="輪廓粗細" value={selectedShape.outlineWidth} min={0} max={16} suffix=" px" onChange={(value) => updateShape({ outlineWidth: value })} />
                     {selectedShape.kind === "rectangle" && <RangeControl label="圓角半徑" value={selectedShape.cornerRadius} min={0} max={Math.max(1, Math.floor(Math.min(selectedShape.width, selectedShape.height) / 2))} suffix=" px" onChange={(value) => updateShape({ cornerRadius: value })} />}
+                    <div className="shape-rotation-readout"><span className="field-label">旋轉角度</span><span className="mono-value">{Math.round(selectedShape.rotation)}°</span></div>
                     <RangeControl label="圖形不透明度" value={selectedShape.opacity} min={1} max={100} suffix="%" onChange={(value) => updateShape({ opacity: value })} />
                     <label className="toggle-row"><span>陰影</span><input type="checkbox" checked={selectedShape.shadow} onChange={(event) => updateShape({ shadow: event.target.checked })} /></label>
                     {selectedShape.shadow && <RangeControl label="陰影柔化" value={selectedShape.shadowBlur} min={0} max={40} suffix=" px" onChange={(value) => updateShape({ shadowBlur: value })} />}
