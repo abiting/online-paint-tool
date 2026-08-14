@@ -1463,7 +1463,8 @@ export default function Home() {
   };
 
   const handleViewportPointerDown = (event: ReactPointerEvent<HTMLDivElement>) => {
-    if (event.button !== 0 || event.target !== event.currentTarget) return;
+    const target = event.target as HTMLElement;
+    if (event.button !== 0 || target.closest(".image-layer, .shape-layer, .text-layer")) return;
     event.currentTarget.setPointerCapture(event.pointerId);
     panDragRef.current = { startX: event.clientX, startY: event.clientY, originX: pan.x, originY: pan.y };
     setIsPanning(true);
@@ -1598,7 +1599,6 @@ export default function Home() {
             onPointerUp={finishPan}
             onPointerCancel={finishPan}
           >
-            <div className="stage-notes stage-note-top">PAPER / 01</div>
             <div className="stage-notes stage-note-bottom">{canvasSize.width} × {canvasSize.height}</div>
             <div
               className="canvas-shell-outer"
