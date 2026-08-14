@@ -235,6 +235,16 @@ export default function Home() {
     offsetX: number;
     offsetY: number;
   } | null>(null);
+  const shapeResizeRef = useRef<{
+    id: string;
+    axis: "width" | "height" | "both";
+    startPointX: number;
+    startPointY: number;
+    startWidth: number;
+    startHeight: number;
+    startX: number;
+    startY: number;
+  } | null>(null);
   const historyRef = useRef<HistoryItem[]>([]);
   const historyIndexRef = useRef(-1);
   const layersRef = useRef<TextLayer[]>([]);
@@ -375,6 +385,7 @@ export default function Home() {
     const handleMove = (event: PointerEvent) => {
       const drag = textDragRef.current;
       const shapeDrag = shapeDragRef.current;
+      const resize = shapeResizeRef.current;
       const point = getCanvasPoint(event.clientX, event.clientY);
       if (drag) {
         const nextLayers = layersRef.current.map((layer) =>
@@ -392,11 +403,28 @@ export default function Home() {
         );
         syncShapes(nextShapes);
       }
+      if (resize) {
+        const nextShapes = shapesRef.current.map((shape) => {
+          if (shape.id !== resize.id) return shape;
+          const nextWidth = resize.axis === "height" ? resize.startWidth : clamp(resize.startWidth + point.x - resize.startPointX, 60, canvasSize.width);
+          const nextHeight = resize.axis === "width" ? resize.startHeight : clamp(resize.startHeight + point.y - resize.startPointY, 60, canvasSize.height);
+          return {
+            ...shape,
+            width: nextWidth,
+            height: nextHeight,
+            x: clamp(resize.startX, 0, canvasSize.width - nextWidth),
+            y: clamp(resize.startY, 0, canvasSize.height - nextHeight),
+            cornerRadius: Math.min(shape.cornerRadius, Math.min(nextWidth, nextHeight) / 2),
+          };
+        });
+        syncShapes(nextShapes);
+      }
     };
     const handleUp = () => {
-      if (!textDragRef.current && !shapeDragRef.current) return;
+      if (!textDragRef.current && !shapeDragRef.current && !shapeResizeRef.current) return;
       textDragRef.current = null;
       shapeDragRef.current = null;
+      shapeResizeRef.current = null;
       captureHistory();
     };
     window.addEventListener("pointermove", handleMove);
@@ -998,6 +1026,23 @@ export default function Home() {
     };
   };
 
+  const handleShapeResizePointerDown = (event: ReactPointerEvent<SVGRectElement>, shape: ShapeLayer, axis: "width" | "height" | "both") => {
+    event.stopPropagation();
+    const point = getCanvasPoint(event.clientX, event.clientY);
+    setSelectedShapeId(shape.id);
+    setSelectedTextId(null);
+    shapeResizeRef.current = {
+      id: shape.id,
+      axis,
+      startPointX: point.x,
+      startPointY: point.y,
+      startWidth: shape.width,
+      startHeight: shape.height,
+      startX: shape.x,
+      startY: shape.y,
+    };
+  };
+
   const handleViewportPointerDown = (event: ReactPointerEvent<HTMLDivElement>) => {
     if (event.button !== 0 || event.target !== event.currentTarget) return;
     event.currentTarget.setPointerCapture(event.pointerId);
@@ -1170,6 +1215,13 @@ export default function Home() {
                       {shape.kind === "heart" && <path d="M50 88 C44 82 15 65 15 38 C15 18 39 14 50 33 C61 14 85 18 85 38 C85 65 56 82 50 88Z" fill={shape.fill} stroke={shape.outline} strokeWidth={shape.outlineWidth * 0.8} strokeLinejoin="round" />}
                       {shape.kind === "triangle" && <polygon points={TRIANGLE_POINTS} fill={shape.fill} stroke={shape.outline} strokeWidth={shape.outlineWidth * 0.8} strokeLinejoin="round" />}
                       {shape.kind === "pentagon" && <polygon points={PENTAGON_POINTS} fill={shape.fill} stroke={shape.outline} strokeWidth={shape.outlineWidth * 0.8} strokeLinejoin="round" />}
+                      {selectedShapeId === shape.id && (
+                        <>
+                          <rect className="shape-resize-handle shape-resize-handle-right" x="96" y="43" width="8" height="14" onPointerDown={(event) => handleShapeResizePointerDown(event, shape, "width")} />
+                          <rect className="shape-resize-handle shape-resize-handle-bottom" x="43" y="96" width="14" height="8" onPointerDown={(event) => handleShapeResizePointerDown(event, shape, "height")} />
+                          <rect className="shape-resize-handle shape-resize-handle-corner" x="94" y="94" width="12" height="12" onPointerDown={(event) => handleShapeResizePointerDown(event, shape, "both")} />
+                        </>
+                      )}
                     </svg>
                   ))}
                   {layers.map((layer) => (
@@ -1261,8 +1313,6 @@ export default function Home() {
                     <div className="color-row"><span className="field-label">輪廓</span><label className="color-picker"><input type="color" value={selectedShape.outline} onChange={(event) => updateShape({ outline: event.target.value })} aria-label="圖形輪廓顏色" /><span style={{ backgroundColor: selectedShape.outline }} /></label></div>
                     <RangeControl label="輪廓粗細" value={selectedShape.outlineWidth} min={0} max={16} suffix=" px" onChange={(value) => updateShape({ outlineWidth: value })} />
                     {selectedShape.kind === "rectangle" && <RangeControl label="圓角半徑" value={selectedShape.cornerRadius} min={0} max={Math.max(1, Math.floor(Math.min(selectedShape.width, selectedShape.height) / 2))} suffix=" px" onChange={(value) => updateShape({ cornerRadius: value })} />}
-                    <RangeControl label="左右拉伸" value={Math.round(selectedShape.width)} min={60} max={canvasSize.width} suffix=" px" onChange={(value) => updateShape({ width: value, x: clamp(selectedShape.x, 0, canvasSize.width - value), cornerRadius: Math.min(selectedShape.cornerRadius, Math.min(value, selectedShape.height) / 2) })} />
-                    <RangeControl label="上下拉伸" value={Math.round(selectedShape.height)} min={60} max={canvasSize.height} suffix=" px" onChange={(value) => updateShape({ height: value, y: clamp(selectedShape.y, 0, canvasSize.height - value), cornerRadius: Math.min(selectedShape.cornerRadius, Math.min(selectedShape.width, value) / 2) })} />
                     <RangeControl label="圖形不透明度" value={selectedShape.opacity} min={1} max={100} suffix="%" onChange={(value) => updateShape({ opacity: value })} />
                     <label className="toggle-row"><span>陰影</span><input type="checkbox" checked={selectedShape.shadow} onChange={(event) => updateShape({ shadow: event.target.checked })} /></label>
                     {selectedShape.shadow && <RangeControl label="陰影柔化" value={selectedShape.shadowBlur} min={0} max={40} suffix=" px" onChange={(value) => updateShape({ shadowBlur: value })} />}

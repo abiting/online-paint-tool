@@ -296,6 +296,10 @@ input[type="range"]::-moz-range-thumb { width: 11px; height: 11px; border: 2px s
 .document-name-input:hover, .document-name-input:focus { background: rgba(245,240,229,0.06); border-color: rgba(227,213,187,0.22); }
 .shape-layer { position: absolute; display: block; overflow: visible; cursor: move; transform-origin: center; }
 .shape-layer.is-selected { outline: 1px dashed #e4513b; outline-offset: 7px; }
+.shape-resize-handle { fill: #fff8ec; stroke: #e4513b; stroke-width: 1.6; vector-effect: non-scaling-stroke; pointer-events: auto; }
+.shape-resize-handle-right { cursor: ew-resize; }
+.shape-resize-handle-bottom { cursor: ns-resize; }
+.shape-resize-handle-corner { cursor: nwse-resize; }
 .shape-choice-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 7px; margin: 4px 0 14px; }
 .shape-choice { display: grid; justify-items: center; gap: 5px; padding: 10px 4px 8px; color: #a9b0a9; background: rgba(245,240,229,0.05); border: 1px solid rgba(227,213,187,0.14); border-radius: 5px; cursor: pointer; font-size: 9px; transition: transform 160ms ease-out, color 180ms ease-out, border-color 180ms ease-out, background 180ms ease-out; }
 .shape-choice:hover, .shape-choice.is-active { color: #fff8ec; background: rgba(228,81,59,0.12); border-color: rgba(228,81,59,0.62); transform: translateY(-1px); }
