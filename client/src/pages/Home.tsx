@@ -1476,6 +1476,25 @@ export default function Home() {
       y: Math.max(18, (bounds.height - displayHeight) / 2),
     });
   };
+  const toolPanelTitle = selectedImage
+    ? "圖片素材"
+    : selectedShape
+      ? "圖形設定"
+      : selectedText
+        ? "文字卡"
+        : tool === "brush"
+          ? "筆刷設定"
+          : tool === "eraser"
+            ? "橡皮擦設定"
+            : tool === "fill"
+              ? "填色桶設定"
+              : tool === "text"
+                ? "文字卡"
+                : tool === "shape"
+                  ? "圖形設定"
+                  : tool === "retouch"
+                    ? "瑕疵移除"
+                    : "移動工具";
 
   return (
     <main className="studio-app">
@@ -1736,11 +1755,11 @@ export default function Home() {
           <div className="inspector-scroll">
             <SectionTitle
               eyebrow="TOOL SETTINGS"
-              title={selectedImage ? "圖片素材" : selectedShape ? "圖形設定" : tool === "text" || selectedText ? "文字卡" : tool === "move" ? "移動工具" : "筆刷設定"}
+              title={toolPanelTitle}
               action={<button type="button" className="icon-button subtle" title="面板選項" aria-label="面板選項"><MoreHorizontal size={17} /></button>}
             />
 
-            {(tool === "brush" || tool === "eraser" || tool === "retouch") && !selectedText && !selectedShape && !selectedImage && (
+            {(tool === "brush" || tool === "eraser") && !selectedText && !selectedShape && !selectedImage && (
               <div className="inspector-section">
                 <div className="brush-choice-grid" role="group" aria-label="筆刷類型">
                   <button type="button" className={`brush-choice ${brushKind === "oil" ? "is-active" : ""}`} onClick={() => setBrushKind("oil")}><span className="brush-choice-mark brush-choice-mark-oil" /><span>油線筆</span></button>
@@ -1764,6 +1783,29 @@ export default function Home() {
                     <button key={color} type="button" className={`swatch ${brushColor === color ? "is-selected" : ""}`} style={{ backgroundColor: color }} onClick={() => setBrushColor(color)} aria-label={`選擇顏色 ${color}`} />
                   ))}
                 </div>
+              </div>
+            )}
+
+            {tool === "fill" && !selectedText && !selectedShape && !selectedImage && (
+              <div className="inspector-section">
+                <div className="tool-panel-callout"><span className="field-label">填色桶</span><p>點擊畫布上的相鄰區域，使用目前前景色填滿。</p></div>
+                <div className="color-row">
+                  <div><span className="field-label">填色</span><span className="field-help">使用下方色票快速切換</span></div>
+                  <label className="color-picker"><input type="color" value={brushColor} onChange={(event) => setBrushColor(event.target.value)} aria-label="填色顏色" /><span style={{ backgroundColor: brushColor }} /></label>
+                </div>
+                <RangeControl label="填色不透明度" value={brushOpacity} min={1} max={100} suffix="%" onChange={setBrushOpacity} />
+              </div>
+            )}
+
+            {tool === "move" && !selectedText && !selectedShape && !selectedImage && (
+              <div className="inspector-section"><div className="tool-panel-callout"><span className="field-label">移動工具</span><p>點選圖片、圖形或文字卡後拖曳，可移動畫布上的物件。</p><span className="tool-key-hint">快捷鍵 V</span></div></div>
+            )}
+
+            {tool === "retouch" && !selectedText && !selectedShape && !selectedImage && (
+              <div className="inspector-section">
+                <div className="tool-panel-callout"><span className="field-label">移除瑕疵</span><p>在髒污、痘痘或小型浮水印上塗抹，使用周圍像素進行柔化修補。</p></div>
+                <RangeControl label="修補筆刷大小" value={brushSize} min={4} max={160} suffix=" px" onChange={setBrushSize} />
+                <RangeControl label="修補強度" value={brushOpacity} min={1} max={100} suffix="%" onChange={setBrushOpacity} />
               </div>
             )}
 
