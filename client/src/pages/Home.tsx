@@ -14,6 +14,7 @@ import {
   Circle,
   Download,
   Eraser,
+  Heart,
   ImagePlus,
   Maximize2,
   Minus,
@@ -27,6 +28,8 @@ import {
   Shapes,
   Square,
   Star,
+  Triangle,
+  Pentagon,
   Trash2,
   Type,
   Undo2,
@@ -36,7 +39,7 @@ import {
 import { toast } from "sonner";
 
 type Tool = "brush" | "eraser" | "fill" | "text" | "shape" | "retouch";
-type ShapeKind = "rectangle" | "circle" | "star";
+type ShapeKind = "rectangle" | "circle" | "star" | "heart" | "triangle" | "pentagon";
 
 type CanvasPoint = {
   x: number;
@@ -110,6 +113,16 @@ const hexToRgb = (hex: string) => {
 
 const makeId = (prefix = "layer") => `${prefix}-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
 const STAR_POINTS = "50,4 61,37 96,38 68,59 78,94 50,74 22,94 32,59 4,38 39,37";
+const TRIANGLE_POINTS = "50,5 94,90 6,90";
+const PENTAGON_POINTS = "50,4 97,38 79,94 21,94 3,38";
+const SHAPE_LABELS: Record<ShapeKind, string> = {
+  rectangle: "方塊",
+  circle: "圓形",
+  star: "星星",
+  heart: "愛心",
+  triangle: "三角形",
+  pentagon: "五邊形",
+};
 
 const hexToRgba = (hex: string, opacity: number) => {
   const { r, g, b } = hexToRgb(hex);
@@ -539,8 +552,8 @@ export default function Home() {
   };
 
   const addShape = (kind: ShapeKind = shapeKind) => {
-    const width = kind === "star" ? 190 : 220;
-    const height = kind === "star" ? 190 : 150;
+    const width = ["star", "heart", "pentagon"].includes(kind) ? 190 : 220;
+    const height = ["star", "heart", "pentagon"].includes(kind) ? 190 : 150;
     const nextShape: ShapeLayer = {
       id: makeId("shape"),
       kind,
@@ -566,7 +579,7 @@ export default function Home() {
     setSelectedTextId(null);
     setTool("shape");
     captureHistory();
-    toast.success(`${kind === "rectangle" ? "方塊" : kind === "circle" ? "圓形" : "星星"} 已加入畫布`);
+    toast.success(`${SHAPE_LABELS[kind]} 已加入畫布`);
   };
 
   const handleCanvasPointerDown = (event: ReactPointerEvent<HTMLCanvasElement>) => {
@@ -911,18 +924,29 @@ export default function Home() {
       context.lineWidth = shape.outlineWidth;
       context.beginPath();
       if (shape.kind === "rectangle") {
-        context.roundRect(shape.x, shape.y, shape.width, shape.height, 12);
+        context.roundRect(shape.x, shape.y, shape.width, shape.height, Math.min(shape.cornerRadius, Math.min(shape.width, shape.height) / 2));
       } else if (shape.kind === "circle") {
         context.ellipse(shape.x + shape.width / 2, shape.y + shape.height / 2, shape.width / 2, shape.height / 2, 0, 0, Math.PI * 2);
       } else {
-        for (let index = 0; index < 10; index += 1) {
-          const angle = -Math.PI / 2 + (index * Math.PI) / 5;
-          const radius = index % 2 === 0 ? 0.48 : 0.22;
-          const x = shape.x + shape.width / 2 + Math.cos(angle) * shape.width * radius;
-          const y = shape.y + shape.height / 2 + Math.sin(angle) * shape.height * radius;
-          if (index === 0) context.moveTo(x, y); else context.lineTo(x, y);
+        if (shape.kind === "heart") {
+          const x = shape.x; const y = shape.y; const w = shape.width; const h = shape.height;
+          context.moveTo(x + w / 2, y + h * 0.9);
+          context.bezierCurveTo(x + w * 0.06, y + h * 0.62, x + w * 0.12, y + h * 0.16, x + w * 0.34, y + h * 0.2);
+          context.bezierCurveTo(x + w * 0.45, y + h * 0.22, x + w * 0.49, y + h * 0.34, x + w / 2, y + h * 0.42);
+          context.bezierCurveTo(x + w * 0.51, y + h * 0.34, x + w * 0.55, y + h * 0.22, x + w * 0.66, y + h * 0.2);
+          context.bezierCurveTo(x + w * 0.88, y + h * 0.16, x + w * 0.94, y + h * 0.62, x + w / 2, y + h * 0.9);
+          context.closePath();
+        } else {
+          const sides = shape.kind === "triangle" ? 3 : shape.kind === "pentagon" ? 5 : 10;
+          for (let index = 0; index < sides; index += 1) {
+            const angle = -Math.PI / 2 + (index * Math.PI * 2) / sides;
+            const radius = shape.kind === "star" ? (index % 2 === 0 ? 0.48 : 0.22) : 0.46;
+            const x = shape.x + shape.width / 2 + Math.cos(angle) * shape.width * radius;
+            const y = shape.y + shape.height / 2 + Math.sin(angle) * shape.height * radius;
+            if (index === 0) context.moveTo(x, y); else context.lineTo(x, y);
+          }
+          context.closePath();
         }
-        context.closePath();
       }
       context.fill();
       if (shape.outlineWidth > 0) context.stroke();
@@ -1138,11 +1162,14 @@ export default function Home() {
                       onPointerDown={(event) => handleShapePointerDown(event, shape)}
                       role="button"
                       tabIndex={0}
-                      aria-label={`${shape.kind === "rectangle" ? "方塊" : shape.kind === "circle" ? "圓形" : "星星"}圖形`}
+                      aria-label={`${SHAPE_LABELS[shape.kind]}圖形`}
                     >
-                      {shape.kind === "rectangle" && <rect x="3" y="3" width="94" height="94" rx="8" fill={shape.fill} stroke={shape.outline} strokeWidth={shape.outlineWidth * 0.8} />}
+                      {shape.kind === "rectangle" && <rect x="3" y="3" width="94" height="94" rx={Math.min(50, (shape.cornerRadius / Math.min(shape.width, shape.height)) * 100)} fill={shape.fill} stroke={shape.outline} strokeWidth={shape.outlineWidth * 0.8} />}
                       {shape.kind === "circle" && <circle cx="50" cy="50" r="46" fill={shape.fill} stroke={shape.outline} strokeWidth={shape.outlineWidth * 0.8} />}
                       {shape.kind === "star" && <polygon points={STAR_POINTS} fill={shape.fill} stroke={shape.outline} strokeWidth={shape.outlineWidth * 0.8} strokeLinejoin="round" />}
+                      {shape.kind === "heart" && <path d="M50 88 C44 82 15 65 15 38 C15 18 39 14 50 33 C61 14 85 18 85 38 C85 65 56 82 50 88Z" fill={shape.fill} stroke={shape.outline} strokeWidth={shape.outlineWidth * 0.8} strokeLinejoin="round" />}
+                      {shape.kind === "triangle" && <polygon points={TRIANGLE_POINTS} fill={shape.fill} stroke={shape.outline} strokeWidth={shape.outlineWidth * 0.8} strokeLinejoin="round" />}
+                      {shape.kind === "pentagon" && <polygon points={PENTAGON_POINTS} fill={shape.fill} stroke={shape.outline} strokeWidth={shape.outlineWidth * 0.8} strokeLinejoin="round" />}
                     </svg>
                   ))}
                   {layers.map((layer) => (
@@ -1171,12 +1198,6 @@ export default function Home() {
                 </div>
               </div>
             </div>
-            {layers.length === 0 && !hasArtwork && (
-              <div className="canvas-empty-note">
-                <img src="/manus-storage/paint-study-card_e95bc42a.png" alt="抽象顏料色彩樣本" />
-                <span>在紙上留下第一筆</span>
-              </div>
-            )}
           </div>
 
           <div className="workspace-footer">
@@ -1229,6 +1250,9 @@ export default function Home() {
                   <button type="button" className={`shape-choice ${shapeKind === "rectangle" ? "is-active" : ""}`} onClick={() => { setShapeKind("rectangle"); addShape("rectangle"); }}><Square size={18} /><span>方塊</span></button>
                   <button type="button" className={`shape-choice ${shapeKind === "circle" ? "is-active" : ""}`} onClick={() => { setShapeKind("circle"); addShape("circle"); }}><Circle size={18} /><span>圓形</span></button>
                   <button type="button" className={`shape-choice ${shapeKind === "star" ? "is-active" : ""}`} onClick={() => { setShapeKind("star"); addShape("star"); }}><Star size={18} /><span>星星</span></button>
+                  <button type="button" className={`shape-choice ${shapeKind === "heart" ? "is-active" : ""}`} onClick={() => { setShapeKind("heart"); addShape("heart"); }}><Heart size={18} /><span>愛心</span></button>
+                  <button type="button" className={`shape-choice ${shapeKind === "triangle" ? "is-active" : ""}`} onClick={() => { setShapeKind("triangle"); addShape("triangle"); }}><Triangle size={18} /><span>三角形</span></button>
+                  <button type="button" className={`shape-choice ${shapeKind === "pentagon" ? "is-active" : ""}`} onClick={() => { setShapeKind("pentagon"); addShape("pentagon"); }}><Pentagon size={18} /><span>五邊形</span></button>
                 </div>
                 {!selectedShape && <p className="empty-inspector">選擇圖形或按上方按鈕，把形狀放到畫布中央。</p>}
                 {selectedShape && (
@@ -1236,6 +1260,9 @@ export default function Home() {
                     <div className="color-row"><span className="field-label">填色</span><label className="color-picker"><input type="color" value={selectedShape.fill} onChange={(event) => updateShape({ fill: event.target.value })} aria-label="圖形填色" /><span style={{ backgroundColor: selectedShape.fill }} /></label></div>
                     <div className="color-row"><span className="field-label">輪廓</span><label className="color-picker"><input type="color" value={selectedShape.outline} onChange={(event) => updateShape({ outline: event.target.value })} aria-label="圖形輪廓顏色" /><span style={{ backgroundColor: selectedShape.outline }} /></label></div>
                     <RangeControl label="輪廓粗細" value={selectedShape.outlineWidth} min={0} max={16} suffix=" px" onChange={(value) => updateShape({ outlineWidth: value })} />
+                    {selectedShape.kind === "rectangle" && <RangeControl label="圓角半徑" value={selectedShape.cornerRadius} min={0} max={Math.max(1, Math.floor(Math.min(selectedShape.width, selectedShape.height) / 2))} suffix=" px" onChange={(value) => updateShape({ cornerRadius: value })} />}
+                    <RangeControl label="左右拉伸" value={Math.round(selectedShape.width)} min={60} max={canvasSize.width} suffix=" px" onChange={(value) => updateShape({ width: value, x: clamp(selectedShape.x, 0, canvasSize.width - value), cornerRadius: Math.min(selectedShape.cornerRadius, Math.min(value, selectedShape.height) / 2) })} />
+                    <RangeControl label="上下拉伸" value={Math.round(selectedShape.height)} min={60} max={canvasSize.height} suffix=" px" onChange={(value) => updateShape({ height: value, y: clamp(selectedShape.y, 0, canvasSize.height - value), cornerRadius: Math.min(selectedShape.cornerRadius, Math.min(selectedShape.width, value) / 2) })} />
                     <RangeControl label="圖形不透明度" value={selectedShape.opacity} min={1} max={100} suffix="%" onChange={(value) => updateShape({ opacity: value })} />
                     <label className="toggle-row"><span>陰影</span><input type="checkbox" checked={selectedShape.shadow} onChange={(event) => updateShape({ shadow: event.target.checked })} /></label>
                     {selectedShape.shadow && <RangeControl label="陰影柔化" value={selectedShape.shadowBlur} min={0} max={40} suffix=" px" onChange={(value) => updateShape({ shadowBlur: value })} />}
