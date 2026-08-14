@@ -56,6 +56,9 @@ type TextLayer = {
   fontWeight: number;
   color: string;
   opacity: number;
+  exposure: number;
+  contrast: number;
+  saturation: number;
   fontFamily: "Noto Sans TC" | "Noto Serif TC" | "Noto Sans JP" | "Noto Serif JP" | "Zen Kaku Gothic New" | "DM Sans" | "IBM Plex Mono";
   anchorShapeId?: string;
 };
@@ -71,6 +74,9 @@ type ShapeLayer = {
   rotation: number;
   fill: string;
   opacity: number;
+  exposure: number;
+  contrast: number;
+  saturation: number;
   outline: string;
   outlineWidth: number;
   shadow: boolean;
@@ -95,6 +101,7 @@ type Adjustments = {
   saturation: number;
   opacity: number;
 };
+type AdjustmentPatch = Partial<Adjustments>;
 
 const BRAND_RED = "#E4513B";
 const PAPER = "#FFFDF8";
@@ -125,6 +132,8 @@ const SHAPE_LABELS: Record<ShapeKind, string> = {
   triangle: "三角形",
   pentagon: "五邊形",
 };
+const makeAdjustmentFilter = (exposure: number, contrast: number, saturation: number) =>
+  `brightness(${100 + exposure}%) contrast(${100 + contrast}%) saturate(${saturation}%)`;
 
 const hexToRgba = (hex: string, opacity: number) => {
   const { r, g, b } = hexToRgb(hex);
@@ -298,21 +307,39 @@ export default function Home() {
     () => shapes.find((shape) => shape.id === selectedShapeId) ?? null,
     [shapes, selectedShapeId],
   );
+  const activeAdjustmentValues: Adjustments = selectedShape
+    ? { exposure: selectedShape.exposure ?? 0, contrast: selectedShape.contrast ?? 0, saturation: selectedShape.saturation ?? 100, opacity: selectedShape.opacity }
+    : selectedText
+      ? { exposure: selectedText.exposure ?? 0, contrast: selectedText.contrast ?? 0, saturation: selectedText.saturation ?? 100, opacity: selectedText.opacity }
+      : adjustments;
+  const activeAdjustmentTarget = selectedShape ? "目前圖形" : selectedText ? "目前文字卡" : "整個畫布";
 
   const canvasFilter = useMemo(
-    () =>
-      `brightness(${100 + adjustments.exposure}%) contrast(${100 + adjustments.contrast}%) saturate(${adjustments.saturation}%)`,
+    () => makeAdjustmentFilter(adjustments.exposure, adjustments.contrast, adjustments.saturation),
     [adjustments],
   );
 
   const syncLayers = useCallback((nextLayers: TextLayer[]) => {
-    layersRef.current = nextLayers;
-    setLayers(nextLayers);
+    const normalizedLayers = nextLayers.map((layer) => ({
+      ...layer,
+      exposure: layer.exposure ?? 0,
+      contrast: layer.contrast ?? 0,
+      saturation: layer.saturation ?? 100,
+    }));
+    layersRef.current = normalizedLayers;
+    setLayers(normalizedLayers);
   }, []);
 
   const syncShapes = useCallback((nextShapes: ShapeLayer[]) => {
-    shapesRef.current = nextShapes;
-    setShapes(nextShapes);
+    const normalizedShapes = nextShapes.map((shape) => ({
+      ...shape,
+      exposure: shape.exposure ?? 0,
+      contrast: shape.contrast ?? 0,
+      saturation: shape.saturation ?? 100,
+      rotation: shape.rotation ?? 0,
+    }));
+    shapesRef.current = normalizedShapes;
+    setShapes(normalizedShapes);
   }, []);
 
   const getCanvasPoint = useCallback((clientX: number, clientY: number) => {
@@ -638,6 +665,9 @@ export default function Home() {
       rotation: 0,
       fill: shapeFill,
       opacity: 100,
+      exposure: 0,
+      contrast: 0,
+      saturation: 100,
       outline: shapeOutline,
       outlineWidth: shapeOutlineWidth,
       shadow: shapeShadow,
@@ -675,6 +705,9 @@ export default function Home() {
         fontWeight: 700,
         color: GRAPHITE,
         opacity: 100,
+        exposure: 0,
+        contrast: 0,
+        saturation: 100,
         fontFamily: "Noto Sans TC",
       };
       const nextLayers = [...layersRef.current, nextLayer];
@@ -734,6 +767,9 @@ export default function Home() {
       fontWeight: 700,
       color: BRAND_RED,
       opacity: 100,
+      exposure: 0,
+      contrast: 0,
+      saturation: 100,
       fontFamily: "DM Sans",
       anchorShapeId: anchorShape?.id,
     };
@@ -780,6 +816,9 @@ export default function Home() {
         fontWeight: 700,
         color: GRAPHITE,
         opacity: 100,
+        exposure: 0,
+        contrast: 0,
+        saturation: 100,
         fontFamily: "Noto Sans TC" as TextLayer["fontFamily"],
       }),
       id: makeId("text"),
@@ -950,6 +989,23 @@ export default function Home() {
     toast.info("影像調整已重設");
   };
 
+  const updateActiveAdjustment = (patch: AdjustmentPatch) => {
+    if (selectedShapeId) {
+      updateShape(patch);
+      return;
+    }
+    if (selectedTextId) {
+      updateTextLayer(patch);
+      return;
+    }
+    setAdjustments((current) => ({ ...current, ...patch }));
+  };
+
+  const resetActiveAdjustment = () => {
+    updateActiveAdjustment({ exposure: 0, contrast: 0, saturation: 100, opacity: 100 });
+    toast.info(`${activeAdjustmentTarget}的影像調整已重設`);
+  };
+
   const handleImport = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
@@ -1002,6 +1058,7 @@ export default function Home() {
     shapesRef.current.forEach((shape) => {
       context.save();
       context.globalAlpha = (adjustments.opacity / 100) * (shape.opacity / 100);
+      context.filter = makeAdjustmentFilter(shape.exposure, shape.contrast, shape.saturation);
       if (shape.shadow) {
         context.shadowColor = hexToRgba(shape.shadowColor, shape.shadowOpacity / 100);
         context.shadowBlur = shape.shadowBlur;
@@ -1046,6 +1103,7 @@ export default function Home() {
     layersRef.current.forEach((layer) => {
       context.save();
       context.globalAlpha = (adjustments.opacity / 100) * (layer.opacity / 100);
+      context.filter = makeAdjustmentFilter(layer.exposure, layer.contrast, layer.saturation);
       context.fillStyle = layer.color;
       context.font = `${layer.fontWeight} ${layer.fontSize}px "${layer.fontFamily}", sans-serif`;
       context.textBaseline = "top";
@@ -1127,7 +1185,7 @@ export default function Home() {
       centerX,
       centerY,
       startAngle: Math.atan2(point.y - centerY, point.x - centerX),
-      startRotation: shape.rotation,
+      startRotation: shape.rotation ?? 0,
     };
   };
 
@@ -1269,9 +1327,10 @@ export default function Home() {
                   transform: `scale(${zoom / 100})`,
                 }}
               >
-                <div className="canvas-content" style={{ filter: canvasFilter, opacity: adjustments.opacity / 100 }}>
+                <div className="canvas-content">
                   <canvas
                     ref={canvasRef}
+                    style={{ filter: canvasFilter, opacity: adjustments.opacity / 100 }}
                     onPointerDown={handleCanvasPointerDown}
                     onPointerMove={handleCanvasPointerMove}
                     onPointerUp={finishStroke}
@@ -1292,7 +1351,10 @@ export default function Home() {
                         height: `${shape.height}px`,
                         transform: `rotate(${shape.rotation}deg)`,
                         opacity: shape.opacity / 100,
-                        filter: shape.shadow ? `drop-shadow(${shape.shadowX}px ${shape.shadowY}px ${shape.shadowBlur}px ${hexToRgba(shape.shadowColor, shape.shadowOpacity / 100)})` : "none",
+                        filter: [
+                          makeAdjustmentFilter(shape.exposure, shape.contrast, shape.saturation),
+                          shape.shadow ? `drop-shadow(${shape.shadowX}px ${shape.shadowY}px ${shape.shadowBlur}px ${hexToRgba(shape.shadowColor, shape.shadowOpacity / 100)})` : "",
+                        ].filter(Boolean).join(" ") || "none",
                       }}
                       onPointerDown={(event) => handleShapePointerDown(event, shape)}
                       role="button"
@@ -1315,9 +1377,9 @@ export default function Home() {
                           <rect className="shape-resize-handle shape-resize-handle-corner shape-resize-handle-top-right" x="94" y="-6" width="12" height="12" onPointerDown={(event) => handleShapeResizePointerDown(event, shape, "top-right")} />
                           <rect className="shape-resize-handle shape-resize-handle-corner shape-resize-handle-bottom-left" x="-6" y="94" width="12" height="12" onPointerDown={(event) => handleShapeResizePointerDown(event, shape, "bottom-left")} />
                           <rect className="shape-resize-handle shape-resize-handle-corner shape-resize-handle-bottom-right" x="94" y="94" width="12" height="12" onPointerDown={(event) => handleShapeResizePointerDown(event, shape, "bottom-right")} />
-                          <line className="shape-rotation-stem" x1="50" y1="0" x2="50" y2="-16" />
-                          <circle className="shape-rotation-handle" cx="50" cy="-24" r="7" onPointerDown={(event) => handleShapeRotatePointerDown(event, shape)} />
-                          <text className="shape-rotation-label" x="50" y="-34" textAnchor="middle">{Math.round(shape.rotation)}°</text>
+                          <line className="shape-rotation-stem" x1="50" y1="0" x2="50" y2="16" />
+                          <circle className="shape-rotation-handle" cx="50" cy="24" r="7" onPointerDown={(event) => handleShapeRotatePointerDown(event, shape)} />
+                          <text className="shape-rotation-label" x="50" y="38" textAnchor="middle">{Math.round(shape.rotation)}°</text>
                         </>
                       )}
                     </svg>
@@ -1334,6 +1396,7 @@ export default function Home() {
                         fontWeight: layer.fontWeight,
                         fontFamily: `"${layer.fontFamily}", sans-serif`,
                         opacity: layer.opacity / 100,
+                        filter: makeAdjustmentFilter(layer.exposure, layer.contrast, layer.saturation),
                       }}
                       onPointerDown={(event) => handleTextPointerDown(event, layer)}
                       onDoubleClick={() => setSelectedTextId(layer.id)}
@@ -1494,11 +1557,12 @@ export default function Home() {
 
             <div className="inspector-section">
               <SectionTitle eyebrow="IMAGE ADJUSTMENTS" title="影像調整" action={<SlidersHorizontal size={15} className="section-icon" />} />
-              <RangeControl label="曝光" value={adjustments.exposure} min={-60} max={60} suffix="%" onChange={(value) => setAdjustments((current) => ({ ...current, exposure: value }))} />
-              <RangeControl label="對比" value={adjustments.contrast} min={-60} max={60} suffix="%" onChange={(value) => setAdjustments((current) => ({ ...current, contrast: value }))} />
-              <RangeControl label="飽和度" value={adjustments.saturation} min={0} max={200} suffix="%" onChange={(value) => setAdjustments((current) => ({ ...current, saturation: value }))} />
-              <RangeControl label="不透明度" value={adjustments.opacity} min={1} max={100} suffix="%" onChange={(value) => setAdjustments((current) => ({ ...current, opacity: value }))} />
-              <button type="button" className="link-button" onClick={resetAdjustments}><RotateCcw size={13} /> 重設所有調整</button>
+              <div className="adjustment-target"><span>調整對象</span><strong>{activeAdjustmentTarget}</strong></div>
+              <RangeControl label="曝光" value={activeAdjustmentValues.exposure} min={-60} max={60} suffix="%" onChange={(value) => updateActiveAdjustment({ exposure: value })} />
+              <RangeControl label="對比" value={activeAdjustmentValues.contrast} min={-60} max={60} suffix="%" onChange={(value) => updateActiveAdjustment({ contrast: value })} />
+              <RangeControl label="飽和度" value={activeAdjustmentValues.saturation} min={0} max={200} suffix="%" onChange={(value) => updateActiveAdjustment({ saturation: value })} />
+              <RangeControl label="不透明度" value={activeAdjustmentValues.opacity} min={1} max={100} suffix="%" onChange={(value) => updateActiveAdjustment({ opacity: value })} />
+              <button type="button" className="link-button" onClick={resetActiveAdjustment}><RotateCcw size={13} /> 重設目前調整</button>
             </div>
 
             <div className="inspector-divider" />
