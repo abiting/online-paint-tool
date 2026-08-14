@@ -315,6 +315,7 @@ export default function Home() {
   const imagesRef = useRef<ImageLayer[]>([]);
 
   const [canvasSize, setCanvasSize] = useState({ width: 960, height: 640 });
+  const [scaleImagesWithCanvas, setScaleImagesWithCanvas] = useState(false);
   const [tool, setTool] = useState<Tool>("brush");
   const [brushKind, setBrushKind] = useState<BrushKind>("oil");
   const [brushColor, setBrushColor] = useState(BRAND_RED);
@@ -1089,13 +1090,16 @@ export default function Home() {
         shadowY: shape.shadowY * scaleY,
       })),
     );
+    const imageScale = scaleImagesWithCanvas ? Math.min(scaleX, scaleY) : 1;
+    const imageOffsetX = scaleImagesWithCanvas ? (nextWidth - canvasSize.width * imageScale) / 2 : 0;
+    const imageOffsetY = scaleImagesWithCanvas ? (nextHeight - canvasSize.height * imageScale) / 2 : 0;
     syncImages(
       imagesRef.current.map((image) => ({
         ...image,
-        x: image.x * scaleX,
-        y: image.y * scaleY,
-        width: image.width * scaleX,
-        height: image.height * scaleY,
+        x: scaleImagesWithCanvas ? image.x * imageScale + imageOffsetX : image.x,
+        y: scaleImagesWithCanvas ? image.y * imageScale + imageOffsetY : image.y,
+        width: scaleImagesWithCanvas ? image.width * imageScale : image.width,
+        height: scaleImagesWithCanvas ? image.height * imageScale : image.height,
       })),
     );
     setCanvasSize({ width: nextWidth, height: nextHeight });
@@ -1903,6 +1907,10 @@ export default function Home() {
                 <label><span>高度</span><input id="canvas-height" type="number" min={180} max={1800} defaultValue={canvasSize.height} key={`height-${canvasSize.height}`} /></label>
               </div>
               <button type="button" className="secondary-button full-width" onClick={resizeCanvas}>套用解析度</button>
+              <label className="toggle-row resolution-scale-toggle">
+                <span>等比例縮放圖片</span>
+                <input type="checkbox" checked={scaleImagesWithCanvas} onChange={(event) => setScaleImagesWithCanvas(event.target.checked)} />
+              </label>
               <div className="resolution-preset-row">
                 <button type="button" className="resolution-preset" onClick={() => applyResolutionPreset(800, 800)}>800 × 800</button>
                 <button type="button" className="resolution-preset" onClick={() => applyResolutionPreset(1200, 800)}>1200 × 800</button>
