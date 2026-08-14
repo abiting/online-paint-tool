@@ -169,7 +169,7 @@ kbd { min-width: 19px; padding: 3px 4px; text-align: center; color: #aab1aa; bac
 .ghost-button { display: grid; place-items: center; width: 28px; height: 28px; color: #929b96; background: transparent; border-radius: 5px; }
 .ghost-button:hover { color: #f3ede0; background: rgba(245,240,229,0.08); }
 .zoom-value { min-width: 39px; text-align: center; color: #c7c7bd; font: 11px "IBM Plex Mono", monospace; }
-.canvas-viewport { position: relative; flex: 1; min-height: 0; display: block; padding: 0; overflow: hidden; cursor: grab; background-color: rgba(48, 56, 57, 0.7); background-image: linear-gradient(rgba(227,213,187,0.035) 1px, transparent 1px), linear-gradient(90deg, rgba(227,213,187,0.035) 1px, transparent 1px); background-size: 20px 20px; }
+.canvas-viewport { position: relative; flex: 1; min-height: 0; display: block; padding: 0; overflow: hidden; cursor: grab; touch-action: none; background-color: rgba(48, 56, 57, 0.7); background-image: linear-gradient(rgba(227,213,187,0.035) 1px, transparent 1px), linear-gradient(90deg, rgba(227,213,187,0.035) 1px, transparent 1px); background-size: 20px 20px; }
 .canvas-viewport.is-panning { cursor: grabbing; }
 .canvas-viewport::before, .canvas-viewport::after { content: ""; position: absolute; width: 28px; height: 28px; border-color: rgba(227,213,187,0.25); pointer-events: none; }
 .canvas-viewport::before { top: 18px; left: 18px; border-top: 1px solid; border-left: 1px solid; }
@@ -330,6 +330,7 @@ input[type="range"]::-moz-range-thumb { width: 11px; height: 11px; border: 2px s
 .image-rotation-handle { position: absolute; z-index: 3; left: 50%; top: 24px; width: 14px; height: 14px; margin: -7px; border: 2px solid #e4513b; border-radius: 50%; background: #fff8ec; cursor: grab; }
 .image-rotation-handle:active { cursor: grabbing; }
 .image-rotation-label { position: absolute; z-index: 3; left: 50%; top: 40px; transform: translateX(-50%); padding: 2px 4px; color: #1f2528; background: #fff8ec; border: 1px solid rgba(228,81,59,0.7); font: 700 9px "DM Sans", sans-serif; pointer-events: none; white-space: nowrap; }
+.view-action-button { width: auto; min-width: 28px; gap: 4px; padding: 0 7px; font-size: 9px; }
 .adjustment-target { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: -4px 0 14px; padding: 8px 10px; border: 1px solid rgba(227, 213, 187, 0.16); background: rgba(255, 253, 248, 0.045); color: rgba(245, 240, 230, 0.58); font-size: 11px; }
 .adjustment-target strong { color: #fff8ec; font-size: 11px; font-weight: 650; }
 .image-layer-meta { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 4px 0 12px; color: #838e88; font-size: 10px; }
@@ -365,6 +366,11 @@ input[type="range"]::-moz-range-thumb { width: 11px; height: 11px; border: 2px s
   .top-actions .primary-button { width: 34px; min-height: 32px; padding: 0; }
   .top-actions .primary-button .top-action-label { display: none; }
   .top-actions .top-divider { margin: 0 1px; }
+  .view-action-button { min-width: 32px; height: 32px; padding: 0 5px; }
+  .view-action-button span { display: none; }
+  .image-resize-handle { width: 22px; height: 22px; margin: -11px; }
+  .image-rotation-handle { width: 22px; height: 22px; margin: -11px; }
+  .image-layer, .image-resize-handle, .image-rotation-handle { touch-action: none; }
   .shape-choice-grid { gap: 5px; }
   .align-button-row .secondary-button { padding-left: 5px; padding-right: 5px; }
 }

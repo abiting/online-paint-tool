@@ -1467,6 +1467,7 @@ export default function Home() {
   };
 
   const handleViewportPointerDown = (event: ReactPointerEvent<HTMLDivElement>) => {
+    event.preventDefault();
     const target = event.target as HTMLElement;
     if (event.button !== 0 || target.closest(".image-layer, .shape-layer, .text-layer")) return;
     event.currentTarget.setPointerCapture(event.pointerId);
@@ -1487,6 +1488,21 @@ export default function Home() {
   };
 
   const currentZoomLabel = `${zoom}%`;
+  const fitCanvasToViewport = () => {
+    const viewport = viewportRef.current;
+    if (!viewport) return;
+    const bounds = viewport.getBoundingClientRect();
+    const availableWidth = Math.max(120, bounds.width - 32);
+    const availableHeight = Math.max(120, bounds.height - 32);
+    const nextZoom = clamp(Math.floor(Math.min(availableWidth / canvasSize.width, availableHeight / canvasSize.height) * 100), 25, 150);
+    const displayWidth = canvasSize.width * (nextZoom / 100);
+    const displayHeight = canvasSize.height * (nextZoom / 100);
+    setZoom(nextZoom);
+    setPan({
+      x: Math.max(16, (bounds.width - displayWidth) / 2),
+      y: Math.max(16, (bounds.height - displayHeight) / 2),
+    });
+  };
   const resetCanvasView = () => {
     const viewport = viewportRef.current;
     const nextZoom = 68;
@@ -1589,8 +1605,13 @@ export default function Home() {
                 <Plus size={14} />
               </button>
               <span className="top-divider" />
-              <button type="button" className="ghost-button" onClick={resetCanvasView} title="重設視角">
+              <button type="button" className="ghost-button view-action-button" onClick={fitCanvasToViewport} title="符合視窗">
                 <Maximize2 size={15} />
+                <span>符合</span>
+              </button>
+              <button type="button" className="ghost-button view-action-button" onClick={resetCanvasView} title="重設視角">
+                <RotateCcw size={14} />
+                <span>重設</span>
               </button>
             </div>
           </div>
