@@ -663,7 +663,6 @@ export default function Home() {
       return;
     }
     if (tool === "shape") {
-      addShape(shapeKind);
       return;
     }
     if (tool === "text") {
@@ -848,6 +847,10 @@ export default function Home() {
     const heightInput = document.getElementById("canvas-height") as HTMLInputElement | null;
     const nextWidth = clamp(Number(widthInput?.value) || canvasSize.width, 240, 2400);
     const nextHeight = clamp(Number(heightInput?.value) || canvasSize.height, 180, 1800);
+    const previousDisplayWidth = canvasSize.width * (zoom / 100);
+    const previousDisplayHeight = canvasSize.height * (zoom / 100);
+    const nextDisplayWidth = nextWidth * (zoom / 100);
+    const nextDisplayHeight = nextHeight * (zoom / 100);
     const oldCanvas = canvasRef.current;
     if (!oldCanvas) return;
     const temp = document.createElement("canvas");
@@ -885,6 +888,10 @@ export default function Home() {
       })),
     );
     setCanvasSize({ width: nextWidth, height: nextHeight });
+    setPan((currentPan) => ({
+      x: currentPan.x + (nextDisplayWidth - previousDisplayWidth) / 2,
+      y: currentPan.y + (nextDisplayHeight - previousDisplayHeight) / 2,
+    }));
     setFileMeta((meta) => ({ ...meta, size: `${nextWidth} × ${nextHeight}` }));
     captureHistory();
     toast.success(`畫布已調整為 ${nextWidth} × ${nextHeight}`);
@@ -954,6 +961,14 @@ export default function Home() {
       const ratio = Math.min(1, maxDimension / Math.max(image.naturalWidth, image.naturalHeight));
       const width = Math.max(240, Math.round(image.naturalWidth * ratio));
       const height = Math.max(180, Math.round(image.naturalHeight * ratio));
+      const previousDisplayWidth = canvasSize.width * (zoom / 100);
+      const previousDisplayHeight = canvasSize.height * (zoom / 100);
+      const nextDisplayWidth = width * (zoom / 100);
+      const nextDisplayHeight = height * (zoom / 100);
+      setPan((currentPan) => ({
+        x: currentPan.x + (nextDisplayWidth - previousDisplayWidth) / 2,
+        y: currentPan.y + (nextDisplayHeight - previousDisplayHeight) / 2,
+      }));
       canvas.width = width;
       canvas.height = height;
       canvas.getContext("2d")?.drawImage(image, 0, 0, width, height);
