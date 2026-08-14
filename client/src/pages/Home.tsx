@@ -349,6 +349,8 @@ export default function Home() {
   const panDragRef = useRef<{ startX: number; startY: number; originX: number; originY: number } | null>(null);
   const touchPointsRef = useRef(new Map<number, { x: number; y: number }>());
   const pinchPanRef = useRef<{ startDistance: number; startCenterX: number; startCenterY: number; startZoom: number; originX: number; originY: number } | null>(null);
+  const imageUpdateFrameRef = useRef<number | null>(null);
+  const pendingImagesRef = useRef<ImageLayer[] | null>(null);
   const viewportRef = useRef<HTMLDivElement>(null);
   const hasInitializedPanRef = useRef(false);
 
@@ -412,6 +414,27 @@ export default function Home() {
     imagesRef.current = normalizedImages;
     setImages(normalizedImages);
   }, []);
+
+  const scheduleImages = useCallback((nextImages: ImageLayer[]) => {
+    pendingImagesRef.current = nextImages;
+    if (imageUpdateFrameRef.current !== null) return;
+    imageUpdateFrameRef.current = window.requestAnimationFrame(() => {
+      imageUpdateFrameRef.current = null;
+      const pendingImages = pendingImagesRef.current;
+      pendingImagesRef.current = null;
+      if (pendingImages) syncImages(pendingImages);
+    });
+  }, [syncImages]);
+
+  const flushImageUpdates = useCallback(() => {
+    if (imageUpdateFrameRef.current !== null) {
+      window.cancelAnimationFrame(imageUpdateFrameRef.current);
+      imageUpdateFrameRef.current = null;
+    }
+    const pendingImages = pendingImagesRef.current;
+    pendingImagesRef.current = null;
+    if (pendingImages) syncImages(pendingImages);
+  }, [syncImages]);
 
   const getCanvasPoint = useCallback((clientX: number, clientY: number) => {
     const canvas = canvasRef.current;
@@ -519,7 +542,7 @@ export default function Home() {
         const currentAngle = Math.atan2(point.y - imageRotate.centerY, point.x - imageRotate.centerX);
         let nextRotation = imageRotate.startRotation + ((currentAngle - imageRotate.startAngle) * 180) / Math.PI;
         if (event.shiftKey) nextRotation = Math.round(nextRotation / 15) * 15;
-        syncImages(imagesRef.current.map((image) => image.id === imageRotate.id ? { ...image, rotation: nextRotation } : image));
+        scheduleImages(imagesRef.current.map((image) => image.id === imageRotate.id ? { ...image, rotation: nextRotation } : image));
         return;
       }
       if (imageResize) {
@@ -560,7 +583,7 @@ export default function Home() {
             y: nextY,
           };
         });
-        syncImages(nextImages);
+        scheduleImages(nextImages);
         return;
       }
       if (rotate) {
@@ -627,7 +650,7 @@ export default function Home() {
             ? { ...image, x: point.x - imageDrag.offsetX, y: point.y - imageDrag.offsetY }
             : image,
         );
-        syncImages(nextImages);
+        scheduleImages(nextImages);
       }
     };
     const handleUp = () => {
@@ -639,6 +662,7 @@ export default function Home() {
       imageDragRef.current = null;
       imageResizeRef.current = null;
       imageRotateRef.current = null;
+      flushImageUpdates();
       captureHistory();
     };
     window.addEventListener("pointermove", handleMove);
@@ -647,7 +671,7 @@ export default function Home() {
       window.removeEventListener("pointermove", handleMove);
       window.removeEventListener("pointerup", handleUp);
     };
-  }, [canvasSize.height, canvasSize.width, captureHistory, getCanvasPoint, syncImages, syncLayers, syncShapes]);
+  }, [canvasSize.height, canvasSize.width, captureHistory, flushImageUpdates, getCanvasPoint, scheduleImages, syncLayers, syncShapes]);
 
   useEffect(() => {
     const handleShortcut = (event: KeyboardEvent) => {
