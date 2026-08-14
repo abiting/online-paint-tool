@@ -1559,10 +1559,6 @@ export default function Home() {
           <div className="tool-group rail-secondary">
             <ToolButton label="匯入影像" icon={<ImagePlus size={18} />} onClick={() => fileInputRef.current?.click()} />
           </div>
-          <div className="rail-bottom">
-            <div className="rail-caption">快捷鍵</div>
-            <kbd>B</kbd><kbd>T</kbd><kbd>F</kbd>
-          </div>
         </aside>
 
         <section className="workspace" aria-label="畫布工作區">
