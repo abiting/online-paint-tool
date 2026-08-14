@@ -169,7 +169,8 @@ kbd { min-width: 19px; padding: 3px 4px; text-align: center; color: #aab1aa; bac
 .ghost-button { display: grid; place-items: center; width: 28px; height: 28px; color: #929b96; background: transparent; border-radius: 5px; }
 .ghost-button:hover { color: #f3ede0; background: rgba(245,240,229,0.08); }
 .zoom-value { min-width: 39px; text-align: center; color: #c7c7bd; font: 11px "IBM Plex Mono", monospace; }
-.canvas-viewport { position: relative; flex: 1; min-height: 0; display: flex; align-items: center; justify-content: center; padding: 24px 18px 30px; overflow: auto; background-color: rgba(48, 56, 57, 0.7); background-image: linear-gradient(rgba(227,213,187,0.035) 1px, transparent 1px), linear-gradient(90deg, rgba(227,213,187,0.035) 1px, transparent 1px); background-size: 20px 20px; }
+.canvas-viewport { position: relative; flex: 1; min-height: 0; display: flex; align-items: center; justify-content: center; padding: 24px 18px 30px; overflow: auto; cursor: grab; background-color: rgba(48, 56, 57, 0.7); background-image: linear-gradient(rgba(227,213,187,0.035) 1px, transparent 1px), linear-gradient(90deg, rgba(227,213,187,0.035) 1px, transparent 1px); background-size: 20px 20px; }
+.canvas-viewport.is-panning { cursor: grabbing; }
 .canvas-viewport::before, .canvas-viewport::after { content: ""; position: absolute; width: 28px; height: 28px; border-color: rgba(227,213,187,0.25); pointer-events: none; }
 .canvas-viewport::before { top: 18px; left: 18px; border-top: 1px solid; border-left: 1px solid; }
 .canvas-viewport::after { right: 18px; bottom: 22px; border-right: 1px solid; border-bottom: 1px solid; }

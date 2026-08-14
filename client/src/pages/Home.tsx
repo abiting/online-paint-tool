@@ -63,6 +63,7 @@ type ShapeLayer = {
   y: number;
   width: number;
   height: number;
+  cornerRadius: number;
   fill: string;
   opacity: number;
   outline: string;
@@ -232,6 +233,8 @@ export default function Home() {
   const [brushSize, setBrushSize] = useState(18);
   const [brushOpacity, setBrushOpacity] = useState(100);
   const [zoom, setZoom] = useState(68);
+  const [pan, setPan] = useState({ x: 0, y: 0 });
+  const [isPanning, setIsPanning] = useState(false);
   const [isDrawing, setIsDrawing] = useState(false);
   const [hasArtwork, setHasArtwork] = useState(false);
   const [layers, setLayers] = useState<TextLayer[]>([]);
@@ -252,6 +255,7 @@ export default function Home() {
   const [fileMeta, setFileMeta] = useState({ name: "未命名畫布", size: "—" });
   const [documentNameDraft, setDocumentNameDraft] = useState("未命名畫布");
   const clipboardTextRef = useRef<TextLayer | null>(null);
+  const panDragRef = useRef<{ startX: number; startY: number; originX: number; originY: number } | null>(null);
 
   const selectedText = useMemo(
     () => layers.find((layer) => layer.id === selectedTextId) ?? null,
@@ -544,6 +548,7 @@ export default function Home() {
       y: (canvasSize.height - height) / 2,
       width,
       height,
+      cornerRadius: kind === "rectangle" ? 12 : 0,
       fill: shapeFill,
       opacity: 100,
       outline: shapeOutline,
@@ -969,6 +974,25 @@ export default function Home() {
     };
   };
 
+  const handleViewportPointerDown = (event: ReactPointerEvent<HTMLDivElement>) => {
+    if (event.button !== 0 || event.target !== event.currentTarget) return;
+    event.currentTarget.setPointerCapture(event.pointerId);
+    panDragRef.current = { startX: event.clientX, startY: event.clientY, originX: pan.x, originY: pan.y };
+    setIsPanning(true);
+  };
+
+  const handleViewportPointerMove = (event: ReactPointerEvent<HTMLDivElement>) => {
+    const drag = panDragRef.current;
+    if (!drag) return;
+    setPan({ x: drag.originX + event.clientX - drag.startX, y: drag.originY + event.clientY - drag.startY });
+  };
+
+  const finishPan = () => {
+    if (!panDragRef.current) return;
+    panDragRef.current = null;
+    setIsPanning(false);
+  };
+
   const currentZoomLabel = `${zoom}%`;
 
   return (
@@ -1057,13 +1081,19 @@ export default function Home() {
                 <Plus size={14} />
               </button>
               <span className="top-divider" />
-              <button type="button" className="ghost-button" onClick={() => setZoom(68)} title="重設縮放">
+              <button type="button" className="ghost-button" onClick={() => { setZoom(68); setPan({ x: 0, y: 0 }); }} title="重設視角">
                 <Maximize2 size={15} />
               </button>
             </div>
           </div>
 
-          <div className="canvas-viewport">
+          <div
+            className={`canvas-viewport ${isPanning ? "is-panning" : ""}`}
+            onPointerDown={handleViewportPointerDown}
+            onPointerMove={handleViewportPointerMove}
+            onPointerUp={finishPan}
+            onPointerCancel={finishPan}
+          >
             <div className="stage-notes stage-note-top">PAPER / 01</div>
             <div className="stage-notes stage-note-bottom">{canvasSize.width} × {canvasSize.height}</div>
             <div
@@ -1071,6 +1101,7 @@ export default function Home() {
               style={{
                 width: `${canvasSize.width * (zoom / 100)}px`,
                 height: `${canvasSize.height * (zoom / 100)}px`,
+                transform: `translate(${pan.x}px, ${pan.y}px)`,
               }}
             >
               <div
