@@ -145,7 +145,7 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 .primary-button:hover { background: #ef674f; }
 .full-width { width: 100%; }
 
-.studio-layout { min-height: calc(100vh - 74px); display: grid; grid-template-columns: 82px minmax(0, 1fr) 320px; }
+.studio-layout { min-height: calc(100vh - 74px); display: grid; grid-template-columns: minmax(0, 1fr) 320px; }
 .tool-rail { display: flex; flex-direction: column; align-items: center; padding: 22px 10px 18px; background: rgba(24, 32, 34, 0.82); border-right: 1px solid rgba(227,213,187,0.13); }
 .rail-label { margin-bottom: 16px; writing-mode: vertical-rl; transform: rotate(180deg); color: #707b77; }
 .tool-group { display: grid; gap: 7px; width: 100%; }
@@ -267,10 +267,8 @@ input[type="range"]::-moz-range-thumb { width: 11px; height: 11px; border: 2px s
   .brand-lockup { min-width: 0; }
   .document-meta { display: none; }
   .top-actions .secondary-button { display: none; }
-  .studio-layout { min-height: calc(100vh - 64px); grid-template-columns: 64px minmax(0, 1fr); }
-  .tool-rail { padding-left: 6px; padding-right: 6px; }
-  .tool-button span { font-size: 8px; }
-  .inspector { position: fixed; z-index: 10; right: 0; bottom: 0; left: 64px; height: min(43vh, 390px); border-top: 1px solid rgba(227,213,187,0.16); box-shadow: 0 -18px 38px rgba(8,12,13,0.25); }
+  .studio-layout { min-height: calc(100vh - 64px); grid-template-columns: minmax(0, 1fr); }
+  .inspector { position: fixed; z-index: 10; right: 0; bottom: 0; left: 0; height: min(43vh, 390px); border-top: 1px solid rgba(227,213,187,0.16); box-shadow: 0 -18px 38px rgba(8,12,13,0.25); }
   .inspector-scroll { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: 24px; row-gap: 0; padding: 20px 22px 28px; }
   .inspector-scroll > .section-title { grid-column: 1 / -1; }
   .inspector-scroll > .inspector-divider { display: none; }
@@ -285,13 +283,11 @@ input[type="range"]::-moz-range-thumb { width: 11px; height: 11px; border: 2px s
   .top-actions { gap: 2px; }
   .top-actions .icon-button:nth-child(2), .top-actions .top-divider { display: none; }
   .primary-button { padding: 0 9px; font-size: 10px; }
-  .studio-layout { grid-template-columns: 58px minmax(0, 1fr); }
-  .tool-rail { padding-top: 15px; }
-  .rail-label, .rail-bottom { display: none; }
+  .studio-layout { grid-template-columns: minmax(0, 1fr); }
   .canvas-viewport { padding: 44px 14px 64px; }
   .workspace-toolbar { padding: 0 12px; }
   .tool-hint { display: none; }
-  .inspector { left: 58px; height: 47vh; }
+  .inspector { left: 0; height: 47vh; }
   .inspector-scroll { display: block; padding: 18px 16px 24px; }
   .canvas-viewport { padding-bottom: calc(47vh + 18px); }
 }

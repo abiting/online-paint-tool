@@ -1241,7 +1241,7 @@ export default function Home() {
     event.target.value = "";
   };
 
-  const exportImage = async () => {
+  const exportImage = async (format: "png" | "jpeg" = "png") => {
     const source = canvasRef.current;
     if (!source) return;
     const output = document.createElement("canvas");
@@ -1327,10 +1327,11 @@ export default function Home() {
       context.restore();
     });
     const link = document.createElement("a");
-    link.download = `${fileMeta.name.replace(/\.[^.]+$/, "") || "paper-studio"}.png`;
-    link.href = output.toDataURL("image/png");
+    const extension = format === "jpeg" ? "jpg" : "png";
+    link.download = `${fileMeta.name.replace(/\.[^.]+$/, "") || "coai"}.${extension}`;
+    link.href = output.toDataURL(format === "jpeg" ? "image/jpeg" : "image/png", format === "jpeg" ? 0.92 : undefined);
     link.click();
-    toast.success("PNG 已匯出");
+    toast.success(`${extension.toUpperCase()} 已匯出`);
   };
 
   const saveDocumentName = (value: string) => {
@@ -1523,7 +1524,7 @@ export default function Home() {
       <header className="topbar">
         <div className="brand-lockup">
           <div className="brand-copy">
-            <span className="brand-name">CoAi Paint</span>
+            <span className="brand-name">CoAi</span>
           </div>
         </div>
 
@@ -1557,8 +1558,11 @@ export default function Home() {
           <button type="button" className="secondary-button" onClick={() => fileInputRef.current?.click()}>
             <Upload size={15} /> 匯入影像
           </button>
-          <button type="button" className="primary-button" onClick={exportImage}>
+          <button type="button" className="primary-button" onClick={() => exportImage("png")}>
             <Download size={15} /> 匯出 PNG
+          </button>
+          <button type="button" className="secondary-button" onClick={() => exportImage("jpeg")}>
+            <Download size={15} /> 匯出 JPG
           </button>
           <button type="button" className="icon-button" title="更多" aria-label="更多">
             <MoreHorizontal size={18} />
@@ -1568,26 +1572,11 @@ export default function Home() {
       </header>
 
       <div className="studio-layout">
-        <aside className="tool-rail" aria-label="繪圖工具">
-          <div className="rail-label">TOOLS</div>
-          <div className="tool-group">
-            <ToolButton label="移動" active={tool === "move"} icon={<Move size={18} />} onClick={() => setTool("move")} />
-            <ToolButton label="油線筆" active={tool === "brush"} icon={<Pencil size={18} />} onClick={() => { setBrushKind("oil"); setTool("brush"); }} />
-            <ToolButton label="文字工具" active={tool === "text"} icon={<Type size={18} />} onClick={() => setTool("text")} />
-            <ToolButton label="圖形工具" active={tool === "shape"} icon={<Shapes size={18} />} onClick={() => setTool("shape")} />
-          </div>
-          <div className="rail-rule" />
-          <div className="tool-group rail-secondary">
-            <ToolButton label="匯入影像" icon={<ImagePlus size={18} />} onClick={() => fileInputRef.current?.click()} />
-          </div>
-        </aside>
-
         <section className="workspace" aria-label="畫布工作區">
           <div className="workspace-toolbar">
             <div className="active-tool-name">
               <span className="active-tool-marker" />
-              <span>{tool === "move" ? "移動" : tool === "brush" ? "筆刷" : tool === "eraser" ? "橡皮擦" : tool === "fill" ? "填色桶" : tool === "text" ? "文字工具" : tool === "shape" ? "圖形工具" : "移除瑕疵"}</span>
-              <span className="tool-hint">{tool === "move" ? "拖曳畫布上的物件" : tool === "text" ? "點擊畫布加入文字" : tool === "shape" ? "從右側選擇形狀" : tool === "retouch" ? "在瑕疵上塗抹修補" : "在畫布上落筆"}</span>
+              <span>解析度調整</span>
             </div>
             <div className="workspace-actions">
               <button type="button" className="ghost-button" onClick={() => setZoom((value) => clamp(value - 10, 25, 150))}>
@@ -1753,17 +1742,6 @@ export default function Home() {
             </div>
           </div>
 
-          <div className="workspace-footer">
-            <div className="brush-context">
-              <span className="context-label">{brushKind === "pencil" ? "鉛筆" : brushKind === "watercolor" ? "水彩" : "油線筆"}</span>
-              <span className="brush-preview" style={{ width: `${clamp(brushSize, 8, 28)}px`, height: `${clamp(brushSize, 8, 28)}px`, backgroundColor: brushColor }} />
-              <span className="mono-value">{brushSize}px</span>
-              <span className="context-separator" />
-              <span className="color-chip" style={{ backgroundColor: brushColor }} />
-              <span className="mono-value">{brushColor.toUpperCase()}</span>
-            </div>
-            <div className="footer-note"><Check size={14} /> 所有操作都在瀏覽器完成</div>
-          </div>
         </section>
 
         <aside className="inspector" aria-label="屬性與調整">
@@ -1771,13 +1749,14 @@ export default function Home() {
             <div className="resolution-focus-card">
               <span className="eyebrow">RESOLUTION WORKFLOW</span>
               <strong>{canvasSize.width} × {canvasSize.height}</strong>
-              <p>先設定畫布尺寸，再匯入影像、加上文字或使用油線筆微調。</p>
             </div>
-            <SectionTitle
-              eyebrow="TOOL SETTINGS"
-              title={toolPanelTitle}
-              action={<button type="button" className="icon-button subtle" title="面板選項" aria-label="面板選項"><MoreHorizontal size={17} /></button>}
-            />
+            {/*
+              <div className="legacy-tool-settings">
+                <SectionTitle
+                  eyebrow="TOOL SETTINGS"
+                  title={toolPanelTitle}
+                  action={<button type="button" className="icon-button subtle" title="面板選項" aria-label="面板選項"><MoreHorizontal size={17} /></button>}
+                />
 
             {(tool === "brush" || tool === "eraser") && !selectedText && !selectedShape && !selectedImage && (
               <div className="inspector-section">
@@ -1917,6 +1896,9 @@ export default function Home() {
                 )}
               </div>
             )}
+              </div>
+            )}
+            */}
 
             <div className="inspector-divider" />
 
@@ -1930,8 +1912,8 @@ export default function Home() {
               <button type="button" className="secondary-button full-width" onClick={resizeCanvas}>套用解析度</button>
               <div className="resolution-preset-row">
                 <button type="button" className="resolution-preset" onClick={() => applyResolutionPreset(800, 800)}>800 × 800</button>
-                <button type="button" className="resolution-preset" onClick={() => applyResolutionPreset(1200, 1200)}>1200 × 1200</button>
-                <button type="button" className="resolution-preset" onClick={() => applyResolutionPreset(1600, 1600)}>1600 × 1600</button>
+                <button type="button" className="resolution-preset" onClick={() => applyResolutionPreset(1200, 800)}>1200 × 800</button>
+                <button type="button" className="resolution-preset" onClick={() => applyResolutionPreset(1280, 720)}>1280 × 720</button>
               </div>
               <div className="canvas-meta"><span>比例</span><span className="mono-value">{(canvasSize.width / canvasSize.height).toFixed(2)} : 1</span></div>
             </div>
