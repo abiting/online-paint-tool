@@ -1,0 +1,54 @@
+name: Deploy client to GitHub Pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      # 只建置前端(client),不需要 server
+      # 若 vite.config.ts 裡 build.outDir 已經固定,可以拿掉 --base 以外的參數
+      - run: pnpm exec vite build --base=/${{ github.event.repository.name }}/
+
+      # 讓 GitHub Pages 找不到子路徑(如 /converter)時,改回傳 index.html
+      # 交給前端路由自己判斷要顯示哪一頁,SPA 深連結才不會 404
+      - run: cp dist/public/index.html dist/public/404.html
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          # 依你 vite.config.ts 裡 build.outDir 實際設定調整
+          # 常見值：dist 或 dist/public
+          path: ./dist/public
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
