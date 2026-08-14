@@ -21,13 +21,10 @@ import {
   Redo2,
   RotateCcw,
   SlidersHorizontal,
-  Sparkles,
   Trash2,
   Type,
   Undo2,
   Upload,
-  WandSparkles,
-  X,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -47,7 +44,7 @@ type TextLayer = {
   fontWeight: number;
   color: string;
   opacity: number;
-  fontFamily: "Noto Sans TC" | "DM Sans" | "IBM Plex Mono";
+  fontFamily: "Noto Sans TC" | "Noto Serif TC" | "Noto Sans JP" | "Noto Serif JP" | "Zen Kaku Gothic New" | "DM Sans" | "IBM Plex Mono";
 };
 
 type HistoryItem = {
@@ -62,7 +59,6 @@ type Adjustments = {
   contrast: number;
   saturation: number;
   opacity: number;
-  backgroundTolerance: number;
 };
 
 const BRAND_RED = "#E4513B";
@@ -204,10 +200,9 @@ export default function Home() {
     contrast: 0,
     saturation: 100,
     opacity: 100,
-    backgroundTolerance: 32,
   });
-  const [backgroundRemoved, setBackgroundRemoved] = useState(false);
   const [fileMeta, setFileMeta] = useState({ name: "未命名畫布", size: "—" });
+  const clipboardTextRef = useRef<TextLayer | null>(null);
 
   const selectedText = useMemo(
     () => layers.find((layer) => layer.id === selectedTextId) ?? null,
@@ -525,7 +520,7 @@ export default function Home() {
       })),
     );
     setCanvasSize({ width: nextWidth, height: nextHeight });
-    setFileMeta((meta) => ({ ...meta, size: `${nextWidth} × ${nextHeight}px` }));
+    setFileMeta((meta) => ({ ...meta, size: `${nextWidth} × ${nextHeight}` }));
     captureHistory();
     toast.success(`畫布已調整為 ${nextWidth} × ${nextHeight}`);
   };
@@ -540,7 +535,7 @@ export default function Home() {
       g: image.data[1],
       b: image.data[2],
     };
-    const threshold = adjustments.backgroundTolerance;
+    const threshold = 32;
     const matches = (index: number) =>
       Math.abs(image.data[index] - target.r) <= threshold &&
       Math.abs(image.data[index + 1] - target.g) <= threshold &&
@@ -569,7 +564,6 @@ export default function Home() {
     }
     context.putImageData(image, 0, 0);
     setHasArtwork(true);
-    setBackgroundRemoved(true);
     captureHistory();
     toast.success("已移除與左上角相近的背景色");
   };
@@ -580,7 +574,6 @@ export default function Home() {
       contrast: 0,
       saturation: 100,
       opacity: 100,
-      backgroundTolerance: 32,
     });
     toast.info("影像調整已重設");
   };
@@ -604,7 +597,6 @@ export default function Home() {
       syncLayers([]);
       setSelectedTextId(null);
       setHasArtwork(true);
-      setBackgroundRemoved(false);
       captureHistory();
       toast.success("影像已載入，可以開始編輯");
     };
@@ -661,17 +653,14 @@ export default function Home() {
             <img src="/manus-storage/studio-mark_49f4186a.png" alt="" />
           </div>
           <div className="brand-copy">
-            <span className="brand-name">紙上工作室</span>
-            <span className="brand-status">
-              <span className="status-dot" /> 純前端編輯器
-            </span>
+            <span className="brand-name">CoAi Paint</span>
           </div>
         </div>
 
         <div className="document-meta">
           <span className="document-kicker">WORKING FILE</span>
           <strong>{fileMeta.name}</strong>
-          <span className="document-size">{fileMeta.size === "—" ? `${canvasSize.width} × ${canvasSize.height}px` : fileMeta.size}</span>
+          <span className="document-size">{fileMeta.size === "—" ? `${canvasSize.width} × ${canvasSize.height}` : fileMeta.size}</span>
         </div>
 
         <div className="top-actions">
@@ -853,7 +842,11 @@ export default function Home() {
                       <label className="select-wrap">
                         <span className="field-label">字型</span>
                         <select value={selectedText.fontFamily} onChange={(event) => updateTextLayer({ fontFamily: event.target.value as TextLayer["fontFamily"] })}>
-                          <option value="Noto Sans TC">Noto Sans TC</option>
+                          <option value="Noto Sans TC">思源黑體／Noto Sans TC</option>
+                          <option value="Noto Serif TC">思源宋體／Noto Serif TC</option>
+                          <option value="Noto Sans JP">Noto Sans JP（日文黑體）</option>
+                          <option value="Noto Serif JP">Noto Serif JP（日文明朝體）</option>
+                          <option value="Zen Kaku Gothic New">Zen Kaku Gothic New（日文）</option>
                           <option value="DM Sans">DM Sans</option>
                           <option value="IBM Plex Mono">IBM Plex Mono</option>
                         </select>
@@ -912,28 +905,6 @@ export default function Home() {
 
             <div className="inspector-divider" />
 
-            <div className="inspector-section remove-bg-section">
-              <div className="remove-bg-heading">
-                <div>
-                  <span className="eyebrow">QUICK CUTOUT</span>
-                  <h3>簡易去背</h3>
-                </div>
-                <WandSparkles size={17} />
-              </div>
-              <img className="inspector-swatch-image" src="/manus-storage/inspector-paper-texture_3e8b73b5.png" alt="紙張色彩樣本" />
-              <p className="field-help">以畫布左上角的顏色作為背景基準，移除與它相近且連續的區域。</p>
-              <RangeControl label="色彩容差" value={adjustments.backgroundTolerance} min={4} max={90} onChange={(value) => setAdjustments((current) => ({ ...current, backgroundTolerance: value }))} />
-              <button type="button" className={`secondary-button full-width ${backgroundRemoved ? "is-complete" : ""}`} onClick={removeBackground}>
-                {backgroundRemoved ? <Check size={14} /> : <WandSparkles size={14} />} {backgroundRemoved ? "已完成去背" : "移除背景色"}
-              </button>
-            </div>
-
-            <div className="inspector-divider" />
-
-            <div className="inspector-tip">
-              <Sparkles size={15} />
-              <p><strong>小提示</strong>　按 <kbd>B</kbd> 切換筆刷，按 <kbd>T</kbd> 選擇文字卡。</p>
-            </div>
           </div>
         </aside>
       </div>
