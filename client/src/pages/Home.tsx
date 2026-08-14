@@ -347,6 +347,8 @@ export default function Home() {
   const [documentNameDraft, setDocumentNameDraft] = useState("未命名畫布");
   const clipboardTextRef = useRef<TextLayer | null>(null);
   const panDragRef = useRef<{ startX: number; startY: number; originX: number; originY: number } | null>(null);
+  const touchPointsRef = useRef(new Map<number, { x: number; y: number }>());
+  const pinchPanRef = useRef<{ startDistance: number; startCenterX: number; startCenterY: number; startZoom: number; originX: number; originY: number } | null>(null);
   const viewportRef = useRef<HTMLDivElement>(null);
   const hasInitializedPanRef = useRef(false);
 
@@ -1417,6 +1419,8 @@ export default function Home() {
   const handleImagePointerDown = (event: ReactPointerEvent<HTMLDivElement>, image: ImageLayer) => {
     event.stopPropagation();
     if ((event.target as Element).classList.contains("image-resize-handle") || (event.target as Element).classList.contains("image-rotation-handle")) return;
+    event.preventDefault();
+    event.currentTarget.setPointerCapture(event.pointerId);
     const point = getCanvasPoint(event.clientX, event.clientY);
     setSelectedImageId(image.id);
     setSelectedTextId(null);
@@ -1469,6 +1473,25 @@ export default function Home() {
   const handleViewportPointerDown = (event: ReactPointerEvent<HTMLDivElement>) => {
     event.preventDefault();
     const target = event.target as HTMLElement;
+    if (event.pointerType === "touch") {
+      touchPointsRef.current.set(event.pointerId, { x: event.clientX, y: event.clientY });
+      if (touchPointsRef.current.size === 2) {
+        const points = Array.from(touchPointsRef.current.values());
+        const centerX = (points[0].x + points[1].x) / 2;
+        const centerY = (points[0].y + points[1].y) / 2;
+        pinchPanRef.current = {
+          startDistance: Math.hypot(points[1].x - points[0].x, points[1].y - points[0].y),
+          startCenterX: centerX,
+          startCenterY: centerY,
+          startZoom: zoom,
+          originX: pan.x,
+          originY: pan.y,
+        };
+        panDragRef.current = null;
+        setIsPanning(true);
+      }
+      return;
+    }
     if (event.button !== 0 || target.closest(".image-layer, .shape-layer, .text-layer")) return;
     event.currentTarget.setPointerCapture(event.pointerId);
     panDragRef.current = { startX: event.clientX, startY: event.clientY, originX: pan.x, originY: pan.y };
@@ -1476,12 +1499,36 @@ export default function Home() {
   };
 
   const handleViewportPointerMove = (event: ReactPointerEvent<HTMLDivElement>) => {
+    if (event.pointerType === "touch" && touchPointsRef.current.has(event.pointerId)) {
+      touchPointsRef.current.set(event.pointerId, { x: event.clientX, y: event.clientY });
+      const points = Array.from(touchPointsRef.current.values());
+      const pinchPan = pinchPanRef.current;
+      if (pinchPan && points.length >= 2) {
+        const centerX = (points[0].x + points[1].x) / 2;
+        const centerY = (points[0].y + points[1].y) / 2;
+        const distance = Math.hypot(points[1].x - points[0].x, points[1].y - points[0].y);
+        const nextZoom = clamp(Math.round(pinchPan.startZoom * (distance / Math.max(1, pinchPan.startDistance))), 25, 150);
+        setZoom(nextZoom);
+        setPan({
+          x: pinchPan.originX + centerX - pinchPan.startCenterX,
+          y: pinchPan.originY + centerY - pinchPan.startCenterY,
+        });
+      }
+      return;
+    }
     const drag = panDragRef.current;
     if (!drag) return;
     setPan({ x: drag.originX + event.clientX - drag.startX, y: drag.originY + event.clientY - drag.startY });
   };
 
-  const finishPan = () => {
+  const finishPan = (event?: ReactPointerEvent<HTMLDivElement>) => {
+    if (event?.pointerType === "touch") {
+      touchPointsRef.current.delete(event.pointerId);
+      if (touchPointsRef.current.size < 2) {
+        pinchPanRef.current = null;
+        setIsPanning(false);
+      }
+    }
     if (!panDragRef.current) return;
     panDragRef.current = null;
     setIsPanning(false);
