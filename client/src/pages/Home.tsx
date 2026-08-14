@@ -1246,12 +1246,19 @@ export default function Home() {
                         <ChevronDown size={14} />
                       </label>
                     </div>
-                    <div className="color-row text-color-row">
-                      <span className="field-label">文字顏色</span>
-                      <label className="color-picker">
-                        <input type="color" value={selectedText.color} onChange={(event) => updateTextLayer({ color: event.target.value })} aria-label="文字顏色" />
-                        <span style={{ backgroundColor: selectedText.color }} />
-                      </label>
+                    <div className="text-color-control">
+                      <div className="text-color-heading">
+                        <span className="field-label">文字顏色</span>
+                        <label className="color-picker compact-color-picker">
+                          <input type="color" value={selectedText.color} onChange={(event) => updateTextLayer({ color: event.target.value })} aria-label="自訂文字顏色" />
+                          <span style={{ backgroundColor: selectedText.color }} />
+                        </label>
+                      </div>
+                      <div className="text-palette" role="group" aria-label="文字顏色色票">
+                        {["#000000", "#1F2528", "#555B5D", "#8C9290", "#FFFFFF", "#FFFDF8", "#E4513B", "#B72F34", "#F07C41", "#D59B42", "#F4C95D", "#2F855A", "#82A480", "#426B8A", "#2D5B9B", "#8B5CF6", "#D26A9C", "#F3A6C8"].map((color) => (
+                          <button key={color} type="button" className={`text-swatch ${selectedText.color.toUpperCase() === color ? "is-selected" : ""}`} style={{ backgroundColor: color }} onClick={() => updateTextLayer({ color })} aria-label={`文字顏色 ${color}`} title={color} />
+                        ))}
+                      </div>
                     </div>
                     <RangeControl label="字級" value={selectedText.fontSize} min={12} max={180} suffix=" px" onChange={(value) => updateTextLayer({ fontSize: value })} />
                     <RangeControl label="不透明度" value={selectedText.opacity} min={1} max={100} suffix="%" onChange={(value) => updateTextLayer({ opacity: value })} />
