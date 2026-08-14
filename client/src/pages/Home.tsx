@@ -536,18 +536,16 @@ export default function Home() {
           }
           const centerX = imageResize.startX + imageResize.startWidth / 2;
           const centerY = imageResize.startY + imageResize.startHeight / 2;
-          const maxCenteredWidth = Math.max(60, Math.min(canvasSize.width, centerX * 2, (canvasSize.width - centerX) * 2));
-          const maxCenteredHeight = Math.max(60, Math.min(canvasSize.height, centerY * 2, (canvasSize.height - centerY) * 2));
-          nextWidth = clamp(nextWidth, 60, event.altKey ? maxCenteredWidth : canvasSize.width);
-          nextHeight = clamp(nextHeight, 60, event.altKey ? maxCenteredHeight : canvasSize.height);
+          nextWidth = clamp(nextWidth, 60, Number.POSITIVE_INFINITY);
+          nextHeight = clamp(nextHeight, 60, Number.POSITIVE_INFINITY);
           const nextX = event.altKey ? centerX - nextWidth / 2 : movesLeft ? imageResize.startX + imageResize.startWidth - nextWidth : imageResize.startX;
           const nextY = event.altKey ? centerY - nextHeight / 2 : movesTop ? imageResize.startY + imageResize.startHeight - nextHeight : imageResize.startY;
           return {
             ...image,
             width: nextWidth,
             height: nextHeight,
-            x: clamp(nextX, 0, canvasSize.width - nextWidth),
-            y: clamp(nextY, 0, canvasSize.height - nextHeight),
+            x: nextX,
+            y: nextY,
           };
         });
         syncImages(nextImages);
@@ -614,7 +612,7 @@ export default function Home() {
       if (imageDrag) {
         const nextImages = imagesRef.current.map((image) =>
           image.id === imageDrag.id
-            ? { ...image, x: clamp(point.x - imageDrag.offsetX, 0, canvasSize.width - image.width), y: clamp(point.y - imageDrag.offsetY, 0, canvasSize.height - image.height) }
+            ? { ...image, x: point.x - imageDrag.offsetX, y: point.y - imageDrag.offsetY }
             : image,
         );
         syncImages(nextImages);
@@ -1481,19 +1479,19 @@ export default function Home() {
     : selectedShape
       ? "圖形設定"
       : selectedText
-        ? "文字卡"
+        ? "文字設定"
         : tool === "brush"
-          ? "筆刷設定"
+          ? "筆刷工具"
           : tool === "eraser"
-            ? "橡皮擦設定"
+            ? "橡皮擦工具"
             : tool === "fill"
-              ? "填色桶設定"
+              ? "填色桶工具"
               : tool === "text"
-                ? "文字卡"
+                ? "文字工具"
                 : tool === "shape"
-                  ? "圖形設定"
+                  ? "圖形工具"
                   : tool === "retouch"
-                    ? "瑕疵移除"
+                    ? "瑕疵移除工具"
                     : "移動工具";
 
   return (
@@ -1553,8 +1551,8 @@ export default function Home() {
             <ToolButton label="筆刷" active={tool === "brush"} icon={<Pencil size={18} />} onClick={() => setTool("brush")} />
             <ToolButton label="橡皮擦" active={tool === "eraser"} icon={<Eraser size={18} />} onClick={() => setTool("eraser")} />
             <ToolButton label="填色桶" active={tool === "fill"} icon={<PaintBucket size={18} />} onClick={() => setTool("fill")} />
-            <ToolButton label="新增文字" active={tool === "text"} icon={<Type size={18} />} onClick={() => setTool("text")} />
-            <ToolButton label="新增圖形" active={tool === "shape"} icon={<Shapes size={18} />} onClick={() => setTool("shape")} />
+            <ToolButton label="文字工具" active={tool === "text"} icon={<Type size={18} />} onClick={() => setTool("text")} />
+            <ToolButton label="圖形工具" active={tool === "shape"} icon={<Shapes size={18} />} onClick={() => setTool("shape")} />
             <ToolButton label="移除瑕疵" active={tool === "retouch"} icon={<WandSparkles size={18} />} onClick={() => setTool("retouch")} />
           </div>
           <div className="rail-rule" />
@@ -1571,7 +1569,7 @@ export default function Home() {
           <div className="workspace-toolbar">
             <div className="active-tool-name">
               <span className="active-tool-marker" />
-              <span>{tool === "move" ? "移動" : tool === "brush" ? "筆刷" : tool === "eraser" ? "橡皮擦" : tool === "fill" ? "填色桶" : tool === "text" ? "文字卡" : tool === "shape" ? "新增圖形" : "移除瑕疵"}</span>
+              <span>{tool === "move" ? "移動" : tool === "brush" ? "筆刷" : tool === "eraser" ? "橡皮擦" : tool === "fill" ? "填色桶" : tool === "text" ? "文字工具" : tool === "shape" ? "圖形工具" : "移除瑕疵"}</span>
               <span className="tool-hint">{tool === "move" ? "拖曳畫布上的物件" : tool === "text" ? "點擊畫布加入文字" : tool === "shape" ? "從右側選擇形狀" : tool === "retouch" ? "在瑕疵上塗抹修補" : "在畫布上落筆"}</span>
             </div>
             <div className="workspace-actions">
@@ -1849,7 +1847,7 @@ export default function Home() {
 
             {(tool === "text" || selectedText) && (
               <div className="inspector-section text-inspector-section">
-                {!selectedText && <p className="empty-inspector">選擇畫布上的文字，或按左側「新增文字」建立文字卡。</p>}
+                {!selectedText && <p className="empty-inspector">選擇畫布上的文字，或按左側「文字工具」建立文字卡。</p>}
                 {selectedText && (
                   <>
                     <label className="field-label" htmlFor="text-content">文字內容</label>
