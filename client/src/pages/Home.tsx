@@ -298,6 +298,8 @@ export default function Home() {
   const [documentNameDraft, setDocumentNameDraft] = useState("未命名畫布");
   const clipboardTextRef = useRef<TextLayer | null>(null);
   const panDragRef = useRef<{ startX: number; startY: number; originX: number; originY: number } | null>(null);
+  const viewportRef = useRef<HTMLDivElement>(null);
+  const hasInitializedPanRef = useRef(false);
 
   const selectedText = useMemo(
     () => layers.find((layer) => layer.id === selectedTextId) ?? null,
@@ -417,6 +419,19 @@ export default function Home() {
     // 初始化只執行一次；尺寸更新由 resizeCanvas 直接保留畫面資料。
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useEffect(() => {
+    const viewport = viewportRef.current;
+    if (!viewport || hasInitializedPanRef.current) return;
+    const bounds = viewport.getBoundingClientRect();
+    const displayWidth = canvasSize.width * (zoom / 100);
+    const displayHeight = canvasSize.height * (zoom / 100);
+    setPan({
+      x: Math.max(18, (bounds.width - displayWidth) / 2),
+      y: Math.max(18, (bounds.height - displayHeight) / 2),
+    });
+    hasInitializedPanRef.current = true;
+  }, [canvasSize.height, canvasSize.width, zoom]);
 
   useEffect(() => {
     const handleMove = (event: PointerEvent) => {
@@ -886,10 +901,6 @@ export default function Home() {
     const heightInput = document.getElementById("canvas-height") as HTMLInputElement | null;
     const nextWidth = clamp(Number(widthInput?.value) || canvasSize.width, 240, 2400);
     const nextHeight = clamp(Number(heightInput?.value) || canvasSize.height, 180, 1800);
-    const previousDisplayWidth = canvasSize.width * (zoom / 100);
-    const previousDisplayHeight = canvasSize.height * (zoom / 100);
-    const nextDisplayWidth = nextWidth * (zoom / 100);
-    const nextDisplayHeight = nextHeight * (zoom / 100);
     const oldCanvas = canvasRef.current;
     if (!oldCanvas) return;
     const temp = document.createElement("canvas");
@@ -927,10 +938,6 @@ export default function Home() {
       })),
     );
     setCanvasSize({ width: nextWidth, height: nextHeight });
-    setPan((currentPan) => ({
-      x: currentPan.x + (nextDisplayWidth - previousDisplayWidth) / 2,
-      y: currentPan.y + (nextDisplayHeight - previousDisplayHeight) / 2,
-    }));
     setFileMeta((meta) => ({ ...meta, size: `${nextWidth} × ${nextHeight}` }));
     captureHistory();
     toast.success(`畫布已調整為 ${nextWidth} × ${nextHeight}`);
@@ -1017,14 +1024,6 @@ export default function Home() {
       const ratio = Math.min(1, maxDimension / Math.max(image.naturalWidth, image.naturalHeight));
       const width = Math.max(240, Math.round(image.naturalWidth * ratio));
       const height = Math.max(180, Math.round(image.naturalHeight * ratio));
-      const previousDisplayWidth = canvasSize.width * (zoom / 100);
-      const previousDisplayHeight = canvasSize.height * (zoom / 100);
-      const nextDisplayWidth = width * (zoom / 100);
-      const nextDisplayHeight = height * (zoom / 100);
-      setPan((currentPan) => ({
-        x: currentPan.x + (nextDisplayWidth - previousDisplayWidth) / 2,
-        y: currentPan.y + (nextDisplayHeight - previousDisplayHeight) / 2,
-      }));
       canvas.width = width;
       canvas.height = height;
       canvas.getContext("2d")?.drawImage(image, 0, 0, width, height);
@@ -1209,6 +1208,23 @@ export default function Home() {
   };
 
   const currentZoomLabel = `${zoom}%`;
+  const resetCanvasView = () => {
+    const viewport = viewportRef.current;
+    const nextZoom = 68;
+    if (!viewport) {
+      setZoom(nextZoom);
+      setPan({ x: 0, y: 0 });
+      return;
+    }
+    const bounds = viewport.getBoundingClientRect();
+    const displayWidth = canvasSize.width * (nextZoom / 100);
+    const displayHeight = canvasSize.height * (nextZoom / 100);
+    setZoom(nextZoom);
+    setPan({
+      x: Math.max(18, (bounds.width - displayWidth) / 2),
+      y: Math.max(18, (bounds.height - displayHeight) / 2),
+    });
+  };
 
   return (
     <main className="studio-app">
@@ -1296,7 +1312,7 @@ export default function Home() {
                 <Plus size={14} />
               </button>
               <span className="top-divider" />
-              <button type="button" className="ghost-button" onClick={() => { setZoom(68); setPan({ x: 0, y: 0 }); }} title="重設視角">
+              <button type="button" className="ghost-button" onClick={resetCanvasView} title="重設視角">
                 <Maximize2 size={15} />
               </button>
             </div>
@@ -1304,6 +1320,7 @@ export default function Home() {
 
           <div
             className={`canvas-viewport ${isPanning ? "is-panning" : ""}`}
+            ref={viewportRef}
             onPointerDown={handleViewportPointerDown}
             onPointerMove={handleViewportPointerMove}
             onPointerUp={finishPan}
@@ -1316,7 +1333,8 @@ export default function Home() {
               style={{
                 width: `${canvasSize.width * (zoom / 100)}px`,
                 height: `${canvasSize.height * (zoom / 100)}px`,
-                transform: `translate(${pan.x}px, ${pan.y}px)`,
+                left: `${pan.x}px`,
+                top: `${pan.y}px`,
               }}
             >
               <div

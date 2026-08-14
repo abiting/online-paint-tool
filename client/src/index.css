@@ -169,7 +169,7 @@ kbd { min-width: 19px; padding: 3px 4px; text-align: center; color: #aab1aa; bac
 .ghost-button { display: grid; place-items: center; width: 28px; height: 28px; color: #929b96; background: transparent; border-radius: 5px; }
 .ghost-button:hover { color: #f3ede0; background: rgba(245,240,229,0.08); }
 .zoom-value { min-width: 39px; text-align: center; color: #c7c7bd; font: 11px "IBM Plex Mono", monospace; }
-.canvas-viewport { position: relative; flex: 1; min-height: 0; display: flex; align-items: center; justify-content: center; padding: 24px 18px 30px; overflow: auto; cursor: grab; background-color: rgba(48, 56, 57, 0.7); background-image: linear-gradient(rgba(227,213,187,0.035) 1px, transparent 1px), linear-gradient(90deg, rgba(227,213,187,0.035) 1px, transparent 1px); background-size: 20px 20px; }
+.canvas-viewport { position: relative; flex: 1; min-height: 0; display: block; padding: 0; overflow: hidden; cursor: grab; background-color: rgba(48, 56, 57, 0.7); background-image: linear-gradient(rgba(227,213,187,0.035) 1px, transparent 1px), linear-gradient(90deg, rgba(227,213,187,0.035) 1px, transparent 1px); background-size: 20px 20px; }
 .canvas-viewport.is-panning { cursor: grabbing; }
 .canvas-viewport::before, .canvas-viewport::after { content: ""; position: absolute; width: 28px; height: 28px; border-color: rgba(227,213,187,0.25); pointer-events: none; }
 .canvas-viewport::before { top: 18px; left: 18px; border-top: 1px solid; border-left: 1px solid; }
@@ -177,7 +177,7 @@ kbd { min-width: 19px; padding: 3px 4px; text-align: center; color: #aab1aa; bac
 .stage-notes { position: absolute; color: rgba(228,224,211,0.35); font: 9px "IBM Plex Mono", monospace; letter-spacing: 0.14em; }
 .stage-note-top { top: 25px; left: 28px; }
 .stage-note-bottom { right: 28px; bottom: 28px; }
-.canvas-shell-outer { position: relative; flex: none; }
+.canvas-shell-outer { position: absolute; left: 0; top: 0; flex: none; }
 .canvas-shell { position: absolute; left: 0; top: 0; transform-origin: top left; box-shadow: 0 16px 30px rgba(9,13,14,0.28), 0 3px 8px rgba(9,13,14,0.14); }
 .canvas-content { position: relative; width: 100%; height: 100%; transform-origin: center; }
 .canvas-content canvas { display: block; width: 100%; height: 100%; cursor: crosshair; touch-action: none; background: #fffdf8; }
