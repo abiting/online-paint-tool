@@ -7,8 +7,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { PointerEvent as ReactPointerEvent } from "react";
 import {
+  AlignCenter,
+  AlignVerticalJustifyCenter,
   Check,
   ChevronDown,
+  Circle,
   Download,
   Eraser,
   ImagePlus,
@@ -21,14 +24,19 @@ import {
   Redo2,
   RotateCcw,
   SlidersHorizontal,
+  Shapes,
+  Square,
+  Star,
   Trash2,
   Type,
   Undo2,
   Upload,
+  WandSparkles,
 } from "lucide-react";
 import { toast } from "sonner";
 
-type Tool = "brush" | "eraser" | "fill" | "text";
+type Tool = "brush" | "eraser" | "fill" | "text" | "shape" | "retouch";
+type ShapeKind = "rectangle" | "circle" | "star";
 
 type CanvasPoint = {
   x: number;
@@ -45,6 +53,26 @@ type TextLayer = {
   color: string;
   opacity: number;
   fontFamily: "Noto Sans TC" | "Noto Serif TC" | "Noto Sans JP" | "Noto Serif JP" | "Zen Kaku Gothic New" | "DM Sans" | "IBM Plex Mono";
+  anchorShapeId?: string;
+};
+
+type ShapeLayer = {
+  id: string;
+  kind: ShapeKind;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  fill: string;
+  opacity: number;
+  outline: string;
+  outlineWidth: number;
+  shadow: boolean;
+  shadowColor: string;
+  shadowOpacity: number;
+  shadowBlur: number;
+  shadowX: number;
+  shadowY: number;
 };
 
 type HistoryItem = {
@@ -52,6 +80,7 @@ type HistoryItem = {
   height: number;
   imageData: ImageData;
   layers: TextLayer[];
+  shapes: ShapeLayer[];
 };
 
 type Adjustments = {
@@ -78,7 +107,13 @@ const hexToRgb = (hex: string) => {
   };
 };
 
-const makeId = () => `text-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+const makeId = (prefix = "layer") => `${prefix}-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+const STAR_POINTS = "50,4 61,37 96,38 68,59 78,94 50,74 22,94 32,59 4,38 39,37";
+
+const hexToRgba = (hex: string, opacity: number) => {
+  const { r, g, b } = hexToRgb(hex);
+  return `rgba(${r}, ${g}, ${b}, ${opacity})`;
+};
 
 const formatBytes = (bytes: number) => {
   if (bytes < 1024) return `${bytes} B`;
@@ -181,9 +216,15 @@ export default function Home() {
     offsetX: number;
     offsetY: number;
   } | null>(null);
+  const shapeDragRef = useRef<{
+    id: string;
+    offsetX: number;
+    offsetY: number;
+  } | null>(null);
   const historyRef = useRef<HistoryItem[]>([]);
   const historyIndexRef = useRef(-1);
   const layersRef = useRef<TextLayer[]>([]);
+  const shapesRef = useRef<ShapeLayer[]>([]);
 
   const [canvasSize, setCanvasSize] = useState({ width: 960, height: 640 });
   const [tool, setTool] = useState<Tool>("brush");
@@ -194,7 +235,14 @@ export default function Home() {
   const [isDrawing, setIsDrawing] = useState(false);
   const [hasArtwork, setHasArtwork] = useState(false);
   const [layers, setLayers] = useState<TextLayer[]>([]);
+  const [shapes, setShapes] = useState<ShapeLayer[]>([]);
   const [selectedTextId, setSelectedTextId] = useState<string | null>(null);
+  const [selectedShapeId, setSelectedShapeId] = useState<string | null>(null);
+  const [shapeKind, setShapeKind] = useState<ShapeKind>("rectangle");
+  const [shapeFill, setShapeFill] = useState(BRAND_RED);
+  const [shapeOutline, setShapeOutline] = useState("#FFFDF8");
+  const [shapeOutlineWidth, setShapeOutlineWidth] = useState(2);
+  const [shapeShadow, setShapeShadow] = useState(true);
   const [adjustments, setAdjustments] = useState<Adjustments>({
     exposure: 0,
     contrast: 0,
@@ -202,11 +250,16 @@ export default function Home() {
     opacity: 100,
   });
   const [fileMeta, setFileMeta] = useState({ name: "未命名畫布", size: "—" });
+  const [documentNameDraft, setDocumentNameDraft] = useState("未命名畫布");
   const clipboardTextRef = useRef<TextLayer | null>(null);
 
   const selectedText = useMemo(
     () => layers.find((layer) => layer.id === selectedTextId) ?? null,
     [layers, selectedTextId],
+  );
+  const selectedShape = useMemo(
+    () => shapes.find((shape) => shape.id === selectedShapeId) ?? null,
+    [shapes, selectedShapeId],
   );
 
   const canvasFilter = useMemo(
@@ -218,6 +271,11 @@ export default function Home() {
   const syncLayers = useCallback((nextLayers: TextLayer[]) => {
     layersRef.current = nextLayers;
     setLayers(nextLayers);
+  }, []);
+
+  const syncShapes = useCallback((nextShapes: ShapeLayer[]) => {
+    shapesRef.current = nextShapes;
+    setShapes(nextShapes);
   }, []);
 
   const getCanvasPoint = useCallback((clientX: number, clientY: number) => {
@@ -240,6 +298,7 @@ export default function Home() {
       height: canvas.height,
       imageData: context.getImageData(0, 0, canvas.width, canvas.height),
       layers: layersRef.current.map((layer) => ({ ...layer })),
+      shapes: shapesRef.current.map((shape) => ({ ...shape })),
     };
     const current = historyRef.current.slice(0, historyIndexRef.current + 1);
     const next = [...current, item].slice(-24);
@@ -257,10 +316,12 @@ export default function Home() {
       canvas.getContext("2d")?.putImageData(item.imageData, 0, 0);
       setCanvasSize({ width: item.width, height: item.height });
       syncLayers(item.layers.map((layer) => ({ ...layer })));
+      syncShapes(item.shapes?.map((shape) => ({ ...shape })) ?? []);
       setSelectedTextId(null);
+      setSelectedShapeId(null);
       historyIndexRef.current = index;
     },
-    [syncLayers],
+    [syncLayers, syncShapes],
   );
 
   const undo = () => {
@@ -296,22 +357,29 @@ export default function Home() {
   useEffect(() => {
     const handleMove = (event: PointerEvent) => {
       const drag = textDragRef.current;
-      if (!drag) return;
+      const shapeDrag = shapeDragRef.current;
       const point = getCanvasPoint(event.clientX, event.clientY);
-      const nextLayers = layersRef.current.map((layer) =>
-        layer.id === drag.id
-          ? {
-              ...layer,
-              x: clamp(point.x - drag.offsetX, 0, canvasSize.width - 30),
-              y: clamp(point.y - drag.offsetY, 0, canvasSize.height - 30),
-            }
-          : layer,
-      );
-      syncLayers(nextLayers);
+      if (drag) {
+        const nextLayers = layersRef.current.map((layer) =>
+          layer.id === drag.id
+            ? { ...layer, x: clamp(point.x - drag.offsetX, 0, canvasSize.width - 30), y: clamp(point.y - drag.offsetY, 0, canvasSize.height - 30) }
+            : layer,
+        );
+        syncLayers(nextLayers);
+      }
+      if (shapeDrag) {
+        const nextShapes = shapesRef.current.map((shape) =>
+          shape.id === shapeDrag.id
+            ? { ...shape, x: clamp(point.x - shapeDrag.offsetX, 0, canvasSize.width - shape.width), y: clamp(point.y - shapeDrag.offsetY, 0, canvasSize.height - shape.height) }
+            : shape,
+        );
+        syncShapes(nextShapes);
+      }
     };
     const handleUp = () => {
-      if (!textDragRef.current) return;
+      if (!textDragRef.current && !shapeDragRef.current) return;
       textDragRef.current = null;
+      shapeDragRef.current = null;
       captureHistory();
     };
     window.addEventListener("pointermove", handleMove);
@@ -320,13 +388,29 @@ export default function Home() {
       window.removeEventListener("pointermove", handleMove);
       window.removeEventListener("pointerup", handleUp);
     };
-  }, [canvasSize.height, canvasSize.width, captureHistory, getCanvasPoint, syncLayers]);
+  }, [canvasSize.height, canvasSize.width, captureHistory, getCanvasPoint, syncLayers, syncShapes]);
 
   useEffect(() => {
     const handleShortcut = (event: KeyboardEvent) => {
       const target = event.target as HTMLElement | null;
       if (target?.tagName === "INPUT" || target?.tagName === "TEXTAREA" || target?.tagName === "SELECT") return;
       const key = event.key.toLowerCase();
+      const modifier = event.ctrlKey || event.metaKey;
+      if (modifier && key === "z") {
+        event.preventDefault();
+        if (event.shiftKey) redo(); else undo();
+        return;
+      }
+      if (modifier && key === "c") {
+        event.preventDefault();
+        void copySelection();
+        return;
+      }
+      if (modifier && key === "v") {
+        event.preventDefault();
+        void pasteSelection();
+        return;
+      }
       if (key === "b") setTool("brush");
       if (key === "e") setTool("eraser");
       if (key === "f") setTool("fill");
@@ -409,10 +493,85 @@ export default function Home() {
     captureHistory();
   };
 
+  const healSpot = (point: CanvasPoint) => {
+    const canvas = canvasRef.current;
+    const context = canvas?.getContext("2d");
+    if (!canvas || !context) return;
+    const radius = Math.max(5, brushSize * 1.2);
+    const image = context.getImageData(0, 0, canvas.width, canvas.height);
+    const samples: number[] = [];
+    for (let index = 0; index < 12; index += 1) {
+      const angle = (index / 12) * Math.PI * 2;
+      const x = clamp(Math.round(point.x + Math.cos(angle) * radius * 1.35), 0, canvas.width - 1);
+      const y = clamp(Math.round(point.y + Math.sin(angle) * radius * 1.35), 0, canvas.height - 1);
+      samples.push((y * canvas.width + x) * 4);
+    }
+    const average = [0, 0, 0, 0];
+    samples.forEach((index) => {
+      average[0] += image.data[index];
+      average[1] += image.data[index + 1];
+      average[2] += image.data[index + 2];
+      average[3] += image.data[index + 3];
+    });
+    average.forEach((_value, index) => { average[index] /= samples.length; });
+    const minX = Math.max(0, Math.floor(point.x - radius));
+    const maxX = Math.min(canvas.width - 1, Math.ceil(point.x + radius));
+    const minY = Math.max(0, Math.floor(point.y - radius));
+    const maxY = Math.min(canvas.height - 1, Math.ceil(point.y + radius));
+    for (let y = minY; y <= maxY; y += 1) {
+      for (let x = minX; x <= maxX; x += 1) {
+        const distance = Math.hypot(x - point.x, y - point.y);
+        if (distance > radius) continue;
+        const index = (y * canvas.width + x) * 4;
+        const strength = 1 - distance / radius;
+        image.data[index] = image.data[index] * (1 - strength) + average[0] * strength;
+        image.data[index + 1] = image.data[index + 1] * (1 - strength) + average[1] * strength;
+        image.data[index + 2] = image.data[index + 2] * (1 - strength) + average[2] * strength;
+        image.data[index + 3] = image.data[index + 3] * (1 - strength) + average[3] * strength;
+      }
+    }
+    context.putImageData(image, 0, 0);
+    setHasArtwork(true);
+  };
+
+  const addShape = (kind: ShapeKind = shapeKind) => {
+    const width = kind === "star" ? 190 : 220;
+    const height = kind === "star" ? 190 : 150;
+    const nextShape: ShapeLayer = {
+      id: makeId("shape"),
+      kind,
+      x: (canvasSize.width - width) / 2,
+      y: (canvasSize.height - height) / 2,
+      width,
+      height,
+      fill: shapeFill,
+      opacity: 100,
+      outline: shapeOutline,
+      outlineWidth: shapeOutlineWidth,
+      shadow: shapeShadow,
+      shadowColor: "#000000",
+      shadowOpacity: 28,
+      shadowBlur: 14,
+      shadowX: 0,
+      shadowY: 8,
+    };
+    const nextShapes = [...shapesRef.current, nextShape];
+    syncShapes(nextShapes);
+    setSelectedShapeId(nextShape.id);
+    setSelectedTextId(null);
+    setTool("shape");
+    captureHistory();
+    toast.success(`${kind === "rectangle" ? "方塊" : kind === "circle" ? "圓形" : "星星"} 已加入畫布`);
+  };
+
   const handleCanvasPointerDown = (event: ReactPointerEvent<HTMLCanvasElement>) => {
     const point = getCanvasPoint(event.clientX, event.clientY);
     if (tool === "fill") {
       floodFill(point);
+      return;
+    }
+    if (tool === "shape") {
+      addShape(shapeKind);
       return;
     }
     if (tool === "text") {
@@ -430,6 +589,7 @@ export default function Home() {
       const nextLayers = [...layersRef.current, nextLayer];
       syncLayers(nextLayers);
       setSelectedTextId(nextLayer.id);
+      setSelectedShapeId(null);
       setTool("brush");
       captureHistory();
       toast.success("文字卡已加入畫布");
@@ -439,13 +599,21 @@ export default function Home() {
     setIsDrawing(true);
     setHasArtwork(true);
     lastPointRef.current = point;
-    drawStroke(point, { x: point.x + 0.01, y: point.y + 0.01 });
+    if (tool === "retouch") {
+      healSpot(point);
+    } else {
+      drawStroke(point, { x: point.x + 0.01, y: point.y + 0.01 });
+    }
   };
 
   const handleCanvasPointerMove = (event: ReactPointerEvent<HTMLCanvasElement>) => {
     if (!isDrawing || !lastPointRef.current) return;
     const point = getCanvasPoint(event.clientX, event.clientY);
-    drawStroke(lastPointRef.current, point);
+    if (tool === "retouch") {
+      healSpot(point);
+    } else {
+      drawStroke(lastPointRef.current, point);
+    }
     lastPointRef.current = point;
   };
 
@@ -465,16 +633,18 @@ export default function Home() {
   };
 
   const addTextCard = () => {
+    const anchorShape = selectedShapeId ? shapesRef.current.find((shape) => shape.id === selectedShapeId) : undefined;
     const nextLayer: TextLayer = {
-      id: makeId(),
+      id: makeId("text"),
       text: "標題文字",
-      x: canvasSize.width * 0.16,
-      y: canvasSize.height * 0.18,
+      x: anchorShape ? anchorShape.x + anchorShape.width / 2 - 90 : canvasSize.width * 0.16,
+      y: anchorShape ? anchorShape.y + anchorShape.height / 2 - 32 : canvasSize.height * 0.18,
       fontSize: 64,
       fontWeight: 700,
       color: BRAND_RED,
       opacity: 100,
       fontFamily: "DM Sans",
+      anchorShapeId: anchorShape?.id,
     };
     const nextLayers = [...layersRef.current, nextLayer];
     syncLayers(nextLayers);
@@ -483,12 +653,102 @@ export default function Home() {
     captureHistory();
   };
 
+  const copySelection = async () => {
+    if (!selectedText) {
+      toast.info("請先選取文字卡");
+      return;
+    }
+    clipboardTextRef.current = { ...selectedText };
+    try {
+      await navigator.clipboard?.writeText(selectedText.text);
+    } catch {
+      // 瀏覽器未授權 clipboard 時仍保留工作台內部複製內容。
+    }
+    toast.success("文字卡已複製");
+  };
+
+  const pasteSelection = async () => {
+    let clipboardText = "";
+    try {
+      clipboardText = (await navigator.clipboard?.readText()) ?? "";
+    } catch {
+      // 使用工作台內部剪貼簿作為 fallback。
+    }
+    const source = clipboardTextRef.current;
+    if (!source && !clipboardText) {
+      toast.info("請先複製文字卡，或將文字複製到剪貼簿");
+      return;
+    }
+    const nextLayer: TextLayer = {
+      ...(source ?? {
+        id: makeId("text"),
+        text: clipboardText,
+        x: canvasSize.width * 0.2,
+        y: canvasSize.height * 0.2,
+        fontSize: 52,
+        fontWeight: 700,
+        color: GRAPHITE,
+        opacity: 100,
+        fontFamily: "Noto Sans TC" as TextLayer["fontFamily"],
+      }),
+      id: makeId("text"),
+      text: clipboardText || source?.text || "貼上的文字",
+      x: (source?.x ?? canvasSize.width * 0.2) + 24,
+      y: (source?.y ?? canvasSize.height * 0.2) + 24,
+      anchorShapeId: undefined,
+    };
+    syncLayers([...layersRef.current, nextLayer]);
+    setSelectedTextId(nextLayer.id);
+    setSelectedShapeId(null);
+    captureHistory();
+    toast.success("文字卡已貼上");
+  };
+
   const deleteSelectedText = () => {
     if (!selectedTextId) return;
     syncLayers(layersRef.current.filter((layer) => layer.id !== selectedTextId));
     setSelectedTextId(null);
     captureHistory();
     toast.success("文字卡已移除");
+  };
+
+  const updateShape = (patch: Partial<ShapeLayer>) => {
+    if (!selectedShapeId) return;
+    const nextShapes = shapesRef.current.map((shape) =>
+      shape.id === selectedShapeId ? { ...shape, ...patch } : shape,
+    );
+    syncShapes(nextShapes);
+  };
+
+  const deleteSelectedShape = () => {
+    if (!selectedShapeId) return;
+    syncShapes(shapesRef.current.filter((shape) => shape.id !== selectedShapeId));
+    syncLayers(layersRef.current.map((layer) => (
+      layer.anchorShapeId === selectedShapeId ? { ...layer, anchorShapeId: undefined } : layer
+    )));
+    setSelectedShapeId(null);
+    captureHistory();
+    toast.success("圖形已移除");
+  };
+
+  const alignSelected = (axis: "horizontal" | "vertical" | "both") => {
+    if (selectedShape) {
+      updateShape({
+        ...(axis === "horizontal" || axis === "both" ? { x: (canvasSize.width - selectedShape.width) / 2 } : {}),
+        ...(axis === "vertical" || axis === "both" ? { y: (canvasSize.height - selectedShape.height) / 2 } : {}),
+      });
+      captureHistory();
+      return;
+    }
+    if (!selectedText) return;
+    const anchor = selectedText.anchorShapeId ? shapesRef.current.find((shape) => shape.id === selectedText.anchorShapeId) : undefined;
+    const target = anchor ?? { x: 0, y: 0, width: canvasSize.width, height: canvasSize.height };
+    const estimatedWidth = Math.max(48, selectedText.text.length * selectedText.fontSize * 0.58);
+    updateTextLayer({
+      ...(axis === "horizontal" || axis === "both" ? { x: target.x + (target.width - estimatedWidth) / 2 } : {}),
+      ...(axis === "vertical" || axis === "both" ? { y: target.y + (target.height - selectedText.fontSize) / 2 } : {}),
+    });
+    captureHistory();
   };
 
   const resizeCanvas = () => {
@@ -517,6 +777,19 @@ export default function Home() {
         x: layer.x * scaleX,
         y: layer.y * scaleY,
         fontSize: layer.fontSize * Math.min(scaleX, scaleY),
+      })),
+    );
+    syncShapes(
+      shapesRef.current.map((shape) => ({
+        ...shape,
+        x: shape.x * scaleX,
+        y: shape.y * scaleY,
+        width: shape.width * scaleX,
+        height: shape.height * scaleY,
+        outlineWidth: shape.outlineWidth * Math.min(scaleX, scaleY),
+        shadowBlur: shape.shadowBlur * Math.min(scaleX, scaleY),
+        shadowX: shape.shadowX * scaleX,
+        shadowY: shape.shadowY * scaleY,
       })),
     );
     setCanvasSize({ width: nextWidth, height: nextHeight });
@@ -594,8 +867,11 @@ export default function Home() {
       canvas.getContext("2d")?.drawImage(image, 0, 0, width, height);
       setCanvasSize({ width, height });
       setFileMeta({ name: file.name, size: formatBytes(file.size) });
+      setDocumentNameDraft(file.name);
       syncLayers([]);
+      syncShapes([]);
       setSelectedTextId(null);
+      setSelectedShapeId(null);
       setHasArtwork(true);
       captureHistory();
       toast.success("影像已載入，可以開始編輯");
@@ -616,6 +892,37 @@ export default function Home() {
     context.globalAlpha = adjustments.opacity / 100;
     context.drawImage(source, 0, 0);
     context.filter = "none";
+    shapesRef.current.forEach((shape) => {
+      context.save();
+      context.globalAlpha = (adjustments.opacity / 100) * (shape.opacity / 100);
+      if (shape.shadow) {
+        context.shadowColor = hexToRgba(shape.shadowColor, shape.shadowOpacity / 100);
+        context.shadowBlur = shape.shadowBlur;
+        context.shadowOffsetX = shape.shadowX;
+        context.shadowOffsetY = shape.shadowY;
+      }
+      context.fillStyle = shape.fill;
+      context.strokeStyle = shape.outline;
+      context.lineWidth = shape.outlineWidth;
+      context.beginPath();
+      if (shape.kind === "rectangle") {
+        context.roundRect(shape.x, shape.y, shape.width, shape.height, 12);
+      } else if (shape.kind === "circle") {
+        context.ellipse(shape.x + shape.width / 2, shape.y + shape.height / 2, shape.width / 2, shape.height / 2, 0, 0, Math.PI * 2);
+      } else {
+        for (let index = 0; index < 10; index += 1) {
+          const angle = -Math.PI / 2 + (index * Math.PI) / 5;
+          const radius = index % 2 === 0 ? 0.48 : 0.22;
+          const x = shape.x + shape.width / 2 + Math.cos(angle) * shape.width * radius;
+          const y = shape.y + shape.height / 2 + Math.sin(angle) * shape.height * radius;
+          if (index === 0) context.moveTo(x, y); else context.lineTo(x, y);
+        }
+        context.closePath();
+      }
+      context.fill();
+      if (shape.outlineWidth > 0) context.stroke();
+      context.restore();
+    });
     layersRef.current.forEach((layer) => {
       context.save();
       context.globalAlpha = (adjustments.opacity / 100) * (layer.opacity / 100);
@@ -632,14 +939,33 @@ export default function Home() {
     toast.success("PNG 已匯出");
   };
 
+  const saveDocumentName = (value: string) => {
+    const nextName = value.trim() || "未命名畫布";
+    setDocumentNameDraft(nextName);
+    setFileMeta((meta) => ({ ...meta, name: nextName }));
+  };
+
   const handleTextPointerDown = (event: ReactPointerEvent<HTMLDivElement>, layer: TextLayer) => {
     event.stopPropagation();
     const point = getCanvasPoint(event.clientX, event.clientY);
     setSelectedTextId(layer.id);
+    setSelectedShapeId(null);
     textDragRef.current = {
       id: layer.id,
       offsetX: point.x - layer.x,
       offsetY: point.y - layer.y,
+    };
+  };
+
+  const handleShapePointerDown = (event: ReactPointerEvent<SVGSVGElement>, shape: ShapeLayer) => {
+    event.stopPropagation();
+    const point = getCanvasPoint(event.clientX, event.clientY);
+    setSelectedShapeId(shape.id);
+    setSelectedTextId(null);
+    shapeDragRef.current = {
+      id: shape.id,
+      offsetX: point.x - shape.x,
+      offsetY: point.y - shape.y,
     };
   };
 
@@ -649,9 +975,6 @@ export default function Home() {
     <main className="studio-app">
       <header className="topbar">
         <div className="brand-lockup">
-          <div className="brand-mark" aria-hidden="true">
-            <img src="/manus-storage/studio-mark_49f4186a.png" alt="" />
-          </div>
           <div className="brand-copy">
             <span className="brand-name">CoAi Paint</span>
           </div>
@@ -659,7 +982,20 @@ export default function Home() {
 
         <div className="document-meta">
           <span className="document-kicker">WORKING FILE</span>
-          <strong>{fileMeta.name}</strong>
+          <input
+            className="document-name-input"
+            value={documentNameDraft}
+            onChange={(event) => setDocumentNameDraft(event.target.value)}
+            onBlur={(event) => saveDocumentName(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === "Enter") {
+                event.preventDefault();
+                saveDocumentName(event.currentTarget.value);
+                event.currentTarget.blur();
+              }
+            }}
+            aria-label="文件名稱"
+          />
           <span className="document-size">{fileMeta.size === "—" ? `${canvasSize.width} × ${canvasSize.height}` : fileMeta.size}</span>
         </div>
 
@@ -691,11 +1027,12 @@ export default function Home() {
             <ToolButton label="筆刷" active={tool === "brush"} icon={<Pencil size={18} />} onClick={() => setTool("brush")} />
             <ToolButton label="橡皮擦" active={tool === "eraser"} icon={<Eraser size={18} />} onClick={() => setTool("eraser")} />
             <ToolButton label="填色桶" active={tool === "fill"} icon={<PaintBucket size={18} />} onClick={() => setTool("fill")} />
-            <ToolButton label="文字卡" active={tool === "text"} icon={<Type size={18} />} onClick={() => setTool("text")} />
+            <ToolButton label="新增文字" active={tool === "text"} icon={<Type size={18} />} onClick={() => setTool("text")} />
+            <ToolButton label="新增圖形" active={tool === "shape"} icon={<Shapes size={18} />} onClick={() => setTool("shape")} />
+            <ToolButton label="移除瑕疵" active={tool === "retouch"} icon={<WandSparkles size={18} />} onClick={() => setTool("retouch")} />
           </div>
           <div className="rail-rule" />
           <div className="tool-group rail-secondary">
-            <ToolButton label="新增文字" icon={<Plus size={18} />} onClick={addTextCard} />
             <ToolButton label="匯入影像" icon={<ImagePlus size={18} />} onClick={() => fileInputRef.current?.click()} />
           </div>
           <div className="rail-bottom">
@@ -708,8 +1045,8 @@ export default function Home() {
           <div className="workspace-toolbar">
             <div className="active-tool-name">
               <span className="active-tool-marker" />
-              <span>{tool === "brush" ? "筆刷" : tool === "eraser" ? "橡皮擦" : tool === "fill" ? "填色桶" : "文字卡"}</span>
-              <span className="tool-hint">{tool === "text" ? "點擊畫布加入文字" : "在畫布上落筆"}</span>
+              <span>{tool === "brush" ? "筆刷" : tool === "eraser" ? "橡皮擦" : tool === "fill" ? "填色桶" : tool === "text" ? "文字卡" : tool === "shape" ? "新增圖形" : "移除瑕疵"}</span>
+              <span className="tool-hint">{tool === "text" ? "點擊畫布加入文字" : tool === "shape" ? "從右側選擇形狀" : tool === "retouch" ? "在瑕疵上塗抹修補" : "在畫布上落筆"}</span>
             </div>
             <div className="workspace-actions">
               <button type="button" className="ghost-button" onClick={() => setZoom((value) => clamp(value - 10, 25, 150))}>
@@ -754,6 +1091,29 @@ export default function Home() {
                     onPointerLeave={finishStroke}
                     aria-label="繪圖畫布"
                   />
+                  {shapes.map((shape) => (
+                    <svg
+                      key={shape.id}
+                      className={`shape-layer ${selectedShapeId === shape.id ? "is-selected" : ""}`}
+                      viewBox="0 0 100 100"
+                      style={{
+                        left: `${shape.x}px`,
+                        top: `${shape.y}px`,
+                        width: `${shape.width}px`,
+                        height: `${shape.height}px`,
+                        opacity: shape.opacity / 100,
+                        filter: shape.shadow ? `drop-shadow(${shape.shadowX}px ${shape.shadowY}px ${shape.shadowBlur}px ${hexToRgba(shape.shadowColor, shape.shadowOpacity / 100)})` : "none",
+                      }}
+                      onPointerDown={(event) => handleShapePointerDown(event, shape)}
+                      role="button"
+                      tabIndex={0}
+                      aria-label={`${shape.kind === "rectangle" ? "方塊" : shape.kind === "circle" ? "圓形" : "星星"}圖形`}
+                    >
+                      {shape.kind === "rectangle" && <rect x="3" y="3" width="94" height="94" rx="8" fill={shape.fill} stroke={shape.outline} strokeWidth={shape.outlineWidth * 0.8} />}
+                      {shape.kind === "circle" && <circle cx="50" cy="50" r="46" fill={shape.fill} stroke={shape.outline} strokeWidth={shape.outlineWidth * 0.8} />}
+                      {shape.kind === "star" && <polygon points={STAR_POINTS} fill={shape.fill} stroke={shape.outline} strokeWidth={shape.outlineWidth * 0.8} strokeLinejoin="round" />}
+                    </svg>
+                  ))}
                   {layers.map((layer) => (
                     <div
                       key={layer.id}
@@ -809,7 +1169,7 @@ export default function Home() {
               action={<button type="button" className="icon-button subtle" title="面板選項" aria-label="面板選項"><MoreHorizontal size={17} /></button>}
             />
 
-            {tool !== "text" && !selectedText && (
+            {tool !== "text" && !selectedText && !selectedShape && (
               <div className="inspector-section">
                 <div className="color-row">
                   <div>
@@ -828,6 +1188,30 @@ export default function Home() {
                     <button key={color} type="button" className={`swatch ${brushColor === color ? "is-selected" : ""}`} style={{ backgroundColor: color }} onClick={() => setBrushColor(color)} aria-label={`選擇顏色 ${color}`} />
                   ))}
                 </div>
+              </div>
+            )}
+
+            {(tool === "shape" || selectedShape) && (
+              <div className="inspector-section shape-inspector-section">
+                <SectionTitle eyebrow="SHAPES" title="圖形設定" action={<Shapes size={15} className="section-icon" />} />
+                <div className="shape-choice-grid">
+                  <button type="button" className={`shape-choice ${shapeKind === "rectangle" ? "is-active" : ""}`} onClick={() => { setShapeKind("rectangle"); addShape("rectangle"); }}><Square size={18} /><span>方塊</span></button>
+                  <button type="button" className={`shape-choice ${shapeKind === "circle" ? "is-active" : ""}`} onClick={() => { setShapeKind("circle"); addShape("circle"); }}><Circle size={18} /><span>圓形</span></button>
+                  <button type="button" className={`shape-choice ${shapeKind === "star" ? "is-active" : ""}`} onClick={() => { setShapeKind("star"); addShape("star"); }}><Star size={18} /><span>星星</span></button>
+                </div>
+                {!selectedShape && <p className="empty-inspector">選擇圖形或按上方按鈕，把形狀放到畫布中央。</p>}
+                {selectedShape && (
+                  <>
+                    <div className="color-row"><span className="field-label">填色</span><label className="color-picker"><input type="color" value={selectedShape.fill} onChange={(event) => updateShape({ fill: event.target.value })} aria-label="圖形填色" /><span style={{ backgroundColor: selectedShape.fill }} /></label></div>
+                    <div className="color-row"><span className="field-label">輪廓</span><label className="color-picker"><input type="color" value={selectedShape.outline} onChange={(event) => updateShape({ outline: event.target.value })} aria-label="圖形輪廓顏色" /><span style={{ backgroundColor: selectedShape.outline }} /></label></div>
+                    <RangeControl label="輪廓粗細" value={selectedShape.outlineWidth} min={0} max={16} suffix=" px" onChange={(value) => updateShape({ outlineWidth: value })} />
+                    <RangeControl label="圖形不透明度" value={selectedShape.opacity} min={1} max={100} suffix="%" onChange={(value) => updateShape({ opacity: value })} />
+                    <label className="toggle-row"><span>陰影</span><input type="checkbox" checked={selectedShape.shadow} onChange={(event) => updateShape({ shadow: event.target.checked })} /></label>
+                    {selectedShape.shadow && <RangeControl label="陰影柔化" value={selectedShape.shadowBlur} min={0} max={40} suffix=" px" onChange={(value) => updateShape({ shadowBlur: value })} />}
+                    <div className="align-actions"><span className="field-label">置中對齊</span><div className="align-button-row"><button type="button" className="secondary-button" onClick={() => alignSelected("horizontal")}><AlignCenter size={14} /> 水平</button><button type="button" className="secondary-button" onClick={() => alignSelected("vertical")}><AlignVerticalJustifyCenter size={14} /> 垂直</button><button type="button" className="secondary-button" onClick={() => alignSelected("both")}>中央</button></div></div>
+                    <button type="button" className="secondary-button full-width" onClick={deleteSelectedShape}><Trash2 size={14} /> 移除圖形</button>
+                  </>
+                )}
               </div>
             )}
 

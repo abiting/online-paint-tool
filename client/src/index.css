@@ -283,3 +283,26 @@ input[type="range"]::-moz-range-thumb { width: 11px; height: 11px; border: 2px s
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { scroll-behavior: auto !important; transition-duration: 0.01ms !important; animation-duration: 0.01ms !important; }
 }
+
+.document-name-input { width: min(280px, 28vw); padding: 2px 4px; color: #eee8db; background: transparent; border: 1px solid transparent; border-radius: 4px; font-family: "DM Sans", "Noto Sans TC", sans-serif; font-size: 13px; font-weight: 500; outline: none; }
+.document-name-input:hover, .document-name-input:focus { background: rgba(245,240,229,0.06); border-color: rgba(227,213,187,0.22); }
+.shape-layer { position: absolute; display: block; overflow: visible; cursor: move; transform-origin: center; }
+.shape-layer.is-selected { outline: 1px dashed #e4513b; outline-offset: 7px; }
+.shape-choice-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 7px; margin: 4px 0 14px; }
+.shape-choice { display: grid; justify-items: center; gap: 5px; padding: 10px 4px 8px; color: #a9b0a9; background: rgba(245,240,229,0.05); border: 1px solid rgba(227,213,187,0.14); border-radius: 5px; cursor: pointer; font-size: 9px; transition: transform 160ms ease-out, color 180ms ease-out, border-color 180ms ease-out, background 180ms ease-out; }
+.shape-choice:hover, .shape-choice.is-active { color: #fff8ec; background: rgba(228,81,59,0.12); border-color: rgba(228,81,59,0.62); transform: translateY(-1px); }
+.toggle-row { display: flex; align-items: center; justify-content: space-between; margin: 17px 0; color: #c1c0b5; font-size: 10px; }
+.toggle-row input { width: 30px; height: 16px; appearance: none; background: rgba(245,240,229,0.12); border: 1px solid rgba(227,213,187,0.25); border-radius: 99px; cursor: pointer; transition: background 180ms ease-out; }
+.toggle-row input::before { content: ""; display: block; width: 10px; height: 10px; margin: 2px; background: #a0aaa3; border-radius: 50%; transition: transform 180ms ease-out, background 180ms ease-out; }
+.toggle-row input:checked { background: rgba(228,81,59,0.4); border-color: #e4513b; }
+.toggle-row input:checked::before { background: #fff8ec; transform: translateX(14px); }
+.align-actions { margin: 18px 0; }
+.align-button-row { display: flex; gap: 6px; }
+.align-button-row .secondary-button { flex: 1; padding: 0 7px; font-size: 9px; }
+.brand-lockup { min-width: 150px; }
+
+@media (max-width: 560px) {
+  .document-name-input { width: 150px; font-size: 11px; }
+  .shape-choice-grid { gap: 5px; }
+  .align-button-row .secondary-button { padding-left: 5px; padding-right: 5px; }
+}
