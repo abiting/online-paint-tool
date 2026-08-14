@@ -17,6 +17,7 @@ import {
   Heart,
   ImagePlus,
   Maximize2,
+  Move,
   Minus,
   MoreHorizontal,
   PaintBucket,
@@ -38,7 +39,8 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 
-type Tool = "brush" | "eraser" | "fill" | "text" | "shape" | "retouch";
+type Tool = "brush" | "eraser" | "fill" | "text" | "shape" | "retouch" | "move";
+type BrushKind = "oil" | "pencil" | "watercolor";
 type ShapeKind = "rectangle" | "circle" | "star" | "heart" | "triangle" | "pentagon";
 type ShapeResizeAxis = "left" | "right" | "top" | "bottom" | "top-left" | "top-right" | "bottom-left" | "bottom-right";
 
@@ -87,12 +89,28 @@ type ShapeLayer = {
   shadowY: number;
 };
 
+type ImageLayer = {
+  id: string;
+  name: string;
+  src: string;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  rotation: number;
+  opacity: number;
+  exposure: number;
+  contrast: number;
+  saturation: number;
+};
+
 type HistoryItem = {
   width: number;
   height: number;
   imageData: ImageData;
   layers: TextLayer[];
   shapes: ShapeLayer[];
+  images: ImageLayer[];
 };
 
 type Adjustments = {
@@ -145,6 +163,13 @@ const formatBytes = (bytes: number) => {
   if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`;
   return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
 };
+
+const loadImageElement = (src: string) => new Promise<HTMLImageElement>((resolve, reject) => {
+  const image = new Image();
+  image.onload = () => resolve(image);
+  image.onerror = reject;
+  image.src = src;
+});
 
 function ToolButton({
   label,
@@ -264,13 +289,34 @@ export default function Home() {
     startAngle: number;
     startRotation: number;
   } | null>(null);
+  const imageDragRef = useRef<{ id: string; offsetX: number; offsetY: number } | null>(null);
+  const imageResizeRef = useRef<{
+    id: string;
+    axis: ShapeResizeAxis;
+    startPointX: number;
+    startPointY: number;
+    startWidth: number;
+    startHeight: number;
+    startX: number;
+    startY: number;
+    aspectRatio: number;
+  } | null>(null);
+  const imageRotateRef = useRef<{
+    id: string;
+    centerX: number;
+    centerY: number;
+    startAngle: number;
+    startRotation: number;
+  } | null>(null);
   const historyRef = useRef<HistoryItem[]>([]);
   const historyIndexRef = useRef(-1);
   const layersRef = useRef<TextLayer[]>([]);
   const shapesRef = useRef<ShapeLayer[]>([]);
+  const imagesRef = useRef<ImageLayer[]>([]);
 
   const [canvasSize, setCanvasSize] = useState({ width: 960, height: 640 });
   const [tool, setTool] = useState<Tool>("brush");
+  const [brushKind, setBrushKind] = useState<BrushKind>("oil");
   const [brushColor, setBrushColor] = useState(BRAND_RED);
   const [brushSize, setBrushSize] = useState(18);
   const [brushOpacity, setBrushOpacity] = useState(100);
@@ -281,8 +327,10 @@ export default function Home() {
   const [hasArtwork, setHasArtwork] = useState(false);
   const [layers, setLayers] = useState<TextLayer[]>([]);
   const [shapes, setShapes] = useState<ShapeLayer[]>([]);
+  const [images, setImages] = useState<ImageLayer[]>([]);
   const [selectedTextId, setSelectedTextId] = useState<string | null>(null);
   const [selectedShapeId, setSelectedShapeId] = useState<string | null>(null);
+  const [selectedImageId, setSelectedImageId] = useState<string | null>(null);
   const [shapeKind, setShapeKind] = useState<ShapeKind>("rectangle");
   const [shapeFill, setShapeFill] = useState(BRAND_RED);
   const [shapeOutline, setShapeOutline] = useState("#FFFDF8");
@@ -309,12 +357,18 @@ export default function Home() {
     () => shapes.find((shape) => shape.id === selectedShapeId) ?? null,
     [shapes, selectedShapeId],
   );
+  const selectedImage = useMemo(
+    () => images.find((image) => image.id === selectedImageId) ?? null,
+    [images, selectedImageId],
+  );
   const activeAdjustmentValues: Adjustments = selectedShape
     ? { exposure: selectedShape.exposure ?? 0, contrast: selectedShape.contrast ?? 0, saturation: selectedShape.saturation ?? 100, opacity: selectedShape.opacity }
-    : selectedText
+    : selectedImage
+      ? { exposure: selectedImage.exposure ?? 0, contrast: selectedImage.contrast ?? 0, saturation: selectedImage.saturation ?? 100, opacity: selectedImage.opacity }
+      : selectedText
       ? { exposure: selectedText.exposure ?? 0, contrast: selectedText.contrast ?? 0, saturation: selectedText.saturation ?? 100, opacity: selectedText.opacity }
       : adjustments;
-  const activeAdjustmentTarget = selectedShape ? "目前圖形" : selectedText ? "目前文字卡" : "整個畫布";
+  const activeAdjustmentTarget = selectedShape ? "目前圖形" : selectedImage ? "目前圖片" : selectedText ? "目前文字卡" : "整個畫布";
 
   const canvasFilter = useMemo(
     () => makeAdjustmentFilter(adjustments.exposure, adjustments.contrast, adjustments.saturation),
@@ -344,6 +398,18 @@ export default function Home() {
     setShapes(normalizedShapes);
   }, []);
 
+  const syncImages = useCallback((nextImages: ImageLayer[]) => {
+    const normalizedImages = nextImages.map((image) => ({
+      ...image,
+      exposure: image.exposure ?? 0,
+      contrast: image.contrast ?? 0,
+      saturation: image.saturation ?? 100,
+      rotation: image.rotation ?? 0,
+    }));
+    imagesRef.current = normalizedImages;
+    setImages(normalizedImages);
+  }, []);
+
   const getCanvasPoint = useCallback((clientX: number, clientY: number) => {
     const canvas = canvasRef.current;
     if (!canvas) return { x: 0, y: 0 };
@@ -365,6 +431,7 @@ export default function Home() {
       imageData: context.getImageData(0, 0, canvas.width, canvas.height),
       layers: layersRef.current.map((layer) => ({ ...layer })),
       shapes: shapesRef.current.map((shape) => ({ ...shape })),
+      images: imagesRef.current.map((image) => ({ ...image })),
     };
     const current = historyRef.current.slice(0, historyIndexRef.current + 1);
     const next = [...current, item].slice(-24);
@@ -383,11 +450,13 @@ export default function Home() {
       setCanvasSize({ width: item.width, height: item.height });
       syncLayers(item.layers.map((layer) => ({ ...layer })));
       syncShapes(item.shapes?.map((shape) => ({ ...shape })) ?? []);
+      syncImages(item.images?.map((image) => ({ ...image })) ?? []);
       setSelectedTextId(null);
       setSelectedShapeId(null);
+      setSelectedImageId(null);
       historyIndexRef.current = index;
     },
-    [syncLayers, syncShapes],
+    [syncImages, syncLayers, syncShapes],
   );
 
   const undo = () => {
@@ -439,7 +508,51 @@ export default function Home() {
       const shapeDrag = shapeDragRef.current;
       const resize = shapeResizeRef.current;
       const rotate = shapeRotateRef.current;
+      const imageDrag = imageDragRef.current;
+      const imageResize = imageResizeRef.current;
+      const imageRotate = imageRotateRef.current;
       const point = getCanvasPoint(event.clientX, event.clientY);
+      if (imageRotate) {
+        const currentAngle = Math.atan2(point.y - imageRotate.centerY, point.x - imageRotate.centerX);
+        let nextRotation = imageRotate.startRotation + ((currentAngle - imageRotate.startAngle) * 180) / Math.PI;
+        if (event.shiftKey) nextRotation = Math.round(nextRotation / 15) * 15;
+        syncImages(imagesRef.current.map((image) => image.id === imageRotate.id ? { ...image, rotation: nextRotation } : image));
+        return;
+      }
+      if (imageResize) {
+        const nextImages = imagesRef.current.map((image) => {
+          if (image.id !== imageResize.id) return image;
+          const deltaX = point.x - imageResize.startPointX;
+          const deltaY = point.y - imageResize.startPointY;
+          const movesLeft = imageResize.axis.includes("left");
+          const movesRight = imageResize.axis.includes("right");
+          const movesTop = imageResize.axis.includes("top");
+          const movesBottom = imageResize.axis.includes("bottom");
+          let nextWidth = movesLeft ? imageResize.startWidth - deltaX : movesRight ? imageResize.startWidth + deltaX : imageResize.startWidth;
+          let nextHeight = movesTop ? imageResize.startHeight - deltaY : movesBottom ? imageResize.startHeight + deltaY : imageResize.startHeight;
+          if (event.shiftKey) {
+            if (movesLeft || movesRight) nextHeight = nextWidth / imageResize.aspectRatio;
+            if (movesTop || movesBottom) nextWidth = nextHeight * imageResize.aspectRatio;
+          }
+          const centerX = imageResize.startX + imageResize.startWidth / 2;
+          const centerY = imageResize.startY + imageResize.startHeight / 2;
+          const maxCenteredWidth = Math.max(60, Math.min(canvasSize.width, centerX * 2, (canvasSize.width - centerX) * 2));
+          const maxCenteredHeight = Math.max(60, Math.min(canvasSize.height, centerY * 2, (canvasSize.height - centerY) * 2));
+          nextWidth = clamp(nextWidth, 60, event.altKey ? maxCenteredWidth : canvasSize.width);
+          nextHeight = clamp(nextHeight, 60, event.altKey ? maxCenteredHeight : canvasSize.height);
+          const nextX = event.altKey ? centerX - nextWidth / 2 : movesLeft ? imageResize.startX + imageResize.startWidth - nextWidth : imageResize.startX;
+          const nextY = event.altKey ? centerY - nextHeight / 2 : movesTop ? imageResize.startY + imageResize.startHeight - nextHeight : imageResize.startY;
+          return {
+            ...image,
+            width: nextWidth,
+            height: nextHeight,
+            x: clamp(nextX, 0, canvasSize.width - nextWidth),
+            y: clamp(nextY, 0, canvasSize.height - nextHeight),
+          };
+        });
+        syncImages(nextImages);
+        return;
+      }
       if (rotate) {
         const currentAngle = Math.atan2(point.y - rotate.centerY, point.x - rotate.centerX);
         let nextRotation = rotate.startRotation + ((currentAngle - rotate.startAngle) * 180) / Math.PI;
@@ -498,13 +611,24 @@ export default function Home() {
         );
         syncShapes(nextShapes);
       }
+      if (imageDrag) {
+        const nextImages = imagesRef.current.map((image) =>
+          image.id === imageDrag.id
+            ? { ...image, x: clamp(point.x - imageDrag.offsetX, 0, canvasSize.width - image.width), y: clamp(point.y - imageDrag.offsetY, 0, canvasSize.height - image.height) }
+            : image,
+        );
+        syncImages(nextImages);
+      }
     };
     const handleUp = () => {
-      if (!textDragRef.current && !shapeDragRef.current && !shapeResizeRef.current && !shapeRotateRef.current) return;
+      if (!textDragRef.current && !shapeDragRef.current && !shapeResizeRef.current && !shapeRotateRef.current && !imageDragRef.current && !imageResizeRef.current && !imageRotateRef.current) return;
       textDragRef.current = null;
       shapeDragRef.current = null;
       shapeResizeRef.current = null;
       shapeRotateRef.current = null;
+      imageDragRef.current = null;
+      imageResizeRef.current = null;
+      imageRotateRef.current = null;
       captureHistory();
     };
     window.addEventListener("pointermove", handleMove);
@@ -513,7 +637,7 @@ export default function Home() {
       window.removeEventListener("pointermove", handleMove);
       window.removeEventListener("pointerup", handleUp);
     };
-  }, [canvasSize.height, canvasSize.width, captureHistory, getCanvasPoint, syncLayers, syncShapes]);
+  }, [canvasSize.height, canvasSize.width, captureHistory, getCanvasPoint, syncImages, syncLayers, syncShapes]);
 
   useEffect(() => {
     const handleShortcut = (event: KeyboardEvent) => {
@@ -522,9 +646,9 @@ export default function Home() {
       const key = event.key.toLowerCase();
       const modifier = event.ctrlKey || event.metaKey;
       if (key === "delete" || key === "backspace") {
-        if (selectedTextId || selectedShapeId) {
+        if (selectedTextId || selectedShapeId || selectedImageId) {
           event.preventDefault();
-          if (selectedTextId) deleteSelectedText(); else deleteSelectedShape();
+          if (selectedTextId) deleteSelectedText(); else if (selectedShapeId) deleteSelectedShape(); else deleteSelectedImage();
         }
         return;
       }
@@ -547,19 +671,23 @@ export default function Home() {
       if (key === "e") setTool("eraser");
       if (key === "f") setTool("fill");
       if (key === "t") setTool("text");
+      if (key === "v") setTool("move");
     };
     window.addEventListener("keydown", handleShortcut);
     return () => window.removeEventListener("keydown", handleShortcut);
-  }, [selectedShapeId, selectedTextId]);
+  }, [selectedImageId, selectedShapeId, selectedTextId]);
 
   const drawStroke = (from: CanvasPoint, to: CanvasPoint) => {
     const context = canvasRef.current?.getContext("2d");
     if (!context) return;
+    const baseAlpha = brushOpacity / 100;
+    const isPencil = brushKind === "pencil";
+    const isWatercolor = brushKind === "watercolor";
     context.save();
-    context.lineCap = "round";
+    context.lineCap = isPencil ? "butt" : "round";
     context.lineJoin = "round";
-    context.lineWidth = brushSize;
-    context.globalAlpha = brushOpacity / 100;
+    context.lineWidth = isPencil ? Math.max(1, brushSize * 0.52) : isWatercolor ? brushSize * 1.35 : brushSize;
+    context.globalAlpha = isWatercolor ? baseAlpha * 0.34 : isPencil ? baseAlpha * 0.82 : baseAlpha;
     context.strokeStyle = brushColor;
     context.fillStyle = brushColor;
     context.globalCompositeOperation = tool === "eraser" ? "destination-out" : "source-over";
@@ -567,8 +695,22 @@ export default function Home() {
     context.moveTo(from.x, from.y);
     context.lineTo(to.x, to.y);
     context.stroke();
+    if (isWatercolor && tool !== "eraser") {
+      const jitter = Math.max(1, brushSize * 0.18);
+      context.globalAlpha = baseAlpha * 0.12;
+      context.lineWidth = brushSize * 0.72;
+      context.beginPath();
+      context.moveTo(from.x - jitter, from.y + jitter);
+      context.lineTo(to.x - jitter, to.y + jitter);
+      context.stroke();
+      context.beginPath();
+      context.moveTo(from.x + jitter, from.y - jitter);
+      context.lineTo(to.x + jitter, to.y - jitter);
+      context.stroke();
+    }
     context.beginPath();
-    context.arc(to.x, to.y, brushSize / 2, 0, Math.PI * 2);
+    context.globalAlpha = isWatercolor ? baseAlpha * 0.22 : isPencil ? baseAlpha * 0.7 : baseAlpha;
+    context.arc(to.x, to.y, (isPencil ? brushSize * 0.28 : isWatercolor ? brushSize * 0.68 : brushSize / 2), 0, Math.PI * 2);
     context.fill();
     context.restore();
   };
@@ -696,6 +838,7 @@ export default function Home() {
     syncShapes(nextShapes);
     setSelectedShapeId(nextShape.id);
     setSelectedTextId(null);
+    setSelectedImageId(null);
     setTool("shape");
     captureHistory();
     toast.success(`${SHAPE_LABELS[kind]} 已加入畫布`);
@@ -703,6 +846,7 @@ export default function Home() {
 
   const handleCanvasPointerDown = (event: ReactPointerEvent<HTMLCanvasElement>) => {
     const point = getCanvasPoint(event.clientX, event.clientY);
+    if (tool === "move") return;
     if (tool === "fill") {
       floodFill(point);
       return;
@@ -791,6 +935,8 @@ export default function Home() {
     const nextLayers = [...layersRef.current, nextLayer];
     syncLayers(nextLayers);
     setSelectedTextId(nextLayer.id);
+    setSelectedShapeId(null);
+    setSelectedImageId(null);
     toast.success("已新增文字卡，現在可以直接編輯");
     captureHistory();
   };
@@ -876,6 +1022,14 @@ export default function Home() {
     toast.success("圖形已移除");
   };
 
+  const deleteSelectedImage = () => {
+    if (!selectedImageId) return;
+    syncImages(imagesRef.current.filter((image) => image.id !== selectedImageId));
+    setSelectedImageId(null);
+    captureHistory();
+    toast.success("圖片素材已移除");
+  };
+
   const alignSelected = (axis: "horizontal" | "vertical" | "both") => {
     if (selectedShape) {
       updateShape({
@@ -935,6 +1089,15 @@ export default function Home() {
         shadowBlur: shape.shadowBlur * Math.min(scaleX, scaleY),
         shadowX: shape.shadowX * scaleX,
         shadowY: shape.shadowY * scaleY,
+      })),
+    );
+    syncImages(
+      imagesRef.current.map((image) => ({
+        ...image,
+        x: image.x * scaleX,
+        y: image.y * scaleY,
+        width: image.width * scaleX,
+        height: image.height * scaleY,
       })),
     );
     setCanvasSize({ width: nextWidth, height: nextHeight });
@@ -1001,6 +1164,10 @@ export default function Home() {
       updateShape(patch);
       return;
     }
+    if (selectedImageId) {
+      syncImages(imagesRef.current.map((image) => image.id === selectedImageId ? { ...image, ...patch } : image));
+      return;
+    }
     if (selectedTextId) {
       updateTextLayer(patch);
       return;
@@ -1024,25 +1191,35 @@ export default function Home() {
       const ratio = Math.min(1, maxDimension / Math.max(image.naturalWidth, image.naturalHeight));
       const width = Math.max(240, Math.round(image.naturalWidth * ratio));
       const height = Math.max(180, Math.round(image.naturalHeight * ratio));
-      canvas.width = width;
-      canvas.height = height;
-      canvas.getContext("2d")?.drawImage(image, 0, 0, width, height);
-      setCanvasSize({ width, height });
+      const nextImage: ImageLayer = {
+        id: makeId("image"),
+        name: file.name,
+        src: image.src,
+        x: Math.max(0, (canvasSize.width - width) / 2),
+        y: Math.max(0, (canvasSize.height - height) / 2),
+        width,
+        height,
+        rotation: 0,
+        opacity: 100,
+        exposure: 0,
+        contrast: 0,
+        saturation: 100,
+      };
+      syncImages([...imagesRef.current, nextImage]);
       setFileMeta({ name: file.name, size: formatBytes(file.size) });
       setDocumentNameDraft(file.name);
-      syncLayers([]);
-      syncShapes([]);
+      setSelectedImageId(nextImage.id);
       setSelectedTextId(null);
       setSelectedShapeId(null);
       setHasArtwork(true);
       captureHistory();
-      toast.success("影像已載入，可以開始編輯");
+      toast.success("影像已加入畫布，可以直接移動與拉伸");
     };
     image.src = URL.createObjectURL(file);
     event.target.value = "";
   };
 
-  const exportImage = () => {
+  const exportImage = async () => {
     const source = canvasRef.current;
     if (!source) return;
     const output = document.createElement("canvas");
@@ -1054,6 +1231,24 @@ export default function Home() {
     context.globalAlpha = adjustments.opacity / 100;
     context.drawImage(source, 0, 0);
     context.filter = "none";
+    const loadedImages = await Promise.all(imagesRef.current.map(async (image) => {
+      try {
+        return await loadImageElement(image.src);
+      } catch {
+        return null;
+      }
+    }));
+    imagesRef.current.forEach((image, index) => {
+      const imageElement = loadedImages[index];
+      if (!imageElement) return;
+      context.save();
+      context.globalAlpha = (adjustments.opacity / 100) * (image.opacity / 100);
+      context.filter = makeAdjustmentFilter(image.exposure, image.contrast, image.saturation);
+      context.translate(image.x + image.width / 2, image.y + image.height / 2);
+      context.rotate((image.rotation * Math.PI) / 180);
+      context.drawImage(imageElement, -image.width / 2, -image.height / 2, image.width, image.height);
+      context.restore();
+    });
     shapesRef.current.forEach((shape) => {
       context.save();
       context.globalAlpha = (adjustments.opacity / 100) * (shape.opacity / 100);
@@ -1127,11 +1322,12 @@ export default function Home() {
     const point = getCanvasPoint(event.clientX, event.clientY);
     setSelectedTextId(layer.id);
     setSelectedShapeId(null);
-    textDragRef.current = {
+    setSelectedImageId(null);
+    textDragRef.current = tool === "move" ? {
       id: layer.id,
       offsetX: point.x - layer.x,
       offsetY: point.y - layer.y,
-    };
+    } : null;
   };
 
   const handleShapePointerDown = (event: ReactPointerEvent<SVGSVGElement>, shape: ShapeLayer) => {
@@ -1140,11 +1336,12 @@ export default function Home() {
     const point = getCanvasPoint(event.clientX, event.clientY);
     setSelectedShapeId(shape.id);
     setSelectedTextId(null);
-    shapeDragRef.current = {
+    setSelectedImageId(null);
+    shapeDragRef.current = tool === "move" ? {
       id: shape.id,
       offsetX: point.x - shape.x,
       offsetY: point.y - shape.y,
-    };
+    } : null;
   };
 
   const handleShapeResizePointerDown = (event: ReactPointerEvent<SVGRectElement>, shape: ShapeLayer, axis: ShapeResizeAxis) => {
@@ -1153,6 +1350,7 @@ export default function Home() {
     const point = getCanvasPoint(event.clientX, event.clientY);
     setSelectedShapeId(shape.id);
     setSelectedTextId(null);
+    setSelectedImageId(null);
     textDragRef.current = null;
     shapeDragRef.current = null;
     shapeResizeRef.current = {
@@ -1176,6 +1374,7 @@ export default function Home() {
     const centerY = shape.y + shape.height / 2;
     setSelectedShapeId(shape.id);
     setSelectedTextId(null);
+    setSelectedImageId(null);
     textDragRef.current = null;
     shapeDragRef.current = null;
     shapeResizeRef.current = null;
@@ -1185,6 +1384,58 @@ export default function Home() {
       centerY,
       startAngle: Math.atan2(point.y - centerY, point.x - centerX),
       startRotation: shape.rotation ?? 0,
+    };
+  };
+
+  const handleImagePointerDown = (event: ReactPointerEvent<HTMLDivElement>, image: ImageLayer) => {
+    event.stopPropagation();
+    if ((event.target as Element).classList.contains("image-resize-handle") || (event.target as Element).classList.contains("image-rotation-handle")) return;
+    const point = getCanvasPoint(event.clientX, event.clientY);
+    setSelectedImageId(image.id);
+    setSelectedTextId(null);
+    setSelectedShapeId(null);
+    imageDragRef.current = tool === "move" ? { id: image.id, offsetX: point.x - image.x, offsetY: point.y - image.y } : null;
+  };
+
+  const handleImageResizePointerDown = (event: ReactPointerEvent<HTMLDivElement>, image: ImageLayer, axis: ShapeResizeAxis) => {
+    event.stopPropagation();
+    event.currentTarget.setPointerCapture(event.pointerId);
+    const point = getCanvasPoint(event.clientX, event.clientY);
+    setSelectedImageId(image.id);
+    setSelectedTextId(null);
+    setSelectedShapeId(null);
+    imageDragRef.current = null;
+    imageRotateRef.current = null;
+    imageResizeRef.current = {
+      id: image.id,
+      axis,
+      startPointX: point.x,
+      startPointY: point.y,
+      startWidth: image.width,
+      startHeight: image.height,
+      startX: image.x,
+      startY: image.y,
+      aspectRatio: image.width / Math.max(1, image.height),
+    };
+  };
+
+  const handleImageRotatePointerDown = (event: ReactPointerEvent<HTMLDivElement>, image: ImageLayer) => {
+    event.stopPropagation();
+    event.currentTarget.setPointerCapture(event.pointerId);
+    const point = getCanvasPoint(event.clientX, event.clientY);
+    const centerX = image.x + image.width / 2;
+    const centerY = image.y + image.height / 2;
+    setSelectedImageId(image.id);
+    setSelectedTextId(null);
+    setSelectedShapeId(null);
+    imageDragRef.current = null;
+    imageResizeRef.current = null;
+    imageRotateRef.current = {
+      id: image.id,
+      centerX,
+      centerY,
+      startAngle: Math.atan2(point.y - centerY, point.x - centerX),
+      startRotation: image.rotation ?? 0,
     };
   };
 
@@ -1279,6 +1530,7 @@ export default function Home() {
         <aside className="tool-rail" aria-label="繪圖工具">
           <div className="rail-label">TOOLS</div>
           <div className="tool-group">
+            <ToolButton label="移動" active={tool === "move"} icon={<Move size={18} />} onClick={() => setTool("move")} />
             <ToolButton label="筆刷" active={tool === "brush"} icon={<Pencil size={18} />} onClick={() => setTool("brush")} />
             <ToolButton label="橡皮擦" active={tool === "eraser"} icon={<Eraser size={18} />} onClick={() => setTool("eraser")} />
             <ToolButton label="填色桶" active={tool === "fill"} icon={<PaintBucket size={18} />} onClick={() => setTool("fill")} />
@@ -1300,8 +1552,8 @@ export default function Home() {
           <div className="workspace-toolbar">
             <div className="active-tool-name">
               <span className="active-tool-marker" />
-              <span>{tool === "brush" ? "筆刷" : tool === "eraser" ? "橡皮擦" : tool === "fill" ? "填色桶" : tool === "text" ? "文字卡" : tool === "shape" ? "新增圖形" : "移除瑕疵"}</span>
-              <span className="tool-hint">{tool === "text" ? "點擊畫布加入文字" : tool === "shape" ? "從右側選擇形狀" : tool === "retouch" ? "在瑕疵上塗抹修補" : "在畫布上落筆"}</span>
+              <span>{tool === "move" ? "移動" : tool === "brush" ? "筆刷" : tool === "eraser" ? "橡皮擦" : tool === "fill" ? "填色桶" : tool === "text" ? "文字卡" : tool === "shape" ? "新增圖形" : "移除瑕疵"}</span>
+              <span className="tool-hint">{tool === "move" ? "拖曳畫布上的物件" : tool === "text" ? "點擊畫布加入文字" : tool === "shape" ? "從右側選擇形狀" : tool === "retouch" ? "在瑕疵上塗抹修補" : "在畫布上落筆"}</span>
             </div>
             <div className="workspace-actions">
               <button type="button" className="ghost-button" onClick={() => setZoom((value) => clamp(value - 10, 25, 150))}>
@@ -1356,6 +1608,42 @@ export default function Home() {
                     onPointerLeave={finishStroke}
                     aria-label="繪圖畫布"
                   />
+                  {images.map((image) => (
+                    <div
+                      key={image.id}
+                      className={`image-layer ${selectedImageId === image.id ? "is-selected" : ""}`}
+                      style={{
+                        left: `${image.x}px`,
+                        top: `${image.y}px`,
+                        width: `${image.width}px`,
+                        height: `${image.height}px`,
+                        transform: `rotate(${image.rotation}deg)`,
+                        opacity: image.opacity / 100,
+                        filter: makeAdjustmentFilter(image.exposure, image.contrast, image.saturation),
+                      }}
+                      onPointerDown={(event) => handleImagePointerDown(event, image)}
+                      role="button"
+                      tabIndex={0}
+                      aria-label={`圖片素材：${image.name}`}
+                    >
+                      <img className="image-layer-content" src={image.src} alt={image.name} draggable={false} />
+                      {selectedImageId === image.id && (
+                        <>
+                          <div className="image-resize-handle image-resize-handle-left" onPointerDown={(event) => handleImageResizePointerDown(event, image, "left")} />
+                          <div className="image-resize-handle image-resize-handle-right" onPointerDown={(event) => handleImageResizePointerDown(event, image, "right")} />
+                          <div className="image-resize-handle image-resize-handle-top" onPointerDown={(event) => handleImageResizePointerDown(event, image, "top")} />
+                          <div className="image-resize-handle image-resize-handle-bottom" onPointerDown={(event) => handleImageResizePointerDown(event, image, "bottom")} />
+                          <div className="image-resize-handle image-resize-handle-top-left" onPointerDown={(event) => handleImageResizePointerDown(event, image, "top-left")} />
+                          <div className="image-resize-handle image-resize-handle-top-right" onPointerDown={(event) => handleImageResizePointerDown(event, image, "top-right")} />
+                          <div className="image-resize-handle image-resize-handle-bottom-left" onPointerDown={(event) => handleImageResizePointerDown(event, image, "bottom-left")} />
+                          <div className="image-resize-handle image-resize-handle-bottom-right" onPointerDown={(event) => handleImageResizePointerDown(event, image, "bottom-right")} />
+                          <div className="image-rotation-stem" />
+                          <div className="image-rotation-handle" onPointerDown={(event) => handleImageRotatePointerDown(event, image)} />
+                          <div className="image-rotation-label">{Math.round(image.rotation)}°</div>
+                        </>
+                      )}
+                    </div>
+                  ))}
                   {shapes.map((shape) => (
                     <svg
                       key={shape.id}
@@ -1433,7 +1721,7 @@ export default function Home() {
 
           <div className="workspace-footer">
             <div className="brush-context">
-              <span className="context-label">筆刷</span>
+              <span className="context-label">{brushKind === "pencil" ? "鉛筆" : brushKind === "watercolor" ? "水彩" : "油線筆"}</span>
               <span className="brush-preview" style={{ width: `${clamp(brushSize, 8, 28)}px`, height: `${clamp(brushSize, 8, 28)}px`, backgroundColor: brushColor }} />
               <span className="mono-value">{brushSize}px</span>
               <span className="context-separator" />
@@ -1448,12 +1736,17 @@ export default function Home() {
           <div className="inspector-scroll">
             <SectionTitle
               eyebrow="TOOL SETTINGS"
-              title={tool === "text" || selectedText ? "文字卡" : "筆刷設定"}
+              title={selectedImage ? "圖片素材" : selectedShape ? "圖形設定" : tool === "text" || selectedText ? "文字卡" : tool === "move" ? "移動工具" : "筆刷設定"}
               action={<button type="button" className="icon-button subtle" title="面板選項" aria-label="面板選項"><MoreHorizontal size={17} /></button>}
             />
 
-            {tool !== "text" && !selectedText && !selectedShape && (
+            {(tool === "brush" || tool === "eraser" || tool === "retouch") && !selectedText && !selectedShape && !selectedImage && (
               <div className="inspector-section">
+                <div className="brush-choice-grid" role="group" aria-label="筆刷類型">
+                  <button type="button" className={`brush-choice ${brushKind === "oil" ? "is-active" : ""}`} onClick={() => setBrushKind("oil")}><span className="brush-choice-mark brush-choice-mark-oil" /><span>油線筆</span></button>
+                  <button type="button" className={`brush-choice ${brushKind === "pencil" ? "is-active" : ""}`} onClick={() => setBrushKind("pencil")}><span className="brush-choice-mark brush-choice-mark-pencil" /><span>鉛筆</span></button>
+                  <button type="button" className={`brush-choice ${brushKind === "watercolor" ? "is-active" : ""}`} onClick={() => setBrushKind("watercolor")}><span className="brush-choice-mark brush-choice-mark-watercolor" /><span>水彩</span></button>
+                </div>
                 <div className="color-row">
                   <div>
                     <span className="field-label">前景色</span>
@@ -1467,7 +1760,7 @@ export default function Home() {
                 <RangeControl label="筆刷大小" value={brushSize} min={2} max={160} suffix=" px" onChange={setBrushSize} />
                 <RangeControl label="筆刷不透明度" value={brushOpacity} min={1} max={100} suffix="%" onChange={setBrushOpacity} />
                 <div className="swatch-row">
-                  {["#E4513B", "#1F2528", "#426B8A", "#D59B42", "#FFFDF8"].map((color) => (
+                  {["#000000", "#1F2528", "#555B5D", "#FFFFFF", "#FFFDF8", "#E4513B", "#B72F34", "#F07C41", "#D59B42", "#F4C95D", "#2F855A", "#82A480", "#426B8A", "#2D5B9B", "#8B5CF6", "#D26A9C"].map((color) => (
                     <button key={color} type="button" className={`swatch ${brushColor === color ? "is-selected" : ""}`} style={{ backgroundColor: color }} onClick={() => setBrushColor(color)} aria-label={`選擇顏色 ${color}`} />
                   ))}
                 </div>
@@ -1500,6 +1793,15 @@ export default function Home() {
                     <button type="button" className="secondary-button full-width" onClick={deleteSelectedShape}><Trash2 size={14} /> 移除圖形</button>
                   </>
                 )}
+              </div>
+            )}
+
+            {selectedImage && (
+              <div className="inspector-section image-inspector-section">
+                <SectionTitle eyebrow="IMAGE LAYER" title="圖片素材" action={<ImagePlus size={15} className="section-icon" />} />
+                <div className="image-layer-meta"><span>檔案</span><strong>{selectedImage.name}</strong></div>
+                <p className="empty-inspector">可在畫布上拖曳圖片移動，使用邊角控制點拉伸，或拖曳旋轉控制點調整角度。</p>
+                <button type="button" className="secondary-button full-width" onClick={deleteSelectedImage}><Trash2 size={14} /> 移除圖片</button>
               </div>
             )}
 
