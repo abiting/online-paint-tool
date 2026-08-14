@@ -1529,7 +1529,7 @@ export default function Home() {
       <header className="topbar">
         <div className="brand-lockup">
           <div className="brand-copy">
-            <span className="brand-name">CoAi Paint</span>
+            <span className="brand-name">CoAi</span>
           </div>
         </div>
 
