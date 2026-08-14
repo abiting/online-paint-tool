@@ -521,9 +521,10 @@ export default function Home() {
     const bounds = viewport.getBoundingClientRect();
     const displayWidth = canvasSize.width * (zoom / 100);
     const displayHeight = canvasSize.height * (zoom / 100);
+    const isSmallViewport = bounds.width <= 560;
     setPan({
       x: Math.max(18, (bounds.width - displayWidth) / 2),
-      y: Math.max(18, (bounds.height - displayHeight) / 2),
+      y: isSmallViewport ? 16 : Math.max(18, (bounds.height - displayHeight) / 2),
     });
     hasInitializedPanRef.current = true;
   }, [canvasSize.height, canvasSize.width, zoom]);
@@ -1508,6 +1509,7 @@ export default function Home() {
     const target = event.target as HTMLElement;
     if (event.pointerType === "touch") {
       touchPointsRef.current.set(event.pointerId, { x: event.clientX, y: event.clientY });
+      event.currentTarget.setPointerCapture(event.pointerId);
       if (touchPointsRef.current.size === 2) {
         const points = Array.from(touchPointsRef.current.values());
         const centerX = (points[0].x + points[1].x) / 2;
@@ -1521,6 +1523,9 @@ export default function Home() {
           originY: pan.y,
         };
         panDragRef.current = null;
+        setIsPanning(true);
+      } else {
+        panDragRef.current = { startX: event.clientX, startY: event.clientY, originX: pan.x, originY: pan.y };
         setIsPanning(true);
       }
       return;
@@ -1546,6 +1551,9 @@ export default function Home() {
           x: pinchPan.originX + centerX - pinchPan.startCenterX,
           y: pinchPan.originY + centerY - pinchPan.startCenterY,
         });
+      } else if (points.length === 1 && panDragRef.current) {
+        const drag = panDragRef.current;
+        setPan({ x: drag.originX + event.clientX - drag.startX, y: drag.originY + event.clientY - drag.startY });
       }
       return;
     }
@@ -1557,8 +1565,14 @@ export default function Home() {
   const finishPan = (event?: ReactPointerEvent<HTMLDivElement>) => {
     if (event?.pointerType === "touch") {
       touchPointsRef.current.delete(event.pointerId);
-      if (touchPointsRef.current.size < 2) {
+      if (touchPointsRef.current.size === 1) {
+        const remaining = Array.from(touchPointsRef.current.values())[0];
         pinchPanRef.current = null;
+        panDragRef.current = { startX: remaining.x, startY: remaining.y, originX: pan.x, originY: pan.y };
+        setIsPanning(true);
+      } else if (touchPointsRef.current.size === 0) {
+        pinchPanRef.current = null;
+        panDragRef.current = null;
         setIsPanning(false);
       }
     }

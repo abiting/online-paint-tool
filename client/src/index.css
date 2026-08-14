@@ -284,7 +284,7 @@ input[type="range"]::-moz-range-thumb { width: 11px; height: 11px; border: 2px s
   .top-actions .icon-button:nth-child(2), .top-actions .top-divider { display: none; }
   .primary-button { padding: 0 9px; font-size: 10px; }
   .studio-layout { grid-template-columns: minmax(0, 1fr); }
-  .canvas-viewport { padding: 44px 14px 64px; }
+  .canvas-viewport { padding: 18px 14px 64px; }
   .workspace-toolbar { padding: 0 12px; }
   .tool-hint { display: none; }
   .inspector { left: 0; height: 47vh; }
