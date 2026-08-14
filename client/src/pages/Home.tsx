@@ -387,22 +387,6 @@ export default function Home() {
       const shapeDrag = shapeDragRef.current;
       const resize = shapeResizeRef.current;
       const point = getCanvasPoint(event.clientX, event.clientY);
-      if (drag) {
-        const nextLayers = layersRef.current.map((layer) =>
-          layer.id === drag.id
-            ? { ...layer, x: clamp(point.x - drag.offsetX, 0, canvasSize.width - 30), y: clamp(point.y - drag.offsetY, 0, canvasSize.height - 30) }
-            : layer,
-        );
-        syncLayers(nextLayers);
-      }
-      if (shapeDrag) {
-        const nextShapes = shapesRef.current.map((shape) =>
-          shape.id === shapeDrag.id
-            ? { ...shape, x: clamp(point.x - shapeDrag.offsetX, 0, canvasSize.width - shape.width), y: clamp(point.y - shapeDrag.offsetY, 0, canvasSize.height - shape.height) }
-            : shape,
-        );
-        syncShapes(nextShapes);
-      }
       if (resize) {
         const nextShapes = shapesRef.current.map((shape) => {
           if (shape.id !== resize.id) return shape;
@@ -417,6 +401,23 @@ export default function Home() {
             cornerRadius: Math.min(shape.cornerRadius, Math.min(nextWidth, nextHeight) / 2),
           };
         });
+        syncShapes(nextShapes);
+        return;
+      }
+      if (drag) {
+        const nextLayers = layersRef.current.map((layer) =>
+          layer.id === drag.id
+            ? { ...layer, x: clamp(point.x - drag.offsetX, 0, canvasSize.width - 30), y: clamp(point.y - drag.offsetY, 0, canvasSize.height - 30) }
+            : layer,
+        );
+        syncLayers(nextLayers);
+      }
+      if (shapeDrag) {
+        const nextShapes = shapesRef.current.map((shape) =>
+          shape.id === shapeDrag.id
+            ? { ...shape, x: clamp(point.x - shapeDrag.offsetX, 0, canvasSize.width - shape.width), y: clamp(point.y - shapeDrag.offsetY, 0, canvasSize.height - shape.height) }
+            : shape,
+        );
         syncShapes(nextShapes);
       }
     };
@@ -1016,6 +1017,7 @@ export default function Home() {
 
   const handleShapePointerDown = (event: ReactPointerEvent<SVGSVGElement>, shape: ShapeLayer) => {
     event.stopPropagation();
+    if ((event.target as Element).classList.contains("shape-resize-handle")) return;
     const point = getCanvasPoint(event.clientX, event.clientY);
     setSelectedShapeId(shape.id);
     setSelectedTextId(null);
@@ -1028,9 +1030,12 @@ export default function Home() {
 
   const handleShapeResizePointerDown = (event: ReactPointerEvent<SVGRectElement>, shape: ShapeLayer, axis: "width" | "height" | "both") => {
     event.stopPropagation();
+    event.currentTarget.setPointerCapture(event.pointerId);
     const point = getCanvasPoint(event.clientX, event.clientY);
     setSelectedShapeId(shape.id);
     setSelectedTextId(null);
+    textDragRef.current = null;
+    shapeDragRef.current = null;
     shapeResizeRef.current = {
       id: shape.id,
       axis,
@@ -1196,6 +1201,7 @@ export default function Home() {
                       key={shape.id}
                       className={`shape-layer ${selectedShapeId === shape.id ? "is-selected" : ""}`}
                       viewBox="0 0 100 100"
+                      preserveAspectRatio="none"
                       style={{
                         left: `${shape.x}px`,
                         top: `${shape.y}px`,
