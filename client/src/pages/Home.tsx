@@ -1560,14 +1560,14 @@ export default function Home() {
             <Redo2 size={17} />
           </button>
           <span className="top-divider" />
-          <button type="button" className="secondary-button" onClick={() => fileInputRef.current?.click()}>
-            <Upload size={15} /> 匯入影像
+          <button type="button" className="secondary-button" onClick={() => fileInputRef.current?.click()} title="匯入影像" aria-label="匯入影像">
+            <Upload size={15} /> <span className="top-action-label">匯入影像</span>
           </button>
-          <button type="button" className="primary-button" onClick={() => exportImage("png")}>
-            <Download size={15} /> 匯出 PNG
+          <button type="button" className="primary-button" onClick={() => exportImage("png")} title="匯出 PNG" aria-label="匯出 PNG">
+            <Download size={15} /> <span className="top-action-label">匯出 PNG</span>
           </button>
-          <button type="button" className="primary-button" onClick={() => exportImage("jpeg")}>
-            <Download size={15} /> 匯出 JPG
+          <button type="button" className="primary-button" onClick={() => exportImage("jpeg")} title="匯出 JPG" aria-label="匯出 JPG">
+            <Download size={15} /> <span className="top-action-label">匯出 JPG</span>
           </button>
         </div>
         <input ref={fileInputRef} type="file" accept="image/*" onChange={handleImport} hidden />

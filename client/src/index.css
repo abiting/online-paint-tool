@@ -357,7 +357,14 @@ input[type="range"]::-moz-range-thumb { width: 11px; height: 11px; border: 2px s
 .brand-lockup { min-width: 150px; }
 
 @media (max-width: 560px) {
-  .document-name-input { width: 150px; font-size: 11px; }
+  .topbar { height: 64px; padding: 0 12px; gap: 8px; }
+  .brand-lockup { min-width: auto; }
+  .document-meta { display: none; }
+  .top-actions { min-width: 0; flex: 1; justify-content: flex-end; gap: 4px; }
+  .top-actions .secondary-button { display: inline-flex; min-height: 32px; padding: 0 9px; font-size: 10px; white-space: nowrap; }
+  .top-actions .primary-button { width: 34px; min-height: 32px; padding: 0; }
+  .top-actions .primary-button .top-action-label { display: none; }
+  .top-actions .top-divider { margin: 0 1px; }
   .shape-choice-grid { gap: 5px; }
   .align-button-row .secondary-button { padding-left: 5px; padding-right: 5px; }
 }
