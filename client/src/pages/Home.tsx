@@ -40,6 +40,7 @@ import {
 import { toast } from "sonner";
 
 type Tool = "brush" | "eraser" | "fill" | "text" | "shape" | "retouch" | "move";
+type DesktopCreativeTool = Extract<Tool, "brush" | "shape" | "text">;
 type BrushKind = "oil" | "pencil" | "watercolor";
 type ShapeKind = "rectangle" | "circle" | "star" | "heart" | "triangle" | "pentagon";
 type ShapeResizeAxis = "left" | "right" | "top" | "bottom" | "top-left" | "top-right" | "bottom-left" | "bottom-right";
@@ -326,6 +327,8 @@ export default function Home() {
   const [brushColor, setBrushColor] = useState(BRAND_RED);
   const [brushSize, setBrushSize] = useState(18);
   const [brushOpacity, setBrushOpacity] = useState(100);
+  const [openDesktopTool, setOpenDesktopTool] = useState<DesktopCreativeTool | null>(null);
+  const [activeDesktopTool, setActiveDesktopTool] = useState<DesktopCreativeTool | null>(null);
   const [zoom, setZoom] = useState(68);
   const [pan, setPan] = useState({ x: 0, y: 0 });
   const [isPanning, setIsPanning] = useState(false);
@@ -342,6 +345,7 @@ export default function Home() {
   const [shapeOutline, setShapeOutline] = useState("#FFFDF8");
   const [shapeOutlineWidth, setShapeOutlineWidth] = useState(2);
   const [shapeShadow, setShapeShadow] = useState(true);
+  const [shapeCornerRadius, setShapeCornerRadius] = useState(12);
   const [adjustments, setAdjustments] = useState<Adjustments>({
     exposure: 0,
     contrast: 0,
@@ -888,7 +892,7 @@ export default function Home() {
       y: (canvasSize.height - height) / 2,
       width,
       height,
-      cornerRadius: kind === "rectangle" ? 12 : 0,
+      cornerRadius: kind === "rectangle" ? shapeCornerRadius : 0,
       rotation: 0,
       fill: shapeFill,
       opacity: 100,
@@ -914,7 +918,32 @@ export default function Home() {
     toast.success(`${SHAPE_LABELS[kind]} 已加入畫布`);
   };
 
+  const addTextLayer = () => {
+    const nextLayer: TextLayer = {
+      id: makeId(),
+      text: "在這裡輸入文字",
+      x: Math.max(24, canvasSize.width / 2 - 140),
+      y: Math.max(24, canvasSize.height / 2 - 32),
+      fontSize: 52,
+      fontWeight: 700,
+      color: GRAPHITE,
+      opacity: 100,
+      exposure: 0,
+      contrast: 0,
+      saturation: 100,
+      fontFamily: "Noto Sans TC",
+    };
+    syncLayers([...layersRef.current, nextLayer]);
+    setSelectedTextId(nextLayer.id);
+    setSelectedShapeId(null);
+    setSelectedImageId(null);
+    setTool("text");
+    captureHistory();
+    toast.success("文字已加入畫布");
+  };
+
   const handleCanvasPointerDown = (event: ReactPointerEvent<HTMLCanvasElement>) => {
+    event.stopPropagation();
     const point = getCanvasPoint(event.clientX, event.clientY);
     if (tool === "move") return;
     if (tool === "fill") {
@@ -1708,6 +1737,18 @@ export default function Home() {
   const mobileDrawerStyle = mobileDrawerHeight === null
     ? undefined
     : ({ "--mobile-drawer-height": `${mobileDrawerHeight}px` } as CSSProperties);
+  const handleDesktopToolToggle = (nextTool: DesktopCreativeTool) => {
+    setTool(nextTool);
+    setActiveDesktopTool(nextTool);
+    setOpenDesktopTool((currentTool) => currentTool === nextTool ? null : nextTool);
+  };
+  const activeWorkspaceToolLabel = activeDesktopTool === "brush"
+    ? "畫筆"
+    : activeDesktopTool === "shape"
+      ? "圖形"
+      : activeDesktopTool === "text"
+        ? "文字"
+        : "解析度調整";
   const toolPanelTitle = selectedImage
     ? "圖片素材"
     : selectedShape
@@ -1733,7 +1774,7 @@ export default function Home() {
       <header className="topbar">
         <div className="brand-lockup">
           <div className="brand-copy">
-            <span className="brand-name">CoAi</span>
+            <span className="brand-name">AbiPaint</span>
           </div>
         </div>
 
@@ -1778,11 +1819,19 @@ export default function Home() {
       </header>
 
       <div className="studio-layout">
+        <aside className="tool-rail desktop-creative-rail" aria-label="創作工具">
+          <span className="rail-label">CREATIVE</span>
+          <div className="tool-group">
+            <ToolButton label="畫筆" active={openDesktopTool === "brush"} icon={<Pencil size={18} />} onClick={() => handleDesktopToolToggle("brush")} />
+            <ToolButton label="圖形" active={openDesktopTool === "shape"} icon={<Shapes size={18} />} onClick={() => handleDesktopToolToggle("shape")} />
+            <ToolButton label="文字" active={openDesktopTool === "text"} icon={<Type size={18} />} onClick={() => handleDesktopToolToggle("text")} />
+          </div>
+        </aside>
         <section className="workspace" aria-label="畫布工作區">
           <div className="workspace-toolbar">
             <div className="active-tool-name">
               <span className="active-tool-marker" />
-              <span>解析度調整</span>
+              <span>{activeWorkspaceToolLabel}</span>
             </div>
             <div className="workspace-actions">
               <button type="button" className="ghost-button" onClick={() => setZoom((value) => clamp(value - 10, 25, 150))}>
@@ -1803,6 +1852,73 @@ export default function Home() {
               </button>
             </div>
           </div>
+
+          {openDesktopTool && (
+            <section className="desktop-tool-popover" aria-label={`${activeWorkspaceToolLabel}設定`}>
+              <div className="desktop-tool-popover-heading">
+                <div>
+                  <span className="eyebrow">CREATIVE TOOL</span>
+                  <h2>{activeWorkspaceToolLabel}設定</h2>
+                </div>
+                <button type="button" className="icon-button subtle" onClick={() => setOpenDesktopTool(null)} title="完成設定" aria-label="完成設定"><Check size={16} /></button>
+              </div>
+
+              {openDesktopTool === "brush" && (
+                <div className="desktop-tool-popover-content">
+                  <div className="color-row">
+                    <div><span className="field-label">筆刷顏色</span><span className="field-help">從色票或自訂色開始繪製</span></div>
+                    <label className="color-picker"><input type="color" value={brushColor} onChange={(event) => setBrushColor(event.target.value)} aria-label="筆刷顏色" /><span style={{ backgroundColor: brushColor }} /></label>
+                  </div>
+                  <RangeControl label="筆刷大小" value={brushSize} min={2} max={160} suffix=" px" onChange={setBrushSize} />
+                  <RangeControl label="筆刷不透明度" value={brushOpacity} min={1} max={100} suffix="%" onChange={setBrushOpacity} />
+                  <div className="swatch-row floating-swatch-row" role="group" aria-label="筆刷色票">
+                    {["#000000", "#1F2528", "#555B5D", "#FFFFFF", "#FFFDF8", "#E4513B", "#B72F34", "#F07C41", "#D59B42", "#2F855A", "#426B8A", "#2D5B9B", "#8B5CF6", "#D26A9C"].map((color) => (
+                      <button key={color} type="button" className={`swatch ${brushColor === color ? "is-selected" : ""}`} style={{ backgroundColor: color }} onClick={() => setBrushColor(color)} aria-label={`選擇顏色 ${color}`} />
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {openDesktopTool === "shape" && (
+                <div className="desktop-tool-popover-content">
+                  <div className="shape-choice-grid floating-shape-grid">
+                    <button type="button" className={`shape-choice ${shapeKind === "rectangle" ? "is-active" : ""}`} onClick={() => { setShapeKind("rectangle"); addShape("rectangle"); }}><Square size={18} /><span>方塊</span></button>
+                    <button type="button" className={`shape-choice ${shapeKind === "circle" ? "is-active" : ""}`} onClick={() => { setShapeKind("circle"); addShape("circle"); }}><Circle size={18} /><span>圓形</span></button>
+                    <button type="button" className={`shape-choice ${shapeKind === "star" ? "is-active" : ""}`} onClick={() => { setShapeKind("star"); addShape("star"); }}><Star size={18} /><span>星星</span></button>
+                    <button type="button" className={`shape-choice ${shapeKind === "heart" ? "is-active" : ""}`} onClick={() => { setShapeKind("heart"); addShape("heart"); }}><Heart size={18} /><span>愛心</span></button>
+                    <button type="button" className={`shape-choice ${shapeKind === "triangle" ? "is-active" : ""}`} onClick={() => { setShapeKind("triangle"); addShape("triangle"); }}><Triangle size={18} /><span>三角形</span></button>
+                    <button type="button" className={`shape-choice ${shapeKind === "pentagon" ? "is-active" : ""}`} onClick={() => { setShapeKind("pentagon"); addShape("pentagon"); }}><Pentagon size={18} /><span>五邊形</span></button>
+                  </div>
+                  <div className="color-row"><span className="field-label">填色</span><label className="color-picker"><input type="color" value={shapeFill} onChange={(event) => { setShapeFill(event.target.value); if (selectedShape) updateShape({ fill: event.target.value }); }} aria-label="圖形填色" /><span style={{ backgroundColor: shapeFill }} /></label></div>
+                  <div className="color-row"><span className="field-label">輪廓</span><label className="color-picker"><input type="color" value={shapeOutline} onChange={(event) => { setShapeOutline(event.target.value); if (selectedShape) updateShape({ outline: event.target.value }); }} aria-label="圖形輪廓" /><span style={{ backgroundColor: shapeOutline }} /></label></div>
+                  <RangeControl label="輪廓粗細" value={selectedShape?.outlineWidth ?? shapeOutlineWidth} min={0} max={16} suffix=" px" onChange={(value) => { setShapeOutlineWidth(value); if (selectedShape) updateShape({ outlineWidth: value }); }} />
+                  <RangeControl label="圓角半徑" value={selectedShape?.kind === "rectangle" ? selectedShape.cornerRadius : shapeCornerRadius} min={0} max={72} suffix=" px" onChange={(value) => { setShapeCornerRadius(value); if (selectedShape?.kind === "rectangle") updateShape({ cornerRadius: value }); }} />
+                  {selectedShape && <RangeControl label="圖形不透明度" value={selectedShape.opacity} min={1} max={100} suffix="%" onChange={(value) => updateShape({ opacity: value })} />}
+                </div>
+              )}
+
+              {openDesktopTool === "text" && (
+                <div className="desktop-tool-popover-content">
+                  {!selectedText ? (
+                    <button type="button" className="primary-button full-width" onClick={addTextLayer}><Type size={15} /> 在畫布新增文字</button>
+                  ) : (
+                    <>
+                      <label className="field-label" htmlFor="desktop-text-content">文字內容</label>
+                      <textarea id="desktop-text-content" className="text-input" value={selectedText.text} onChange={(event) => updateTextLayer({ text: event.target.value })} rows={3} />
+                      <div className="text-color-control">
+                        <div className="text-color-heading"><span className="field-label">文字顏色</span><label className="color-picker compact-color-picker"><input type="color" value={selectedText.color} onChange={(event) => updateTextLayer({ color: event.target.value })} aria-label="自訂文字顏色" /><span style={{ backgroundColor: selectedText.color }} /></label></div>
+                        <div className="text-palette" role="group" aria-label="文字色票">
+                          {["#000000", "#1F2528", "#555B5D", "#FFFFFF", "#FFFDF8", "#E4513B", "#B72F34", "#F07C41", "#D59B42", "#2F855A", "#426B8A", "#2D5B9B", "#8B5CF6", "#D26A9C"].map((color) => <button key={color} type="button" className={`text-swatch ${selectedText.color.toUpperCase() === color ? "is-selected" : ""}`} style={{ backgroundColor: color }} onClick={() => updateTextLayer({ color })} aria-label={`文字顏色 ${color}`} />)}
+                        </div>
+                      </div>
+                      <RangeControl label="字級" value={selectedText.fontSize} min={12} max={180} suffix=" px" onChange={(value) => updateTextLayer({ fontSize: value })} />
+                      <RangeControl label="文字不透明度" value={selectedText.opacity} min={1} max={100} suffix="%" onChange={(value) => updateTextLayer({ opacity: value })} />
+                    </>
+                  )}
+                </div>
+              )}
+            </section>
+          )}
 
           <div
             className={`canvas-viewport ${isPanning ? "is-panning" : ""}`}
@@ -1833,7 +1949,7 @@ export default function Home() {
                 <div className="canvas-content">
                   <canvas
                     ref={canvasRef}
-                    style={{ filter: canvasFilter, opacity: adjustments.opacity / 100, pointerEvents: "none" }}
+                    style={{ filter: canvasFilter, opacity: adjustments.opacity / 100, pointerEvents: activeDesktopTool === "brush" ? "auto" : "none" }}
                     onPointerDown={handleCanvasPointerDown}
                     onPointerMove={handleCanvasPointerMove}
                     onPointerUp={finishStroke}

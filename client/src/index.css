@@ -145,7 +145,7 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 .primary-button:hover { background: #ef674f; }
 .full-width { width: 100%; }
 
-.studio-layout { min-height: calc(100vh - 74px); display: grid; grid-template-columns: minmax(0, 1fr) 320px; }
+.studio-layout { min-height: calc(100vh - 74px); display: grid; grid-template-columns: 74px minmax(0, 1fr) 320px; }
 .tool-rail { display: flex; flex-direction: column; align-items: center; padding: 22px 10px 18px; background: rgba(24, 32, 34, 0.82); border-right: 1px solid rgba(227,213,187,0.13); }
 .rail-label { margin-bottom: 16px; writing-mode: vertical-rl; transform: rotate(180deg); color: #707b77; }
 .tool-group { display: grid; gap: 7px; width: 100%; }
@@ -160,7 +160,7 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 .rail-caption { width: 100%; text-align: center; margin-bottom: 4px; color: #66716d; font-size: 9px; }
 kbd { min-width: 19px; padding: 3px 4px; text-align: center; color: #aab1aa; background: rgba(245,240,229,0.06); border: 1px solid rgba(227,213,187,0.17); border-radius: 3px; font: 10px "IBM Plex Mono", monospace; }
 
-.workspace { min-width: 0; display: flex; flex-direction: column; background: rgba(39, 47, 48, 0.64); }
+.workspace { position: relative; min-width: 0; display: flex; flex-direction: column; background: rgba(39, 47, 48, 0.64); }
 .workspace-toolbar { height: 56px; display: flex; align-items: center; justify-content: space-between; padding: 0 20px; border-bottom: 1px solid rgba(227,213,187,0.1); }
 .active-tool-name { gap: 8px; font-size: 12px; font-weight: 500; }
 .active-tool-marker { width: 7px; height: 7px; background: #e4513b; border-radius: 50%; box-shadow: 0 0 0 4px rgba(228,81,59,0.14); }
@@ -195,6 +195,21 @@ kbd { min-width: 19px; padding: 3px 4px; text-align: center; color: #aab1aa; bac
 .mono-value { color: #c2c7bc; font: 10px "IBM Plex Mono", monospace; }
 .footer-note { gap: 6px; color: #77827c; font-size: 10px; }
 .footer-note svg { color: #82a480; }
+
+/* Design reminder — 紙上工作室 / New Modern Craft:
+   桌面創作功能以窄側欄取用、中央短暫浮卡調整；關閉後將畫布完整還給使用者。 */
+.desktop-tool-popover { position: absolute; z-index: 24; top: 72px; left: 50%; width: min(432px, calc(100% - 48px)); max-height: calc(100% - 92px); overflow: auto; transform: translateX(-50%); padding: 18px 20px 20px; border: 1px solid rgba(227,213,187,0.24); border-top: 2px solid rgba(228,81,59,0.82); border-radius: 7px; background: rgba(27,35,37,0.97); box-shadow: 0 24px 50px rgba(8,12,13,0.42), 0 2px 10px rgba(8,12,13,0.24); }
+.desktop-tool-popover-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; margin-bottom: 14px; }
+.desktop-tool-popover-heading h2 { margin: 4px 0 0; color: #f1ecdf; font: 700 17px "DM Sans", "Noto Sans TC", sans-serif; letter-spacing: -0.02em; }
+.desktop-tool-popover-content { padding-top: 2px; }
+.desktop-tool-popover .range-control { margin: 16px 0; }
+.floating-swatch-row { flex-wrap: wrap; gap: 7px; margin-top: 14px; }
+.floating-shape-grid { grid-template-columns: repeat(6, 1fr); margin: 2px 0 18px; }
+.floating-shape-grid .shape-choice { padding-top: 8px; padding-bottom: 7px; }
+
+@media (max-width: 820px) {
+  .desktop-tool-popover { display: none; }
+}
 
 .inspector { min-height: 0; border-left: 1px solid rgba(227,213,187,0.14); background: rgba(26,34,37,0.92); }
 .inspector-scroll { height: 100%; overflow: auto; padding: 24px 20px 28px; }
@@ -268,6 +283,7 @@ input[type="range"]::-moz-range-thumb { width: 11px; height: 11px; border: 2px s
   .document-meta { display: none; }
   .top-actions .secondary-button { display: none; }
   .studio-layout { min-height: calc(100vh - 64px); grid-template-columns: minmax(0, 1fr); }
+  .desktop-creative-rail { display: none; }
   .inspector { position: fixed; z-index: 10; right: 0; bottom: 0; left: 0; height: min(43vh, 390px); border-top: 1px solid rgba(227,213,187,0.16); box-shadow: 0 -18px 38px rgba(8,12,13,0.25); }
   .inspector-scroll { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: 24px; row-gap: 0; padding: 20px 22px 28px; }
   .inspector-scroll > .section-title { grid-column: 1 / -1; }
