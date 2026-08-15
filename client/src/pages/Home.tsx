@@ -104,6 +104,11 @@ type ImageLayer = {
   saturation: number;
 };
 
+type SnapGuides = {
+  x: number | null;
+  y: number | null;
+};
+
 type HistoryItem = {
   width: number;
   height: number;
@@ -345,6 +350,7 @@ export default function Home() {
   });
   const [fileMeta, setFileMeta] = useState({ name: "未命名畫布", size: "—" });
   const [documentNameDraft, setDocumentNameDraft] = useState("未命名畫布");
+  const [snapGuides, setSnapGuides] = useState<SnapGuides>({ x: null, y: null });
   const clipboardTextRef = useRef<TextLayer | null>(null);
   const panDragRef = useRef<{ startX: number; startY: number; originX: number; originY: number } | null>(null);
   const touchPointsRef = useRef(new Map<number, { x: number; y: number }>());
@@ -647,11 +653,34 @@ export default function Home() {
         syncShapes(nextShapes);
       }
       if (imageDrag) {
-        const nextImages = imagesRef.current.map((image) =>
-          image.id === imageDrag.id
-            ? { ...image, x: point.x - imageDrag.offsetX, y: point.y - imageDrag.offsetY }
-            : image,
-        );
+        const snapThreshold = 12 / Math.max(0.25, zoom / 100);
+        let nextGuides: SnapGuides = { x: null, y: null };
+        const nextImages = imagesRef.current.map((image) => {
+          if (image.id !== imageDrag.id) return image;
+          const rawX = point.x - imageDrag.offsetX;
+          const rawY = point.y - imageDrag.offsetY;
+          const horizontalTargets = [
+            { position: 0, guide: 0 },
+            { position: canvasSize.width / 2 - image.width / 2, guide: canvasSize.width / 2 },
+            { position: canvasSize.width - image.width, guide: canvasSize.width },
+          ];
+          const verticalTargets = [
+            { position: 0, guide: 0 },
+            { position: canvasSize.height / 2 - image.height / 2, guide: canvasSize.height / 2 },
+            { position: canvasSize.height - image.height, guide: canvasSize.height },
+          ];
+          const snapX = horizontalTargets.reduce((closest, target) =>
+            Math.abs(rawX - target.position) < Math.abs(rawX - closest.position) ? target : closest,
+          );
+          const snapY = verticalTargets.reduce((closest, target) =>
+            Math.abs(rawY - target.position) < Math.abs(rawY - closest.position) ? target : closest,
+          );
+          const xIsSnapped = Math.abs(rawX - snapX.position) <= snapThreshold;
+          const yIsSnapped = Math.abs(rawY - snapY.position) <= snapThreshold;
+          nextGuides = { x: xIsSnapped ? snapX.guide : null, y: yIsSnapped ? snapY.guide : null };
+          return { ...image, x: xIsSnapped ? snapX.position : rawX, y: yIsSnapped ? snapY.position : rawY };
+        });
+        setSnapGuides((current) => current.x === nextGuides.x && current.y === nextGuides.y ? current : nextGuides);
         scheduleImages(nextImages);
       }
     };
@@ -664,6 +693,7 @@ export default function Home() {
       imageDragRef.current = null;
       imageResizeRef.current = null;
       imageRotateRef.current = null;
+      setSnapGuides({ x: null, y: null });
       flushImageUpdates();
       captureHistory();
     };
@@ -673,7 +703,7 @@ export default function Home() {
       window.removeEventListener("pointermove", handleMove);
       window.removeEventListener("pointerup", handleUp);
     };
-  }, [canvasSize.height, canvasSize.width, captureHistory, flushImageUpdates, getCanvasPoint, scheduleImages, syncLayers, syncShapes]);
+  }, [canvasSize.height, canvasSize.width, captureHistory, flushImageUpdates, getCanvasPoint, scheduleImages, syncLayers, syncShapes, zoom]);
 
   useEffect(() => {
     const handleShortcut = (event: KeyboardEvent) => {
@@ -1457,6 +1487,7 @@ export default function Home() {
     event.preventDefault();
     event.currentTarget.setPointerCapture(event.pointerId);
     const point = getCanvasPoint(event.clientX, event.clientY);
+    setSnapGuides({ x: null, y: null });
     setSelectedImageId(image.id);
     setSelectedTextId(null);
     setSelectedShapeId(null);
@@ -1769,10 +1800,12 @@ export default function Home() {
                     onPointerLeave={finishStroke}
                     aria-label="繪圖畫布"
                   />
+                  {snapGuides.x !== null && <div className="snap-guide snap-guide-vertical" style={{ left: `${snapGuides.x}px` }} />}
+                  {snapGuides.y !== null && <div className="snap-guide snap-guide-horizontal" style={{ top: `${snapGuides.y}px` }} />}
                   {images.map((image) => (
                     <div
                       key={image.id}
-                      className={`image-layer ${selectedImageId === image.id ? "is-selected" : ""}`}
+                      className={`image-layer ${selectedImageId === image.id ? "is-selected" : ""} ${selectedImageId === image.id && (snapGuides.x !== null || snapGuides.y !== null) ? "is-snapped" : ""}`}
                       style={{
                         left: `${image.x}px`,
                         top: `${image.y}px`,
