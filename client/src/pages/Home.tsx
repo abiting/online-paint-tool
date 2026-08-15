@@ -417,6 +417,7 @@ export default function Home() {
   const [isMobileDrawerDragging, setIsMobileDrawerDragging] = useState(false);
   const [desktopToolPosition, setDesktopToolPosition] = useState<{ x: number; y: number } | null>(null);
   const [isDesktopToolDragging, setIsDesktopToolDragging] = useState(false);
+  const [isFaqOpen, setIsFaqOpen] = useState(false);
   const clipboardTextRef = useRef<TextLayer | null>(null);
   const panDragRef = useRef<{ startX: number; startY: number; originX: number; originY: number } | null>(null);
   const touchPointsRef = useRef(new Map<number, { x: number; y: number }>());
@@ -2113,7 +2114,45 @@ export default function Home() {
             <ToolButton label="畫筆" active={activeDesktopTool === "brush"} icon={<Pencil size={18} />} onClick={() => handleDesktopToolCreate("brush")} onDoubleActivate={() => handleDesktopToolSettings("brush")} />
             <ToolButton label="圖形" active={activeDesktopTool === "shape"} icon={<Shapes size={18} />} onClick={() => handleDesktopToolCreate("shape")} onDoubleActivate={() => handleDesktopToolSettings("shape")} />
             <ToolButton label="文字" active={activeDesktopTool === "text"} icon={<Type size={18} />} onClick={() => handleDesktopToolCreate("text")} onDoubleActivate={() => handleDesktopToolSettings("text")} />
+            <button type="button" className={`faq-rail-toggle ${isFaqOpen ? "is-active" : ""}`} onClick={() => setIsFaqOpen((open) => !open)} aria-expanded={isFaqOpen} aria-controls="abipaint-faq-panel">
+              <span className="faq-rail-glyph">?</span>
+              <span>FAQ</span>
+              <ChevronDown size={11} aria-hidden="true" />
+            </button>
           </div>
+          {isFaqOpen && (
+            <section id="abipaint-faq-panel" className="faq-panel" aria-label="AbiPaint 常見問題">
+              <header className="faq-panel-header">
+                <div>
+                  <span className="faq-eyebrow">FAQ / FIELD NOTES</span>
+                  <h2>使用說明</h2>
+                </div>
+                <button type="button" className="faq-close" onClick={() => setIsFaqOpen(false)} aria-label="關閉常見問題"><ChevronDown size={16} /></button>
+              </header>
+              <div className="faq-list">
+                <details className="faq-item" open>
+                  <summary><span>01</span>AbiPaint 是什麼？</summary>
+                  <div className="faq-answer">AbiPaint 是免費線上圖片尺寸修改器，不用安裝 Adobe 或註冊 Canva，直接在瀏覽器調整照片尺寸、像素與解析度。</div>
+                </details>
+                <details className="faq-item">
+                  <summary><span>02</span>什麼情況會使用 AbiPaint？</summary>
+                  <div className="faq-answer">想修改圖片、照片的解析度，但手邊沒有 Photoshop、Illustrator 或 Canva 時，本工具可快速派上用場：<ul><li>將 1080 × 1080 的大頭照縮小為符合線上系統規範的尺寸。</li><li>將遭 AI 工具壓縮失真的網站 Banner 校正並還原細節樣貌。</li><li>將檔案肥大的 PNG 插畫修改並轉換為不佔空間的 JPG 圖檔。</li></ul></div>
+                </details>
+                <details className="faq-item">
+                  <summary><span>03</span>使用 AbiPaint 是否需要註冊帳號？</summary>
+                  <div className="faq-answer">完全不需要！AbiPaint 提供免費、免註冊與免安裝的修圖服務，打開網頁即可直接使用，適合所有電腦、平板與手機用戶。</div>
+                </details>
+                <details className="faq-item">
+                  <summary><span>04</span>AbiPaint 還有什麼功能？</summary>
+                  <div className="faq-answer">除了修改圖片尺寸，AbiPaint 也提供畫筆、圖形與文字等多種素材，適合學生、教師、設計師、行銷人員等各行各業使用。</div>
+                </details>
+                <details className="faq-item">
+                  <summary><span>05</span>發現錯誤資訊該怎麼辦？</summary>
+                  <div className="faq-answer">若發現錯誤資訊，歡迎透過以下電子郵件聯繫開發人員：<a className="faq-email" href="mailto:abiting.ct@gmail.com">abiting.ct@gmail.com</a></div>
+                </details>
+              </div>
+            </section>
+          )}
         </aside>
         <section ref={workspaceRef} className="workspace" aria-label="畫布工作區">
           <div className="workspace-toolbar">
