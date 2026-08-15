@@ -2426,6 +2426,14 @@ export default function Home() {
             </div>
           </div>
 
+          <footer className="workspace-footer product-footer" aria-label="AbiPaint 工具說明">
+            <div className="product-footnote">
+              <span className="product-footnote-label">ABOUT ABIPAINT</span>
+              <p>阿比丁身為主攻《名偵探柯南》的網站經營者，時常有「調整照片尺寸」與「提高照片解析度」的需求。在沒安裝 Adobe 且不使用 Canva 的情況下，為了提高工作效率，索性開發了「AbiPaint 線上圖片尺寸修改器」，支援素材圖像的「大小縮放」、「像素校正」與「細節微調」。</p>
+            </div>
+            <p className="product-copyright">Copyright © 2026 <a href="https://abiting.cc" target="_blank" rel="noreferrer">阿比丁的第二個家</a></p>
+          </footer>
+
         </section>
 
         <aside ref={inspectorRef} className={`inspector ${isMobileDrawerDragging ? "is-dragging" : ""}`} aria-label="屬性與調整">

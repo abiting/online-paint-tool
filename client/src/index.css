@@ -201,6 +201,13 @@ kbd { min-width: 19px; padding: 3px 4px; text-align: center; color: #aab1aa; bac
 .mono-value { color: #c2c7bc; font: 10px "IBM Plex Mono", monospace; }
 .footer-note { gap: 6px; color: #77827c; font-size: 10px; }
 .footer-note svg { color: #82a480; }
+.product-footer { min-height: 76px; height: auto; align-items: center; gap: 20px; padding: 11px 20px 10px; background: linear-gradient(90deg, rgba(37,36,31,0.88), rgba(48,45,38,0.48)); }
+.product-footnote { min-width: 0; max-width: 740px; }
+.product-footnote-label { color: rgba(226,213,187,0.48); font: 8px "IBM Plex Mono", monospace; letter-spacing: 0.14em; }
+.product-footnote p { margin: 4px 0 0; color: #7f8882; font-size: 9px; line-height: 1.58; }
+.product-copyright { flex: 0 0 auto; margin: 0 0 1px auto; color: #66716d; font: 9px "IBM Plex Mono", monospace; white-space: nowrap; }
+.product-copyright a { color: #a6aca4; text-decoration: none; border-bottom: 1px solid rgba(228,81,59,0.42); transition: color 160ms var(--ease-out), border-color 160ms var(--ease-out); }
+.product-copyright a:hover { color: #f0e8d8; border-color: #e4513b; }
 
 /* Design reminder — 紙上工作室 / New Modern Craft:
    桌面創作功能以窄側欄取用、中央短暫浮卡調整；關閉後將畫布完整還給使用者。 */
