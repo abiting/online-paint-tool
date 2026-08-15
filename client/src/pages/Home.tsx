@@ -5,7 +5,7 @@
 */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { CSSProperties, PointerEvent as ReactPointerEvent } from "react";
+import type { CSSProperties, MouseEvent as ReactMouseEvent, PointerEvent as ReactPointerEvent } from "react";
 import {
   AlignCenter,
   AlignVerticalJustifyCenter,
@@ -105,6 +105,17 @@ type ImageLayer = {
   saturation: number;
 };
 
+type BrushStroke = {
+  id: string;
+  points: CanvasPoint[];
+  x: number;
+  y: number;
+  color: string;
+  size: number;
+  opacity: number;
+  kind: BrushKind;
+};
+
 type SnapGuides = {
   x: number | null;
   y: number | null;
@@ -117,6 +128,7 @@ type HistoryItem = {
   layers: TextLayer[];
   shapes: ShapeLayer[];
   images: ImageLayer[];
+  strokes: BrushStroke[];
 };
 
 type Adjustments = {
@@ -352,11 +364,14 @@ export default function Home() {
     startAngle: number;
     startRotation: number;
   } | null>(null);
+  const strokeDragRef = useRef<{ id: string; offsetX: number; offsetY: number } | null>(null);
+  const drawingStrokeRef = useRef<BrushStroke | null>(null);
   const historyRef = useRef<HistoryItem[]>([]);
   const historyIndexRef = useRef(-1);
   const layersRef = useRef<TextLayer[]>([]);
   const shapesRef = useRef<ShapeLayer[]>([]);
   const imagesRef = useRef<ImageLayer[]>([]);
+  const strokesRef = useRef<BrushStroke[]>([]);
 
   const [canvasSize, setCanvasSize] = useState({ width: 960, height: 640 });
   const [scaleImagesWithCanvas, setScaleImagesWithCanvas] = useState(false);
@@ -375,10 +390,13 @@ export default function Home() {
   const [layers, setLayers] = useState<TextLayer[]>([]);
   const [shapes, setShapes] = useState<ShapeLayer[]>([]);
   const [images, setImages] = useState<ImageLayer[]>([]);
+  const [strokes, setStrokes] = useState<BrushStroke[]>([]);
+  const [drawingStroke, setDrawingStroke] = useState<BrushStroke | null>(null);
   const [selectedTextId, setSelectedTextId] = useState<string | null>(null);
   const [editingTextId, setEditingTextId] = useState<string | null>(null);
   const [selectedShapeId, setSelectedShapeId] = useState<string | null>(null);
   const [selectedImageId, setSelectedImageId] = useState<string | null>(null);
+  const [selectedStrokeId, setSelectedStrokeId] = useState<string | null>(null);
   const [shapeKind, setShapeKind] = useState<ShapeKind>("rectangle");
   const [shapeFill, setShapeFill] = useState(BRAND_RED);
   const [shapeOutline, setShapeOutline] = useState("#FFFDF8");
@@ -406,6 +424,7 @@ export default function Home() {
   const imageUpdateFrameRef = useRef<number | null>(null);
   const pendingImagesRef = useRef<ImageLayer[] | null>(null);
   const viewportRef = useRef<HTMLDivElement>(null);
+  const studioLayoutRef = useRef<HTMLDivElement>(null);
   const workspaceRef = useRef<HTMLElement>(null);
   const desktopToolPanelRef = useRef<HTMLElement>(null);
   const desktopToolDragRef = useRef<{ startX: number; startY: number; originX: number; originY: number } | null>(null);
@@ -474,6 +493,11 @@ export default function Home() {
     setImages(normalizedImages);
   }, []);
 
+  const syncStrokes = useCallback((nextStrokes: BrushStroke[]) => {
+    strokesRef.current = nextStrokes;
+    setStrokes(nextStrokes);
+  }, []);
+
   const scheduleImages = useCallback((nextImages: ImageLayer[]) => {
     pendingImagesRef.current = nextImages;
     if (imageUpdateFrameRef.current !== null) return;
@@ -505,6 +529,29 @@ export default function Home() {
     };
   }, []);
 
+  const getSnappedPosition = useCallback((rawX: number, rawY: number, width: number, height: number) => {
+    const threshold = 12 / Math.max(0.25, zoom / 100);
+    const horizontalTargets = [
+      { position: 0, guide: 0 },
+      { position: canvasSize.width / 2 - width / 2, guide: canvasSize.width / 2 },
+      { position: canvasSize.width - width, guide: canvasSize.width },
+    ];
+    const verticalTargets = [
+      { position: 0, guide: 0 },
+      { position: canvasSize.height / 2 - height / 2, guide: canvasSize.height / 2 },
+      { position: canvasSize.height - height, guide: canvasSize.height },
+    ];
+    const closestX = horizontalTargets.reduce((nearest, target) => Math.abs(rawX - target.position) < Math.abs(rawX - nearest.position) ? target : nearest);
+    const closestY = verticalTargets.reduce((nearest, target) => Math.abs(rawY - target.position) < Math.abs(rawY - nearest.position) ? target : nearest);
+    const xIsSnapped = Math.abs(rawX - closestX.position) <= threshold;
+    const yIsSnapped = Math.abs(rawY - closestY.position) <= threshold;
+    return {
+      x: xIsSnapped ? closestX.position : rawX,
+      y: yIsSnapped ? closestY.position : rawY,
+      guides: { x: xIsSnapped ? closestX.guide : null, y: yIsSnapped ? closestY.guide : null },
+    };
+  }, [canvasSize.height, canvasSize.width, zoom]);
+
   const captureHistory = useCallback(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -517,6 +564,7 @@ export default function Home() {
       layers: layersRef.current.map((layer) => ({ ...layer })),
       shapes: shapesRef.current.map((shape) => ({ ...shape })),
       images: imagesRef.current.map((image) => ({ ...image })),
+      strokes: strokesRef.current.map((stroke) => ({ ...stroke, points: stroke.points.map((point) => ({ ...point })) })),
     };
     const current = historyRef.current.slice(0, historyIndexRef.current + 1);
     const next = [...current, item].slice(-24);
@@ -536,12 +584,14 @@ export default function Home() {
       syncLayers(item.layers.map((layer) => ({ ...layer })));
       syncShapes(item.shapes?.map((shape) => ({ ...shape })) ?? []);
       syncImages(item.images?.map((image) => ({ ...image })) ?? []);
+      syncStrokes(item.strokes?.map((stroke) => ({ ...stroke, points: stroke.points.map((point) => ({ ...point })) })) ?? []);
       setSelectedTextId(null);
       setSelectedShapeId(null);
       setSelectedImageId(null);
+      setSelectedStrokeId(null);
       historyIndexRef.current = index;
     },
-    [syncImages, syncLayers, syncShapes],
+    [syncImages, syncLayers, syncShapes, syncStrokes],
   );
 
   const undo = () => {
@@ -592,6 +642,7 @@ export default function Home() {
     const handleMove = (event: PointerEvent) => {
       const drag = textDragRef.current;
       const shapeDrag = shapeDragRef.current;
+      const strokeDrag = strokeDragRef.current;
       const resize = shapeResizeRef.current;
       const rotate = shapeRotateRef.current;
       const imageDrag = imageDragRef.current;
@@ -689,20 +740,50 @@ export default function Home() {
         return;
       }
       if (drag) {
-        const nextLayers = layersRef.current.map((layer) =>
-          layer.id === drag.id
-            ? { ...layer, x: clamp(point.x - drag.offsetX, 0, canvasSize.width - 30), y: clamp(point.y - drag.offsetY, 0, canvasSize.height - 30) }
-            : layer,
-        );
+        let nextGuides: SnapGuides = { x: null, y: null };
+        const nextLayers = layersRef.current.map((layer) => {
+          if (layer.id !== drag.id) return layer;
+          const estimatedWidth = Math.max(48, layer.text.length * layer.fontSize * 0.58);
+          const rawX = clamp(point.x - drag.offsetX, 0, canvasSize.width - estimatedWidth);
+          const rawY = clamp(point.y - drag.offsetY, 0, canvasSize.height - layer.fontSize);
+          const snapped = getSnappedPosition(rawX, rawY, estimatedWidth, layer.fontSize);
+          nextGuides = snapped.guides;
+          return { ...layer, x: snapped.x, y: snapped.y };
+        });
+        setSnapGuides(nextGuides);
         syncLayers(nextLayers);
       }
       if (shapeDrag) {
-        const nextShapes = shapesRef.current.map((shape) =>
-          shape.id === shapeDrag.id
-            ? { ...shape, x: clamp(point.x - shapeDrag.offsetX, 0, canvasSize.width - shape.width), y: clamp(point.y - shapeDrag.offsetY, 0, canvasSize.height - shape.height) }
-            : shape,
-        );
+        let nextGuides: SnapGuides = { x: null, y: null };
+        const nextShapes = shapesRef.current.map((shape) => {
+          if (shape.id !== shapeDrag.id) return shape;
+          const rawX = clamp(point.x - shapeDrag.offsetX, 0, canvasSize.width - shape.width);
+          const rawY = clamp(point.y - shapeDrag.offsetY, 0, canvasSize.height - shape.height);
+          const snapped = getSnappedPosition(rawX, rawY, shape.width, shape.height);
+          nextGuides = snapped.guides;
+          return { ...shape, x: snapped.x, y: snapped.y };
+        });
+        setSnapGuides(nextGuides);
         syncShapes(nextShapes);
+      }
+      if (strokeDrag) {
+        let nextGuides: SnapGuides = { x: null, y: null };
+        const nextStrokes = strokesRef.current.map((stroke) => {
+          if (stroke.id !== strokeDrag.id) return stroke;
+          const minX = Math.min(...stroke.points.map((item) => item.x));
+          const maxX = Math.max(...stroke.points.map((item) => item.x));
+          const minY = Math.min(...stroke.points.map((item) => item.y));
+          const maxY = Math.max(...stroke.points.map((item) => item.y));
+          const width = Math.max(1, maxX - minX);
+          const height = Math.max(1, maxY - minY);
+          const rawX = point.x - strokeDrag.offsetX;
+          const rawY = point.y - strokeDrag.offsetY;
+          const snapped = getSnappedPosition(rawX + minX, rawY + minY, width, height);
+          nextGuides = snapped.guides;
+          return { ...stroke, x: snapped.x - minX, y: snapped.y - minY };
+        });
+        setSnapGuides(nextGuides);
+        syncStrokes(nextStrokes);
       }
       if (imageDrag) {
         const snapThreshold = 12 / Math.max(0.25, zoom / 100);
@@ -737,9 +818,10 @@ export default function Home() {
       }
     };
     const handleUp = () => {
-      if (!textDragRef.current && !shapeDragRef.current && !shapeResizeRef.current && !shapeRotateRef.current && !imageDragRef.current && !imageResizeRef.current && !imageRotateRef.current) return;
+      if (!textDragRef.current && !shapeDragRef.current && !strokeDragRef.current && !shapeResizeRef.current && !shapeRotateRef.current && !imageDragRef.current && !imageResizeRef.current && !imageRotateRef.current) return;
       textDragRef.current = null;
       shapeDragRef.current = null;
+      strokeDragRef.current = null;
       shapeResizeRef.current = null;
       shapeRotateRef.current = null;
       imageDragRef.current = null;
@@ -755,7 +837,7 @@ export default function Home() {
       window.removeEventListener("pointermove", handleMove);
       window.removeEventListener("pointerup", handleUp);
     };
-  }, [canvasSize.height, canvasSize.width, captureHistory, flushImageUpdates, getCanvasPoint, scheduleImages, syncLayers, syncShapes, zoom]);
+  }, [canvasSize.height, canvasSize.width, captureHistory, flushImageUpdates, getCanvasPoint, getSnappedPosition, scheduleImages, syncLayers, syncShapes, syncStrokes, zoom]);
 
   useEffect(() => {
     const handleShortcut = (event: KeyboardEvent) => {
@@ -764,9 +846,13 @@ export default function Home() {
       const key = event.key.toLowerCase();
       const modifier = event.ctrlKey || event.metaKey;
       if (key === "delete" || key === "backspace") {
-        if (selectedTextId || selectedShapeId || selectedImageId) {
+        if (selectedTextId || selectedShapeId || selectedImageId || selectedStrokeId) {
           event.preventDefault();
-          if (selectedTextId) deleteSelectedText(); else if (selectedShapeId) deleteSelectedShape(); else deleteSelectedImage();
+          if (selectedTextId) deleteSelectedText(); else if (selectedShapeId) deleteSelectedShape(); else if (selectedImageId) deleteSelectedImage(); else {
+            syncStrokes(strokesRef.current.filter((stroke) => stroke.id !== selectedStrokeId));
+            setSelectedStrokeId(null);
+            captureHistory();
+          }
         }
         return;
       }
@@ -830,6 +916,41 @@ export default function Home() {
     context.globalAlpha = isWatercolor ? baseAlpha * 0.22 : isPencil ? baseAlpha * 0.7 : baseAlpha;
     context.arc(to.x, to.y, (isPencil ? brushSize * 0.28 : isWatercolor ? brushSize * 0.68 : brushSize / 2), 0, Math.PI * 2);
     context.fill();
+    context.restore();
+  };
+
+  const renderBrushStroke = (context: CanvasRenderingContext2D, stroke: BrushStroke) => {
+    if (stroke.points.length === 0) return;
+    const baseAlpha = stroke.opacity / 100;
+    const isPencil = stroke.kind === "pencil";
+    const isWatercolor = stroke.kind === "watercolor";
+    const points = stroke.points.map((point) => ({ x: point.x + stroke.x, y: point.y + stroke.y }));
+    context.save();
+    context.lineCap = isPencil ? "butt" : "round";
+    context.lineJoin = "round";
+    context.lineWidth = isPencil ? Math.max(1, stroke.size * 0.52) : isWatercolor ? stroke.size * 1.35 : stroke.size;
+    context.globalAlpha = isWatercolor ? baseAlpha * 0.34 : isPencil ? baseAlpha * 0.82 : baseAlpha;
+    context.strokeStyle = stroke.color;
+    context.fillStyle = stroke.color;
+    if (points.length === 1) {
+      context.beginPath();
+      context.arc(points[0].x, points[0].y, isPencil ? stroke.size * 0.28 : isWatercolor ? stroke.size * 0.68 : stroke.size / 2, 0, Math.PI * 2);
+      context.fill();
+    } else {
+      context.beginPath();
+      context.moveTo(points[0].x, points[0].y);
+      points.slice(1).forEach((point) => context.lineTo(point.x, point.y));
+      context.stroke();
+      if (isWatercolor) {
+        const jitter = Math.max(1, stroke.size * 0.18);
+        context.globalAlpha = baseAlpha * 0.12;
+        context.lineWidth = stroke.size * 0.72;
+        context.beginPath();
+        context.moveTo(points[0].x - jitter, points[0].y + jitter);
+        points.slice(1).forEach((point) => context.lineTo(point.x - jitter, point.y + jitter));
+        context.stroke();
+      }
+    }
     context.restore();
   };
 
@@ -1005,7 +1126,9 @@ export default function Home() {
     if (tool === "retouch") {
       healSpot(point);
     } else {
-      drawStroke(point, { x: point.x + 0.01, y: point.y + 0.01 });
+      const nextStroke: BrushStroke = { id: makeId("stroke"), points: [point], x: 0, y: 0, color: brushColor, size: brushSize, opacity: brushOpacity, kind: brushKind };
+      drawingStrokeRef.current = nextStroke;
+      setDrawingStroke(nextStroke);
     }
   };
 
@@ -1015,7 +1138,12 @@ export default function Home() {
     if (tool === "retouch") {
       healSpot(point);
     } else {
-      drawStroke(lastPointRef.current, point);
+      const currentStroke = drawingStrokeRef.current;
+      if (currentStroke) {
+        const nextStroke = { ...currentStroke, points: [...currentStroke.points, point] };
+        drawingStrokeRef.current = nextStroke;
+        setDrawingStroke(nextStroke);
+      }
     }
     lastPointRef.current = point;
   };
@@ -1024,6 +1152,16 @@ export default function Home() {
     if (!isDrawing) return;
     setIsDrawing(false);
     lastPointRef.current = null;
+    const completedStroke = drawingStrokeRef.current;
+    drawingStrokeRef.current = null;
+    setDrawingStroke(null);
+    if (completedStroke && completedStroke.points.length > 0) {
+      syncStrokes([...strokesRef.current, completedStroke]);
+      setSelectedStrokeId(completedStroke.id);
+      setSelectedTextId(null);
+      setSelectedShapeId(null);
+      setSelectedImageId(null);
+    }
     captureHistory();
   };
 
@@ -1378,6 +1516,7 @@ export default function Home() {
     context.globalAlpha = adjustments.opacity / 100;
     context.drawImage(source, 0, 0);
     context.filter = "none";
+    strokesRef.current.forEach((stroke) => renderBrushStroke(context, stroke));
     const loadedImages = await Promise.all(imagesRef.current.map(async (image) => {
       try {
         return await loadImageElement(image.src);
@@ -1484,16 +1623,47 @@ export default function Home() {
 
   const handleShapePointerDown = (event: ReactPointerEvent<SVGSVGElement>, shape: ShapeLayer) => {
     event.stopPropagation();
+    event.preventDefault();
     if ((event.target as Element).classList.contains("shape-resize-handle")) return;
+    event.currentTarget.setPointerCapture(event.pointerId);
     const point = getCanvasPoint(event.clientX, event.clientY);
     setSelectedShapeId(shape.id);
     setSelectedTextId(null);
     setSelectedImageId(null);
-    shapeDragRef.current = tool === "move" ? {
+    setTool("shape");
+    setActiveDesktopTool("shape");
+    setOpenDesktopTool(null);
+    shapeDragRef.current = {
       id: shape.id,
       offsetX: point.x - shape.x,
       offsetY: point.y - shape.y,
-    } : null;
+    };
+  };
+
+  const handleShapeDoubleClick = (event: ReactMouseEvent<SVGSVGElement>, shape: ShapeLayer) => {
+    event.stopPropagation();
+    event.preventDefault();
+    setSelectedShapeId(shape.id);
+    setSelectedTextId(null);
+    setSelectedImageId(null);
+    setTool("shape");
+    setActiveDesktopTool("shape");
+    setOpenDesktopTool("shape");
+  };
+
+  const handleStrokePointerDown = (event: ReactPointerEvent<SVGSVGElement>, stroke: BrushStroke) => {
+    event.stopPropagation();
+    event.preventDefault();
+    event.currentTarget.setPointerCapture(event.pointerId);
+    const point = getCanvasPoint(event.clientX, event.clientY);
+    setSelectedStrokeId(stroke.id);
+    setSelectedTextId(null);
+    setSelectedShapeId(null);
+    setSelectedImageId(null);
+    setTool("brush");
+    setActiveDesktopTool("brush");
+    setOpenDesktopTool(null);
+    strokeDragRef.current = { id: stroke.id, offsetX: point.x - stroke.x, offsetY: point.y - stroke.y };
   };
 
   const handleShapeResizePointerDown = (event: ReactPointerEvent<SVGRectElement>, shape: ShapeLayer, axis: ShapeResizeAxis) => {
@@ -1753,13 +1923,15 @@ export default function Home() {
     const handleDesktopToolDragMove = (event: PointerEvent) => {
       const drag = desktopToolDragRef.current;
       const workspace = workspaceRef.current;
+      const studioLayout = studioLayoutRef.current;
       const panel = desktopToolPanelRef.current;
-      if (!drag || !workspace || !panel) return;
+      if (!drag || !workspace || !studioLayout || !panel) return;
       const workspaceBounds = workspace.getBoundingClientRect();
+      const studioBounds = studioLayout.getBoundingClientRect();
       const panelBounds = panel.getBoundingClientRect();
       setDesktopToolPosition({
-        x: clamp(drag.originX + event.clientX - drag.startX, 8, Math.max(8, workspaceBounds.width - panelBounds.width - 8)),
-        y: clamp(drag.originY + event.clientY - drag.startY, 62, Math.max(62, workspaceBounds.height - panelBounds.height - 8)),
+        x: clamp(drag.originX + event.clientX - drag.startX, 8, Math.max(8, studioBounds.right - workspaceBounds.left - panelBounds.width - 8)),
+        y: clamp(drag.originY + event.clientY - drag.startY, 62, Math.max(62, studioBounds.bottom - workspaceBounds.top - panelBounds.height - 8)),
       });
     };
     const finishDesktopToolDrag = () => {
@@ -1815,7 +1987,7 @@ export default function Home() {
   const handleDesktopToolCreate = (nextTool: DesktopCreativeTool) => {
     setTool(nextTool);
     setActiveDesktopTool(nextTool);
-    setOpenDesktopTool(null);
+    setOpenDesktopTool(nextTool);
     if (nextTool === "shape") addShape(shapeKind);
     if (nextTool === "text") addTextLayer();
   };
@@ -1905,7 +2077,7 @@ export default function Home() {
         <input ref={fileInputRef} type="file" accept="image/*" onChange={handleImport} hidden />
       </header>
 
-      <div className="studio-layout">
+      <div ref={studioLayoutRef} className="studio-layout">
         <aside className="tool-rail desktop-creative-rail" aria-label="創作工具">
           <span className="rail-label">CREATIVE</span>
           <div className="tool-group">
@@ -2055,6 +2227,40 @@ export default function Home() {
                   />
                   {snapGuides.x !== null && <div className="snap-guide snap-guide-vertical" style={{ left: `${snapGuides.x}px` }} />}
                   {snapGuides.y !== null && <div className="snap-guide snap-guide-horizontal" style={{ top: `${snapGuides.y}px` }} />}
+                  {[...strokes, ...(drawingStroke ? [drawingStroke] : [])].map((stroke) => {
+                    const isDraftStroke = drawingStroke?.id === stroke.id;
+                    const pathPoints = stroke.points.map((point) => `${point.x},${point.y}`).join(" ");
+                    const isPencilStroke = stroke.kind === "pencil";
+                    const isWatercolorStroke = stroke.kind === "watercolor";
+                    const strokeWidth = isPencilStroke ? Math.max(1, stroke.size * 0.52) : isWatercolorStroke ? stroke.size * 1.35 : stroke.size;
+                    return (
+                      <svg
+                        key={stroke.id}
+                        className={`stroke-layer ${selectedStrokeId === stroke.id ? "is-selected" : ""} ${isDraftStroke ? "is-draft" : ""}`}
+                        viewBox={`0 0 ${canvasSize.width} ${canvasSize.height}`}
+                        style={{ width: `${canvasSize.width}px`, height: `${canvasSize.height}px` }}
+                        onPointerDown={isDraftStroke ? undefined : (event) => handleStrokePointerDown(event, stroke)}
+                        role={isDraftStroke ? undefined : "button"}
+                        tabIndex={isDraftStroke ? -1 : 0}
+                        aria-label="畫筆筆觸"
+                      >
+                        <g transform={`translate(${stroke.x} ${stroke.y})`}>
+                          {stroke.points.length === 1 ? (
+                            <>
+                              <circle cx={stroke.points[0].x} cy={stroke.points[0].y} r={isPencilStroke ? stroke.size * 0.28 : isWatercolorStroke ? stroke.size * 0.68 : stroke.size / 2} fill={stroke.color} opacity={isWatercolorStroke ? stroke.opacity / 450 : stroke.opacity / 100} />
+                              <circle className="stroke-hit-area" cx={stroke.points[0].x} cy={stroke.points[0].y} r={Math.max(12, strokeWidth)} />
+                            </>
+                          ) : (
+                            <>
+                              <polyline className="stroke-visible" points={pathPoints} fill="none" stroke={stroke.color} strokeWidth={strokeWidth} strokeLinecap={isPencilStroke ? "butt" : "round"} strokeLinejoin="round" opacity={isWatercolorStroke ? stroke.opacity / 300 : stroke.opacity / 100} />
+                              {isWatercolorStroke && <polyline points={pathPoints} fill="none" stroke={stroke.color} strokeWidth={stroke.size * 0.72} strokeLinecap="round" strokeLinejoin="round" opacity={stroke.opacity / 800} transform={`translate(${Math.max(1, stroke.size * 0.18)} ${-Math.max(1, stroke.size * 0.18)})`} />}
+                              <polyline className="stroke-hit-area" points={pathPoints} fill="none" strokeWidth={Math.max(18, strokeWidth + 12)} strokeLinecap="round" strokeLinejoin="round" />
+                            </>
+                          )}
+                        </g>
+                      </svg>
+                    );
+                  })}
                   {images.map((image) => (
                     <div
                       key={image.id}
@@ -2110,6 +2316,7 @@ export default function Home() {
                         ].filter(Boolean).join(" ") || "none",
                       }}
                       onPointerDown={(event) => handleShapePointerDown(event, shape)}
+                      onDoubleClick={(event) => handleShapeDoubleClick(event, shape)}
                       role="button"
                       tabIndex={0}
                       aria-label={`${SHAPE_LABELS[shape.kind]}圖形`}
@@ -2346,9 +2553,12 @@ export default function Home() {
               </div>
               <button type="button" className="secondary-button full-width" onClick={resizeCanvas}>套用解析度</button>
               <label className="toggle-row resolution-scale-toggle">
-                <span>等比例縮放圖片</span>
+                <span><strong>等比例縮放圖片</strong><small>只會在按下「套用解析度」時生效</small></span>
                 <input type="checkbox" checked={scaleImagesWithCanvas} onChange={(event) => setScaleImagesWithCanvas(event.target.checked)} />
               </label>
+              <p className={`resolution-scale-note ${scaleImagesWithCanvas ? "is-enabled" : ""}`}>
+                {scaleImagesWithCanvas ? "已開啟：圖片會依畫布尺寸等比例縮放並維持位置關係。" : "已關閉：圖片保留原始尺寸，畫布可出現留白或裁切。"}
+              </p>
               <div className="resolution-preset-row">
                 <button type="button" className="resolution-preset" onClick={() => applyResolutionPreset(800, 800)}>800 × 800</button>
                 <button type="button" className="resolution-preset" onClick={() => applyResolutionPreset(1200, 800)}>1200 × 800</button>
