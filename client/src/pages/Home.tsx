@@ -2553,9 +2553,13 @@ export default function Home() {
                         width: `${image.width}px`,
                         height: `${image.height}px`,
                         transform: `rotate(${image.rotation}deg)`,
+                        "--image-control-scale": 100 / zoom,
+                        "--image-rotation-stem-length": `${18 * (100 / zoom)}px`,
+                        "--image-rotation-handle-offset": `${24 * (100 / zoom)}px`,
+                        "--image-rotation-label-offset": `${40 * (100 / zoom)}px`,
                         opacity: image.opacity / 100,
                         filter: makeAdjustmentFilter(image.exposure, image.contrast, image.saturation),
-                      }}
+                      } as CSSProperties}
                       onPointerDown={(event) => handleImagePointerDown(event, image)}
                       role="button"
                       tabIndex={0}

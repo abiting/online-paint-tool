@@ -155,6 +155,7 @@
 - [x] 修復已選取筆觸可用 Delete 鍵刪除
 - [x] 點擊圖形工具時不自動插入預設方形
 - [x] 僅在選擇具體圖形種類後建立圖形素材
+- [x] 固定圖片素材縮放與旋轉控制點的視覺及操作尺寸
 - [x] 建立英文 `/en` 路由與英文介面字串
 - [x] 新增中英文動態 title、description 與 lang 設定
 - [x] 加入 zh-Hant、en、x-default hreflang 與 canonical 標籤
