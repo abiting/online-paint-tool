@@ -1802,7 +1802,7 @@ export default function Home() {
     strokeDragRef.current = { id: stroke.id, offsetX: point.x - stroke.x, offsetY: point.y - stroke.y };
   };
 
-  const handleShapeResizePointerDown = (event: ReactPointerEvent<SVGRectElement>, shape: ShapeLayer, axis: ShapeResizeAxis) => {
+  const handleShapeResizePointerDown = (event: ReactPointerEvent<SVGRectElement | HTMLDivElement>, shape: ShapeLayer, axis: ShapeResizeAxis) => {
     event.stopPropagation();
     event.preventDefault();
     event.currentTarget.setPointerCapture(event.pointerId);
@@ -1825,7 +1825,7 @@ export default function Home() {
     };
   };
 
-  const handleShapeRotatePointerDown = (event: ReactPointerEvent<SVGCircleElement>, shape: ShapeLayer) => {
+  const handleShapeRotatePointerDown = (event: ReactPointerEvent<SVGCircleElement | HTMLDivElement>, shape: ShapeLayer) => {
     event.stopPropagation();
     event.currentTarget.setPointerCapture(event.pointerId);
     const point = getCanvasPoint(event.clientX, event.clientY);
@@ -2613,22 +2613,37 @@ export default function Home() {
                       {shape.kind === "heart" && <path d="M50 88 C44 82 15 65 15 38 C15 18 39 14 50 33 C61 14 85 18 85 38 C85 65 56 82 50 88Z" fill={shape.fill} stroke={shape.outline} strokeWidth={shape.outlineWidth * 0.8} strokeLinejoin="round" />}
                       {shape.kind === "triangle" && <polygon points={TRIANGLE_POINTS} fill={shape.fill} stroke={shape.outline} strokeWidth={shape.outlineWidth * 0.8} strokeLinejoin="round" />}
                       {shape.kind === "pentagon" && <polygon points={PENTAGON_POINTS} fill={shape.fill} stroke={shape.outline} strokeWidth={shape.outlineWidth * 0.8} strokeLinejoin="round" />}
-                      {selectedShapeId === shape.id && (
-                        <>
-                          <rect className="shape-resize-handle shape-resize-handle-left" x="-4" y="43" width="8" height="14" onPointerDown={(event) => handleShapeResizePointerDown(event, shape, "left")} />
-                          <rect className="shape-resize-handle shape-resize-handle-right" x="96" y="43" width="8" height="14" onPointerDown={(event) => handleShapeResizePointerDown(event, shape, "right")} />
-                          <rect className="shape-resize-handle shape-resize-handle-top" x="43" y="-4" width="14" height="8" onPointerDown={(event) => handleShapeResizePointerDown(event, shape, "top")} />
-                          <rect className="shape-resize-handle shape-resize-handle-bottom" x="43" y="96" width="14" height="8" onPointerDown={(event) => handleShapeResizePointerDown(event, shape, "bottom")} />
-                          <rect className="shape-resize-handle shape-resize-handle-corner shape-resize-handle-top-left" x="0" y="0" width="16" height="16" onPointerDown={(event) => handleShapeResizePointerDown(event, shape, "top-left")} />
-                          <rect className="shape-resize-handle shape-resize-handle-corner shape-resize-handle-top-right" x="84" y="0" width="16" height="16" onPointerDown={(event) => handleShapeResizePointerDown(event, shape, "top-right")} />
-                          <rect className="shape-resize-handle shape-resize-handle-corner shape-resize-handle-bottom-left" x="0" y="84" width="16" height="16" onPointerDown={(event) => handleShapeResizePointerDown(event, shape, "bottom-left")} />
-                          <rect className="shape-resize-handle shape-resize-handle-corner shape-resize-handle-bottom-right" x="84" y="84" width="16" height="16" onPointerDown={(event) => handleShapeResizePointerDown(event, shape, "bottom-right")} />
-                          <line className="shape-rotation-stem" x1="50" y1="0" x2="50" y2="16" />
-                          <circle className="shape-rotation-handle" cx="50" cy="24" r="7" onPointerDown={(event) => handleShapeRotatePointerDown(event, shape)} />
-                          <text className="shape-rotation-label" x="50" y="38" textAnchor="middle">{Math.round(shape.rotation)}°</text>
-                        </>
-                      )}
                     </svg>
+                  ))}
+                  {shapes.filter((shape) => shape.id === selectedShapeId).map((shape) => (
+                    <div
+                      key={`${shape.id}-controls`}
+                      className="shape-control-layer"
+                      style={{
+                        left: `${shape.x}px`,
+                        top: `${shape.y}px`,
+                        width: `${shape.width}px`,
+                        height: `${shape.height}px`,
+                        transform: `rotate(${shape.rotation}deg)`,
+                        "--shape-control-scale": 100 / zoom,
+                        "--shape-rotation-stem-length": `${18 * (100 / zoom)}px`,
+                        "--shape-rotation-handle-offset": `${24 * (100 / zoom)}px`,
+                        "--shape-rotation-label-offset": `${40 * (100 / zoom)}px`,
+                      } as CSSProperties}
+                      aria-label={`${SHAPE_LABELS[shape.kind]}圖形控制點`}
+                    >
+                      <div className="shape-control-handle shape-control-handle-left" onPointerDown={(event) => handleShapeResizePointerDown(event, shape, "left")} />
+                      <div className="shape-control-handle shape-control-handle-right" onPointerDown={(event) => handleShapeResizePointerDown(event, shape, "right")} />
+                      <div className="shape-control-handle shape-control-handle-top" onPointerDown={(event) => handleShapeResizePointerDown(event, shape, "top")} />
+                      <div className="shape-control-handle shape-control-handle-bottom" onPointerDown={(event) => handleShapeResizePointerDown(event, shape, "bottom")} />
+                      <div className="shape-control-handle shape-control-handle-top-left" onPointerDown={(event) => handleShapeResizePointerDown(event, shape, "top-left")} />
+                      <div className="shape-control-handle shape-control-handle-top-right" onPointerDown={(event) => handleShapeResizePointerDown(event, shape, "top-right")} />
+                      <div className="shape-control-handle shape-control-handle-bottom-left" onPointerDown={(event) => handleShapeResizePointerDown(event, shape, "bottom-left")} />
+                      <div className="shape-control-handle shape-control-handle-bottom-right" onPointerDown={(event) => handleShapeResizePointerDown(event, shape, "bottom-right")} />
+                      <div className="shape-control-rotation-stem" />
+                      <div className="shape-control-rotation-handle" onPointerDown={(event) => handleShapeRotatePointerDown(event, shape)} />
+                      <div className="shape-control-rotation-label">{Math.round(shape.rotation)}°</div>
+                    </div>
                   ))}
                   {layers.map((layer) => (
                     <div

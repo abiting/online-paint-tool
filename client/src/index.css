@@ -391,6 +391,23 @@ input[type="range"]::-moz-range-thumb { width: 11px; height: 11px; border: 2px s
 .shape-rotation-handle { fill: #fff8ec; stroke: #e4513b; stroke-width: 1.8; vector-effect: non-scaling-stroke; cursor: grab; pointer-events: auto; }
 .shape-rotation-handle:active { cursor: grabbing; }
 .shape-rotation-label { fill: #1f2528; font: 700 8px "DM Sans", sans-serif; paint-order: stroke; stroke: #fff8ec; stroke-width: 3px; pointer-events: none; }
+.shape-control-layer { position: absolute; z-index: 8; overflow: visible; transform-origin: center; pointer-events: none; }
+.shape-control-handle { position: absolute; z-index: 2; width: 12px; height: 12px; margin: -6px; border: 1.5px solid #e4513b; background: #fff8ec; box-sizing: border-box; pointer-events: auto; transform: scale(var(--shape-control-scale, 1)); transform-origin: center; }
+.shape-control-handle-left, .shape-control-handle-right { top: 50%; cursor: ew-resize; }
+.shape-control-handle-left { left: 0; }
+.shape-control-handle-right { left: 100%; }
+.shape-control-handle-top, .shape-control-handle-bottom { left: 50%; cursor: ns-resize; }
+.shape-control-handle-top { top: 0; }
+.shape-control-handle-bottom { top: 100%; }
+.shape-control-handle-top-left, .shape-control-handle-top-right, .shape-control-handle-bottom-left, .shape-control-handle-bottom-right { cursor: nwse-resize; }
+.shape-control-handle-top-left { left: 0; top: 0; }
+.shape-control-handle-top-right { left: 100%; top: 0; }
+.shape-control-handle-bottom-left { left: 0; top: 100%; }
+.shape-control-handle-bottom-right { left: 100%; top: 100%; }
+.shape-control-rotation-stem { position: absolute; z-index: 2; left: 50%; top: 0; width: 1px; height: var(--shape-rotation-stem-length, 18px); border-left: 1px dashed #e4513b; pointer-events: none; }
+.shape-control-rotation-handle { position: absolute; z-index: 3; left: 50%; top: var(--shape-rotation-handle-offset, 24px); width: 14px; height: 14px; margin: -7px; border: 2px solid #e4513b; border-radius: 50%; background: #fff8ec; cursor: grab; pointer-events: auto; transform: scale(var(--shape-control-scale, 1)); transform-origin: center; }
+.shape-control-rotation-handle:active { cursor: grabbing; }
+.shape-control-rotation-label { position: absolute; z-index: 3; left: 50%; top: var(--shape-rotation-label-offset, 40px); transform: translateX(-50%) scale(var(--shape-control-scale, 1)); transform-origin: center; padding: 2px 4px; color: #1f2528; background: #fff8ec; border: 1px solid rgba(228,81,59,0.7); font: 700 9px "DM Sans", sans-serif; pointer-events: none; white-space: nowrap; }
 .image-layer { position: absolute; display: block; overflow: visible; transform-origin: center; cursor: grab; user-select: none; touch-action: none; }
 .image-layer:active { cursor: grabbing; }
 .image-layer.is-selected { outline: 1px dashed #e4513b; outline-offset: 7px; }
