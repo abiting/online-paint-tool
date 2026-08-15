@@ -1182,8 +1182,9 @@ export default function Home() {
   };
 
   const addShape = (kind: ShapeKind = shapeKind) => {
-    const width = ["star", "heart", "pentagon"].includes(kind) ? 190 : 220;
-    const height = ["star", "heart", "pentagon"].includes(kind) ? 190 : 150;
+    const isSquareDefault = ["circle", "star", "heart", "pentagon"].includes(kind);
+    const width = isSquareDefault ? 190 : 220;
+    const height = isSquareDefault ? 190 : 150;
     const nextShape: ShapeLayer = {
       id: makeId("shape"),
       kind,
