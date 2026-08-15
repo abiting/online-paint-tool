@@ -254,7 +254,9 @@ kbd { min-width: 19px; padding: 3px 4px; text-align: center; color: #aab1aa; bac
 .floating-shape-grid .shape-choice { padding-top: 8px; padding-bottom: 7px; }
 
 @media (max-width: 820px) {
-  .desktop-tool-popover { display: none; }
+  .desktop-tool-popover { position: fixed; z-index: 42; top: auto !important; right: 12px; bottom: calc(var(--mobile-drawer-height, min(43vh, 390px)) + 12px); left: 12px !important; width: auto; max-height: min(52vh, 500px); padding: 15px 16px 17px; transform: none !important; border-radius: 10px; background: rgba(27,35,37,0.985); }
+  .desktop-tool-popover-heading { margin-bottom: 11px; cursor: default; }
+  .desktop-tool-popover .floating-shape-grid { grid-template-columns: repeat(3, 1fr); }
   .faq-panel { display: none !important; }
 }
 
@@ -331,6 +333,7 @@ input[type="range"]::-moz-range-thumb { width: 11px; height: 11px; border: 2px s
   .mobile-mini-drag-handle { cursor: grab; color: #d7c7b1; touch-action: none; }
   .mobile-mini-tools.is-dragging .mobile-mini-drag-handle { cursor: grabbing; }
   .mobile-mini-tool.is-active { color: #fff4e8; background: rgba(228,81,59,0.16); box-shadow: inset 0 0 0 1px rgba(228,81,59,0.32); }
+  .mobile-mini-settings { color: #d7c7b1; }
   .mobile-mini-tool:active, .mobile-mini-drag-handle:active { transform: scale(0.94); }
   .mobile-mini-separator { width: 1px; height: 20px; margin: 0 2px; background: rgba(227,213,187,0.16); }
   .topbar { height: 64px; }

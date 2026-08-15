@@ -2086,9 +2086,16 @@ export default function Home() {
   const handleMobileMiniToolCreate = (nextTool: DesktopCreativeTool) => {
     setTool(nextTool);
     setActiveDesktopTool(nextTool);
-    setOpenDesktopTool(null);
+    setOpenDesktopTool(nextTool);
     if (nextTool === "shape") addShape(shapeKind);
     if (nextTool === "text") addTextLayer();
+  };
+  const handleMobileMiniToolSettings = () => {
+    if (!activeDesktopTool) {
+      toast("請先選擇畫筆、圖形或文字工具");
+      return;
+    }
+    handleDesktopToolSettings(activeDesktopTool);
   };
   const activeWorkspaceToolLabel = activeDesktopTool === "brush"
     ? "畫筆"
@@ -2341,6 +2348,8 @@ export default function Home() {
               <button type="button" className={`mobile-mini-tool ${activeDesktopTool === "brush" ? "is-active" : ""}`} onClick={() => handleMobileMiniToolCreate("brush")} aria-label="畫筆" title="畫筆"><Pencil size={16} /></button>
               <button type="button" className={`mobile-mini-tool ${activeDesktopTool === "shape" ? "is-active" : ""}`} onClick={() => handleMobileMiniToolCreate("shape")} aria-label="新增圖形" title="新增圖形"><Shapes size={16} /></button>
               <button type="button" className={`mobile-mini-tool ${activeDesktopTool === "text" ? "is-active" : ""}`} onClick={() => handleMobileMiniToolCreate("text")} aria-label="新增文字" title="新增文字"><Type size={16} /></button>
+              <span className="mobile-mini-separator" />
+              <button type="button" className="mobile-mini-tool mobile-mini-settings" onClick={handleMobileMiniToolSettings} aria-label="開啟工具設定" title="開啟工具設定"><SlidersHorizontal size={16} /></button>
             </div>
             <div className="stage-notes stage-note-bottom">{canvasSize.width} × {canvasSize.height}</div>
             <div
