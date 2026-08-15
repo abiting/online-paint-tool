@@ -1190,7 +1190,7 @@ export default function Home() {
     setDrawingStroke(null);
     if (completedStroke && completedStroke.points.length > 0) {
       syncStrokes([...strokesRef.current, completedStroke]);
-      setSelectedStrokeId(completedStroke.id);
+      setSelectedStrokeId(null);
       setSelectedTextId(null);
       setSelectedShapeId(null);
       setSelectedImageId(null);
