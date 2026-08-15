@@ -357,13 +357,15 @@ function SectionTitle({
   eyebrow,
   title,
   action,
+  emphasis = false,
 }: {
   eyebrow: string;
   title?: string;
   action?: React.ReactNode;
+  emphasis?: boolean;
 }) {
   return (
-    <div className="section-title">
+    <div className={`section-title ${emphasis ? "section-title-emphasis" : ""}`}>
       <div>
         <span className="eyebrow">{eyebrow}</span>
         {title && <h2>{title}</h2>}
@@ -2311,7 +2313,6 @@ export default function Home() {
 
       <div ref={studioLayoutRef} className="studio-layout">
         <aside className="tool-rail desktop-creative-rail" aria-label={copy.creative}>
-          <span className="rail-label">{copy.creative}</span>
           <div className="tool-group">
             <ToolButton label={copy.select} active={tool === "move"} icon={<Move size={18} />} onClick={activateStrokeMoveMode} disabled={!hasMovableArtwork} />
             <ToolButton label={copy.brush} active={activeDesktopTool === "brush"} icon={<Pencil size={18} />} onClick={() => handleDesktopToolCreate("brush")} onDoubleActivate={() => handleDesktopToolSettings("brush")} />
@@ -2858,7 +2859,7 @@ export default function Home() {
             <div className="inspector-divider" />
 
             <div className="inspector-section">
-              <SectionTitle eyebrow={copy.canvasSize} action={<Maximize2 size={15} className="section-icon" />} />
+              <SectionTitle eyebrow={copy.canvasSize} emphasis action={<Maximize2 size={15} className="section-icon" />} />
               <div className="dimension-grid">
                 <label><span>{copy.width}</span><input id="canvas-width" type="number" min={240} max={2400} defaultValue={canvasSize.width} key={`width-${canvasSize.width}`} /></label>
                 <span className="dimension-mark">×</span>
@@ -2880,7 +2881,7 @@ export default function Home() {
             <div className="inspector-divider" />
 
             <div className="inspector-section">
-              <SectionTitle eyebrow={copy.imageAdjustments} action={<SlidersHorizontal size={15} className="section-icon" />} />
+              <SectionTitle eyebrow={copy.imageAdjustments} emphasis action={<SlidersHorizontal size={15} className="section-icon" />} />
               <RangeControl label={copy.exposure} value={activeAdjustmentValues.exposure} min={-60} max={60} suffix="%" onChange={(value) => updateActiveAdjustment({ exposure: value })} />
               <RangeControl label={copy.contrast} value={activeAdjustmentValues.contrast} min={-60} max={60} suffix="%" onChange={(value) => updateActiveAdjustment({ contrast: value })} />
               <RangeControl label={copy.saturation} value={activeAdjustmentValues.saturation} min={0} max={200} suffix="%" onChange={(value) => updateActiveAdjustment({ saturation: value })} />
