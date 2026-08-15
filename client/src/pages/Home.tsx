@@ -2071,7 +2071,6 @@ export default function Home() {
     setTool(nextTool);
     setActiveDesktopTool(nextTool);
     setOpenDesktopTool(nextTool);
-    if (nextTool === "shape") addShape(shapeKind);
     if (nextTool === "text") addTextLayer();
   };
   const handleDesktopToolSettings = (nextTool: DesktopCreativeTool) => {
@@ -2088,7 +2087,6 @@ export default function Home() {
     setTool(nextTool);
     setActiveDesktopTool(nextTool);
     setOpenDesktopTool(nextTool);
-    if (nextTool === "shape") addShape(shapeKind);
     if (nextTool === "text") addTextLayer();
   };
   const handleMobileMiniToolSettings = () => {
