@@ -201,8 +201,8 @@ kbd { min-width: 19px; padding: 3px 4px; text-align: center; color: #aab1aa; bac
 .mono-value { color: #c2c7bc; font: 10px "IBM Plex Mono", monospace; }
 .footer-note { gap: 6px; color: #77827c; font-size: 10px; }
 .footer-note svg { color: #82a480; }
-.product-footer { min-height: 52px; height: 52px; align-items: center; justify-content: flex-end; gap: 20px; padding: 0 20px; background: linear-gradient(90deg, rgba(37,36,31,0.88), rgba(48,45,38,0.48)); }
-.product-footnote { width: 100%; height: 0; min-width: 0; max-width: 740px; overflow: hidden; }
+.product-footer { position: relative; min-height: 52px; height: 52px; align-items: center; justify-content: flex-end; gap: 20px; padding: 0 20px; background: linear-gradient(90deg, rgba(37,36,31,0.88), rgba(48,45,38,0.48)); }
+.product-footnote { position: absolute; width: 1px; height: 0; min-width: 0; min-height: 0; max-width: 740px; margin: 0; overflow: hidden; clip-path: inset(100%); pointer-events: none; }
 .product-footnote-label { color: rgba(226,213,187,0.48); font: 8px "IBM Plex Mono", monospace; letter-spacing: 0.14em; }
 .product-footnote p { margin: 4px 0 0; color: #7f8882; font-size: 9px; line-height: 1.58; }
 .product-copyright { flex: 0 0 auto; margin: 0 0 1px auto; color: #66716d; font: 9px "IBM Plex Mono", monospace; white-space: nowrap; }
