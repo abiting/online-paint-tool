@@ -994,6 +994,8 @@ export default function Home() {
         return;
       }
       if (modifier && key === "c") {
+        const hasNativeTextSelection = Boolean(window.getSelection()?.toString().trim());
+        if (hasNativeTextSelection || !selectedTextId) return;
         event.preventDefault();
         void copySelection();
         return;
