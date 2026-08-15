@@ -349,6 +349,7 @@ export default function Home() {
   const panDragRef = useRef<{ startX: number; startY: number; originX: number; originY: number } | null>(null);
   const touchPointsRef = useRef(new Map<number, { x: number; y: number }>());
   const pinchPanRef = useRef<{ startDistance: number; startCenterX: number; startCenterY: number; startZoom: number; originX: number; originY: number } | null>(null);
+  const longPressPanRef = useRef<{ pointerId: number; startX: number; startY: number; originX: number; originY: number; timer: number | null; active: boolean } | null>(null);
   const imageUpdateFrameRef = useRef<number | null>(null);
   const pendingImagesRef = useRef<ImageLayer[] | null>(null);
   const viewportRef = useRef<HTMLDivElement>(null);
@@ -1504,6 +1505,12 @@ export default function Home() {
     };
   };
 
+  const cancelLongPressPan = () => {
+    const pending = longPressPanRef.current;
+    if (pending?.timer !== null && pending?.timer !== undefined) window.clearTimeout(pending.timer);
+    longPressPanRef.current = null;
+  };
+
   const handleViewportPointerDown = (event: ReactPointerEvent<HTMLDivElement>) => {
     event.preventDefault();
     const target = event.target as HTMLElement;
@@ -1511,6 +1518,7 @@ export default function Home() {
       touchPointsRef.current.set(event.pointerId, { x: event.clientX, y: event.clientY });
       event.currentTarget.setPointerCapture(event.pointerId);
       if (touchPointsRef.current.size === 2) {
+        cancelLongPressPan();
         const points = Array.from(touchPointsRef.current.values());
         const centerX = (points[0].x + points[1].x) / 2;
         const centerY = (points[0].y + points[1].y) / 2;
@@ -1525,8 +1533,22 @@ export default function Home() {
         panDragRef.current = null;
         setIsPanning(true);
       } else {
-        panDragRef.current = { startX: event.clientX, startY: event.clientY, originX: pan.x, originY: pan.y };
-        setIsPanning(true);
+        const pendingPan = {
+          pointerId: event.pointerId,
+          startX: event.clientX,
+          startY: event.clientY,
+          originX: pan.x,
+          originY: pan.y,
+          timer: null as number | null,
+          active: false,
+        };
+        pendingPan.timer = window.setTimeout(() => {
+          if (longPressPanRef.current?.pointerId !== event.pointerId) return;
+          longPressPanRef.current = { ...pendingPan, timer: null, active: true };
+          panDragRef.current = { startX: pendingPan.startX, startY: pendingPan.startY, originX: pendingPan.originX, originY: pendingPan.originY };
+          setIsPanning(true);
+        }, 420);
+        longPressPanRef.current = pendingPan;
       }
       return;
     }
@@ -1539,6 +1561,10 @@ export default function Home() {
   const handleViewportPointerMove = (event: ReactPointerEvent<HTMLDivElement>) => {
     if (event.pointerType === "touch" && touchPointsRef.current.has(event.pointerId)) {
       touchPointsRef.current.set(event.pointerId, { x: event.clientX, y: event.clientY });
+      const pendingPan = longPressPanRef.current;
+      if (pendingPan?.pointerId === event.pointerId && !pendingPan.active) {
+        if (Math.hypot(event.clientX - pendingPan.startX, event.clientY - pendingPan.startY) > 10) cancelLongPressPan();
+      }
       const points = Array.from(touchPointsRef.current.values());
       const pinchPan = pinchPanRef.current;
       if (pinchPan && points.length >= 2) {
@@ -1565,12 +1591,8 @@ export default function Home() {
   const finishPan = (event?: ReactPointerEvent<HTMLDivElement>) => {
     if (event?.pointerType === "touch") {
       touchPointsRef.current.delete(event.pointerId);
-      if (touchPointsRef.current.size === 1) {
-        const remaining = Array.from(touchPointsRef.current.values())[0];
-        pinchPanRef.current = null;
-        panDragRef.current = { startX: remaining.x, startY: remaining.y, originX: pan.x, originY: pan.y };
-        setIsPanning(true);
-      } else if (touchPointsRef.current.size === 0) {
+      if (longPressPanRef.current?.pointerId === event.pointerId) cancelLongPressPan();
+      if (touchPointsRef.current.size < 2) {
         pinchPanRef.current = null;
         panDragRef.current = null;
         setIsPanning(false);
