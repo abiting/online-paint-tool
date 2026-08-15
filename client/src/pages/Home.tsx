@@ -2097,6 +2097,15 @@ export default function Home() {
     }
     handleDesktopToolSettings(activeDesktopTool);
   };
+  const activateStrokeMoveMode = () => {
+    setTool("move");
+    setActiveDesktopTool(null);
+    setOpenDesktopTool(null);
+    setSelectedTextId(null);
+    setSelectedShapeId(null);
+    setSelectedImageId(null);
+    setSelectedStrokeId(null);
+  };
   const activeWorkspaceToolLabel = activeDesktopTool === "brush"
     ? "畫筆"
     : activeDesktopTool === "shape"
@@ -2180,6 +2189,7 @@ export default function Home() {
         <aside className="tool-rail desktop-creative-rail" aria-label="創作工具">
           <span className="rail-label">CREATIVE</span>
           <div className="tool-group">
+            <ToolButton label="選取" active={tool === "move"} icon={<Move size={18} />} onClick={activateStrokeMoveMode} />
             <ToolButton label="畫筆" active={activeDesktopTool === "brush"} icon={<Pencil size={18} />} onClick={() => handleDesktopToolCreate("brush")} onDoubleActivate={() => handleDesktopToolSettings("brush")} />
             <ToolButton label="圖形" active={activeDesktopTool === "shape"} icon={<Shapes size={18} />} onClick={() => handleDesktopToolCreate("shape")} onDoubleActivate={() => handleDesktopToolSettings("shape")} />
             <ToolButton label="文字" active={activeDesktopTool === "text"} icon={<Type size={18} />} onClick={() => handleDesktopToolCreate("text")} onDoubleActivate={() => handleDesktopToolSettings("text")} />
@@ -2345,6 +2355,7 @@ export default function Home() {
             >
               <button type="button" className="mobile-mini-drag-handle" onPointerDown={handleMobileMiniToolPointerDown} aria-label="拖曳移動工具欄" title="拖曳移動工具欄"><Move size={15} /></button>
               <span className="mobile-mini-separator" />
+              <button type="button" className={`mobile-mini-tool ${tool === "move" ? "is-active" : ""}`} onClick={activateStrokeMoveMode} aria-label="選取並移動筆觸" title="選取並移動筆觸"><Move size={16} /></button>
               <button type="button" className={`mobile-mini-tool ${activeDesktopTool === "brush" ? "is-active" : ""}`} onClick={() => handleMobileMiniToolCreate("brush")} aria-label="畫筆" title="畫筆"><Pencil size={16} /></button>
               <button type="button" className={`mobile-mini-tool ${activeDesktopTool === "shape" ? "is-active" : ""}`} onClick={() => handleMobileMiniToolCreate("shape")} aria-label="新增圖形" title="新增圖形"><Shapes size={16} /></button>
               <button type="button" className={`mobile-mini-tool ${activeDesktopTool === "text" ? "is-active" : ""}`} onClick={() => handleMobileMiniToolCreate("text")} aria-label="新增文字" title="新增文字"><Type size={16} /></button>
@@ -2372,7 +2383,7 @@ export default function Home() {
                 <div className="canvas-content">
                   <canvas
                     ref={canvasRef}
-                    style={{ filter: canvasFilter, opacity: adjustments.opacity / 100, pointerEvents: activeDesktopTool === "brush" ? "auto" : "none" }}
+                    style={{ filter: canvasFilter, opacity: adjustments.opacity / 100, pointerEvents: tool === "brush" ? "auto" : "none" }}
                     onPointerDown={handleCanvasPointerDown}
                     onPointerMove={handleCanvasPointerMove}
                     onPointerUp={finishStroke}
@@ -2384,6 +2395,7 @@ export default function Home() {
                   {snapGuides.y !== null && <div className="snap-guide snap-guide-horizontal" style={{ top: `${snapGuides.y}px` }} />}
                   {[...strokes, ...(drawingStroke ? [drawingStroke] : [])].map((stroke) => {
                     const isDraftStroke = drawingStroke?.id === stroke.id;
+                    const isStrokeSelectable = !isDraftStroke && tool === "move";
                     const pathPoints = stroke.points.map((point) => `${point.x},${point.y}`).join(" ");
                     const isPencilStroke = stroke.kind === "pencil";
                     const isWatercolorStroke = stroke.kind === "watercolor";
@@ -2393,10 +2405,10 @@ export default function Home() {
                         key={stroke.id}
                         className={`stroke-layer ${selectedStrokeId === stroke.id ? "is-selected" : ""} ${isDraftStroke ? "is-draft" : ""}`}
                         viewBox={`0 0 ${canvasSize.width} ${canvasSize.height}`}
-                        style={{ width: `${canvasSize.width}px`, height: `${canvasSize.height}px` }}
-                        onPointerDown={isDraftStroke ? undefined : (event) => handleStrokePointerDown(event, stroke)}
-                        role={isDraftStroke ? undefined : "button"}
-                        tabIndex={isDraftStroke ? -1 : 0}
+                        style={{ width: `${canvasSize.width}px`, height: `${canvasSize.height}px`, pointerEvents: isStrokeSelectable ? "auto" : "none" }}
+                        onPointerDown={isStrokeSelectable ? (event) => handleStrokePointerDown(event, stroke) : undefined}
+                        role={isStrokeSelectable ? "button" : undefined}
+                        tabIndex={isStrokeSelectable ? 0 : -1}
                         aria-label="畫筆筆觸"
                       >
                         <g transform={`translate(${stroke.x} ${stroke.y})`}>
