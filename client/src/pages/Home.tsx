@@ -39,12 +39,109 @@ import {
   WandSparkles,
 } from "lucide-react";
 import { toast } from "sonner";
+import { useSeo } from "@/hooks/useSeo";
 
 type Tool = "brush" | "eraser" | "fill" | "text" | "shape" | "retouch" | "move";
 type DesktopCreativeTool = Extract<Tool, "brush" | "shape" | "text">;
 type BrushKind = "oil" | "pencil" | "watercolor";
 type ShapeKind = "rectangle" | "circle" | "star" | "heart" | "triangle" | "pentagon";
 type ShapeResizeAxis = "left" | "right" | "top" | "bottom" | "top-left" | "top-right" | "bottom-left" | "bottom-right";
+type Locale = "zh-Hant" | "en";
+
+const localeCopy = {
+  "zh-Hant": {
+    title: "AbiPaint 線上圖片尺寸修改器｜照片像素調整・圖像解析度縮放",
+    description: "AbiPaint 是免費線上圖片尺寸修改器，不用安裝 Adobe 或註冊 Canva，直接在瀏覽器調整照片尺寸、像素與解析度。",
+    canonical: "https://abipaint.abiting.cc/",
+    documentName: "未命名畫布",
+    importImage: "匯入影像",
+    exportPng: "匯出 PNG",
+    exportJpg: "匯出 JPG",
+    undo: "復原",
+    redo: "重做",
+    language: "EN",
+    languageLabel: "Switch to English",
+    creative: "創作工具",
+    select: "選取",
+    brush: "畫筆",
+    shape: "圖形",
+    text: "文字",
+    settings: "設定",
+    openSettings: "開啟已選取物件設定",
+    canvasWorkspace: "畫布工作區",
+    resolution: "解析度調整",
+    workspaceSignature: "本工具由阿比丁開發製作",
+    fit: "符合",
+    reset: "重設",
+    canvasSize: "畫布尺寸",
+    width: "寬度",
+    height: "高度",
+    applyResolution: "套用解析度",
+    scaleImages: "等比例縮放圖片",
+    imageAdjustments: "影像調色",
+    exposure: "曝光",
+    contrast: "對比",
+    saturation: "飽和度",
+    opacity: "不透明度",
+    faqTitle: "使用說明",
+    faqClose: "關閉常見問題",
+    faqAria: "AbiPaint 常見問題",
+    faq: [
+      ["AbiPaint 是什麼？", "AbiPaint 是免費線上圖片尺寸修改器，不用安裝 Adobe 或註冊 Canva，直接在瀏覽器調整照片尺寸、像素與解析度。"],
+      ["什麼情況會使用 AbiPaint？", "想修改圖片、照片的解析度，但手邊沒有 Photoshop、Illustrator 或 Canva 時，本工具可快速派上用場："],
+      ["使用 AbiPaint 是否需要註冊帳號？", "完全不需要！AbiPaint 提供免費、免註冊與免安裝的修圖服務，打開網頁即可直接使用，適合所有電腦、平板與手機用戶。"],
+      ["AbiPaint 還有什麼功能？", "除了修改圖片尺寸，AbiPaint 也提供畫筆、圖形與文字等多種素材，適合學生、教師、設計師、行銷人員等各行各業使用。"],
+      ["發現錯誤資訊該怎麼辦？", "若發現錯誤資訊，歡迎透過以下電子郵件聯繫開發人員："],
+    ],
+    faqList: ["將 1080 × 1080 的大頭照縮小為符合線上系統規範的尺寸", "將遭 AI 工具壓縮失真的網站 Banner 校正並還原細節樣貌", "將檔案肥大的 PNG 插畫修改並轉換為不佔空間的 JPG 圖檔"],
+  },
+  en: {
+    title: "AbiPaint Online Image Resizer | Resize Photos, Pixels & Resolution",
+    description: "AbiPaint is a free online image resizer. Resize photos, adjust pixels and resolution directly in your browser—no Adobe installation or Canva account required.",
+    canonical: "https://abipaint.abiting.cc/en",
+    documentName: "Untitled canvas",
+    importImage: "Import image",
+    exportPng: "Export PNG",
+    exportJpg: "Export JPG",
+    undo: "Undo",
+    redo: "Redo",
+    language: "繁中",
+    languageLabel: "切換至繁體中文",
+    creative: "CREATIVE",
+    select: "Select",
+    brush: "Brush",
+    shape: "Shapes",
+    text: "Text",
+    settings: "Settings",
+    openSettings: "Open selected object settings",
+    canvasWorkspace: "Canvas workspace",
+    resolution: "Resolution",
+    workspaceSignature: "Developed by Abiting",
+    fit: "Fit",
+    reset: "Reset",
+    canvasSize: "Canvas size",
+    width: "Width",
+    height: "Height",
+    applyResolution: "Apply resolution",
+    scaleImages: "Scale images proportionally",
+    imageAdjustments: "Image adjustments",
+    exposure: "Exposure",
+    contrast: "Contrast",
+    saturation: "Saturation",
+    opacity: "Opacity",
+    faqTitle: "How it works",
+    faqClose: "Close FAQ",
+    faqAria: "AbiPaint frequently asked questions",
+    faq: [
+      ["What is AbiPaint?", "AbiPaint is a free online image resizer. Resize photos, adjust pixels and resolution right in your browser—no Adobe installation or Canva account required."],
+      ["When should I use AbiPaint?", "Use AbiPaint when you need to resize or refine an image but do not have Photoshop, Illustrator, or Canva nearby:"],
+      ["Do I need an account?", "No. AbiPaint is free, registration-free, and installation-free, so it works immediately on computers, tablets, and phones."],
+      ["What else can AbiPaint do?", "Beyond resizing images, AbiPaint includes brush, shape, and text materials for students, teachers, designers, marketers, and everyday creators."],
+      ["How do I report an issue?", "If you find an issue, contact the developer by email:"],
+    ],
+    faqList: ["Resize a 1080 × 1080 profile photo to match an online system requirement", "Refine a web banner softened by an AI image tool", "Convert a large PNG illustration into a lighter JPG file"],
+  },
+} as const;
 
 type CanvasPoint = {
   x: number;
@@ -262,14 +359,14 @@ function SectionTitle({
   action,
 }: {
   eyebrow: string;
-  title: string;
+  title?: string;
   action?: React.ReactNode;
 }) {
   return (
     <div className="section-title">
       <div>
         <span className="eyebrow">{eyebrow}</span>
-        <h2>{title}</h2>
+        {title && <h2>{title}</h2>}
       </div>
       {action}
     </div>
@@ -315,6 +412,11 @@ function RangeControl({
 }
 
 export default function Home() {
+  const locale: Locale = window.location.pathname.replace(/\/$/, "") === "/en" ? "en" : "zh-Hant";
+  const copy = localeCopy[locale];
+  const isEnglish = locale === "en";
+  const tr = (zh: string, en: string) => (isEnglish ? en : zh);
+  useSeo({ title: copy.title, description: copy.description, lang: locale, canonical: copy.canonical });
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const lastPointRef = useRef<CanvasPoint | null>(null);
@@ -411,8 +513,8 @@ export default function Home() {
     saturation: 100,
     opacity: 100,
   });
-  const [fileMeta, setFileMeta] = useState({ name: "未命名畫布", size: "—" });
-  const [documentNameDraft, setDocumentNameDraft] = useState("未命名畫布");
+  const [fileMeta, setFileMeta] = useState<{ name: string; size: string }>({ name: copy.documentName, size: "—" });
+  const [documentNameDraft, setDocumentNameDraft] = useState<string>(copy.documentName);
   const [snapGuides, setSnapGuides] = useState<SnapGuides>({ x: null, y: null });
   const [mobileDrawerHeight, setMobileDrawerHeight] = useState<number | null>(null);
   const [isMobileDrawerDragging, setIsMobileDrawerDragging] = useState(false);
@@ -1633,7 +1735,7 @@ export default function Home() {
   };
 
   const saveDocumentName = (value: string) => {
-    const nextName = value.trim() || "未命名畫布";
+    const nextName = value.trim() || copy.documentName;
     setDocumentNameDraft(nextName);
     setFileMeta((meta) => ({ ...meta, name: nextName }));
   };
@@ -2106,12 +2208,12 @@ export default function Home() {
     setSelectedStrokeId(null);
   };
   const activeWorkspaceToolLabel = activeDesktopTool === "brush"
-    ? "畫筆"
+    ? copy.brush
     : activeDesktopTool === "shape"
-      ? "圖形"
+      ? copy.shape
       : activeDesktopTool === "text"
-        ? "文字"
-        : "解析度調整";
+        ? copy.text
+        : copy.workspaceSignature;
   const hasMovableArtwork = layers.length > 0 || shapes.length > 0 || images.length > 0 || strokes.length > 0;
   const hasSelectedObject = Boolean(selectedTextId || selectedShapeId || selectedImageId || selectedStrokeId);
   const handleSelectedObjectSettings = () => {
@@ -2180,7 +2282,7 @@ export default function Home() {
                 event.currentTarget.blur();
               }
             }}
-            aria-label="文件名稱"
+            aria-label={isEnglish ? "Document name" : "文件名稱"}
           />
           <span className="document-size">{fileMeta.size === "—" ? `${canvasSize.width} × ${canvasSize.height}` : fileMeta.size}</span>
         </div>
@@ -2193,28 +2295,29 @@ export default function Home() {
             <Redo2 size={17} />
           </button>
           <span className="top-divider" />
-          <button type="button" className="secondary-button" onClick={() => fileInputRef.current?.click()} title="匯入影像" aria-label="匯入影像">
-            <Upload size={15} /> <span className="top-action-label">匯入影像</span>
+          <a className="language-switch" href={isEnglish ? "/" : "/en"} aria-label={copy.languageLabel}>{copy.language}</a>
+          <button type="button" className="secondary-button" onClick={() => fileInputRef.current?.click()} title={copy.importImage} aria-label={copy.importImage}>
+            <Upload size={15} /> <span className="top-action-label">{copy.importImage}</span>
           </button>
-          <button type="button" className="primary-button" onClick={() => exportImage("png")} title="匯出 PNG" aria-label="匯出 PNG">
-            <Download size={15} /> <span className="top-action-label">匯出 PNG</span>
+          <button type="button" className="primary-button" onClick={() => exportImage("png")} title={copy.exportPng} aria-label={copy.exportPng}>
+            <Download size={15} /> <span className="top-action-label">{copy.exportPng}</span>
           </button>
-          <button type="button" className="primary-button" onClick={() => exportImage("jpeg")} title="匯出 JPG" aria-label="匯出 JPG">
-            <Download size={15} /> <span className="top-action-label">匯出 JPG</span>
+          <button type="button" className="primary-button" onClick={() => exportImage("jpeg")} title={copy.exportJpg} aria-label={copy.exportJpg}>
+            <Download size={15} /> <span className="top-action-label">{copy.exportJpg}</span>
           </button>
         </div>
         <input ref={fileInputRef} type="file" accept="image/*" onChange={handleImport} hidden />
       </header>
 
       <div ref={studioLayoutRef} className="studio-layout">
-        <aside className="tool-rail desktop-creative-rail" aria-label="創作工具">
-          <span className="rail-label">CREATIVE</span>
+        <aside className="tool-rail desktop-creative-rail" aria-label={copy.creative}>
+          <span className="rail-label">{copy.creative}</span>
           <div className="tool-group">
-            <ToolButton label="選取" active={tool === "move"} icon={<Move size={18} />} onClick={activateStrokeMoveMode} disabled={!hasMovableArtwork} />
-            <ToolButton label="畫筆" active={activeDesktopTool === "brush"} icon={<Pencil size={18} />} onClick={() => handleDesktopToolCreate("brush")} onDoubleActivate={() => handleDesktopToolSettings("brush")} />
-            <ToolButton label="圖形" active={activeDesktopTool === "shape"} icon={<Shapes size={18} />} onClick={() => handleDesktopToolCreate("shape")} onDoubleActivate={() => handleDesktopToolSettings("shape")} />
-            <ToolButton label="文字" active={activeDesktopTool === "text"} icon={<Type size={18} />} onClick={() => handleDesktopToolCreate("text")} onDoubleActivate={() => handleDesktopToolSettings("text")} />
-            <button type="button" className="tool-button tool-settings-entry" onClick={handleSelectedObjectSettings} disabled={!hasSelectedObject} aria-label="開啟已選取物件設定" title="開啟已選取物件設定"><SlidersHorizontal size={18} /><span>設定</span></button>
+            <ToolButton label={copy.select} active={tool === "move"} icon={<Move size={18} />} onClick={activateStrokeMoveMode} disabled={!hasMovableArtwork} />
+            <ToolButton label={copy.brush} active={activeDesktopTool === "brush"} icon={<Pencil size={18} />} onClick={() => handleDesktopToolCreate("brush")} onDoubleActivate={() => handleDesktopToolSettings("brush")} />
+            <ToolButton label={copy.shape} active={activeDesktopTool === "shape"} icon={<Shapes size={18} />} onClick={() => handleDesktopToolCreate("shape")} onDoubleActivate={() => handleDesktopToolSettings("shape")} />
+            <ToolButton label={copy.text} active={activeDesktopTool === "text"} icon={<Type size={18} />} onClick={() => handleDesktopToolCreate("text")} onDoubleActivate={() => handleDesktopToolSettings("text")} />
+            <button type="button" className="tool-button tool-settings-entry" onClick={handleSelectedObjectSettings} disabled={!hasSelectedObject} aria-label={copy.openSettings} title={copy.openSettings}><SlidersHorizontal size={18} /><span>{copy.settings}</span></button>
             <button type="button" className={`faq-rail-toggle ${isFaqOpen ? "is-active" : ""}`} onClick={() => setIsFaqOpen((open) => !open)} aria-expanded={isFaqOpen} aria-controls="abipaint-faq-panel">
               <span className="faq-rail-glyph">?</span>
               <span>FAQ</span>
@@ -2222,43 +2325,33 @@ export default function Home() {
             </button>
           </div>
           {isFaqOpen && (
-            <section id="abipaint-faq-panel" className="faq-panel" aria-label="AbiPaint 常見問題">
+            <section id="abipaint-faq-panel" className="faq-panel" aria-label={copy.faqAria}>
               <header className="faq-panel-header">
                 <div>
                   <span className="faq-eyebrow">FAQ / FIELD NOTES</span>
-                  <h2>使用說明</h2>
+                  <h2>{copy.faqTitle}</h2>
                 </div>
-                <button type="button" className="faq-close" onClick={() => setIsFaqOpen(false)} aria-label="關閉常見問題"><ChevronDown size={16} /></button>
+                <button type="button" className="faq-close" onClick={() => setIsFaqOpen(false)} aria-label={copy.faqClose}><ChevronDown size={16} /></button>
               </header>
               <div className="faq-list">
-                <details className="faq-item" open>
-                  <summary><span>01</span>AbiPaint 是什麼？</summary>
-                  <div className="faq-answer">AbiPaint 是免費線上圖片尺寸修改器，不用安裝 Adobe 或註冊 Canva，直接在瀏覽器調整照片尺寸、像素與解析度。</div>
-                </details>
-                <details className="faq-item">
-                  <summary><span>02</span>什麼情況會使用 AbiPaint？</summary>
-                  <div className="faq-answer">想修改圖片、照片的解析度，但手邊沒有 Photoshop、Illustrator 或 Canva 時，本工具可快速派上用場：<ul><li>將 1080 × 1080 的大頭照縮小為符合線上系統規範的尺寸</li><li>將遭 AI 工具壓縮失真的網站 Banner 校正並還原細節樣貌</li><li>將檔案肥大的 PNG 插畫修改並轉換為不佔空間的 JPG 圖檔</li></ul></div>
-                </details>
-                <details className="faq-item">
-                  <summary><span>03</span>使用 AbiPaint 是否需要註冊帳號？</summary>
-                  <div className="faq-answer">完全不需要！AbiPaint 提供免費、免註冊與免安裝的修圖服務，打開網頁即可直接使用，適合所有電腦、平板與手機用戶。</div>
-                </details>
-                <details className="faq-item">
-                  <summary><span>04</span>AbiPaint 還有什麼功能？</summary>
-                  <div className="faq-answer">除了修改圖片尺寸，AbiPaint 也提供畫筆、圖形與文字等多種素材，適合學生、教師、設計師、行銷人員等各行各業使用。</div>
-                </details>
-                <details className="faq-item">
-                  <summary><span>05</span>發現錯誤資訊該怎麼辦？</summary>
-                  <div className="faq-answer">若發現錯誤資訊，歡迎透過以下電子郵件聯繫開發人員：<a className="faq-email" href="mailto:abiting.ct@gmail.com">abiting.ct@gmail.com</a></div>
-                </details>
+                {copy.faq.map(([question, answer], index) => (
+                  <details key={question} className="faq-item" open={index === 0}>
+                    <summary><span>{String(index + 1).padStart(2, "0")}</span>{question}</summary>
+                    <div className="faq-answer">
+                      {answer}
+                      {index === 1 && <ul>{copy.faqList.map((item) => <li key={item}>{item}</li>)}</ul>}
+                      {index === 4 && <a className="faq-email" href="mailto:abiting.ct@gmail.com">abiting.ct@gmail.com</a>}
+                    </div>
+                  </details>
+                ))}
                 <div className="faq-banner">
-                  <img src="/banner.webp" alt="線上圖片尺寸修改器" />
+                  <img src="/banner.webp" alt={isEnglish ? "Online image size editor" : "線上圖片尺寸修改器"} />
                 </div>
               </div>
             </section>
           )}
         </aside>
-        <section ref={workspaceRef} className="workspace" aria-label="畫布工作區">
+        <section ref={workspaceRef} className="workspace" aria-label={copy.canvasWorkspace}>
           <div className="workspace-toolbar">
             <div className="active-tool-name">
               <span className="active-tool-marker" />
@@ -2273,38 +2366,38 @@ export default function Home() {
                 <Plus size={14} />
               </button>
               <span className="top-divider" />
-              <button type="button" className="ghost-button view-action-button" onClick={fitCanvasToViewport} title="符合視窗">
+              <button type="button" className="ghost-button view-action-button" onClick={fitCanvasToViewport} title={copy.fit}>
                 <Maximize2 size={15} />
-                <span>符合</span>
+                <span>{copy.fit}</span>
               </button>
-              <button type="button" className="ghost-button view-action-button" onClick={resetCanvasView} title="重設視角">
+              <button type="button" className="ghost-button view-action-button" onClick={resetCanvasView} title={copy.reset}>
                 <RotateCcw size={14} />
-                <span>重設</span>
+                <span>{copy.reset}</span>
               </button>
             </div>
           </div>
 
           {openDesktopTool && (
-            <section ref={desktopToolPanelRef} className={`desktop-tool-popover ${isDesktopToolDragging ? "is-dragging" : ""}`} style={desktopToolPopoverStyle} aria-label={`${activeWorkspaceToolLabel}設定`}>
+            <section ref={desktopToolPanelRef} className={`desktop-tool-popover ${isDesktopToolDragging ? "is-dragging" : ""}`} style={desktopToolPopoverStyle} aria-label={`${activeWorkspaceToolLabel} ${tr("設定", "settings")}`}>
               <div className="desktop-tool-popover-heading" onPointerDown={handleDesktopToolPanelPointerDown}>
                 <div>
                   <span className="eyebrow">CREATIVE TOOL</span>
-                  <h2>{activeWorkspaceToolLabel}設定</h2>
+                  <h2>{activeWorkspaceToolLabel} {tr("設定", "settings")}</h2>
                 </div>
-                <button type="button" className="icon-button subtle" onClick={() => setOpenDesktopTool(null)} title="完成設定" aria-label="完成設定"><Check size={16} /></button>
+                <button type="button" className="icon-button subtle" onClick={() => setOpenDesktopTool(null)} title={tr("完成設定", "Done")} aria-label={tr("完成設定", "Done")}><Check size={16} /></button>
               </div>
 
               {openDesktopTool === "brush" && (
                 <div className="desktop-tool-popover-content">
                   <div className="color-row">
-                    <div><span className="field-label">筆刷顏色</span><span className="field-help">從色票或自訂色開始繪製</span></div>
-                    <label className="color-picker"><input type="color" value={brushColor} onChange={(event) => setBrushColor(event.target.value)} aria-label="筆刷顏色" /><span style={{ backgroundColor: brushColor }} /></label>
+                    <div><span className="field-label">{tr("筆刷顏色", "Brush color")}</span><span className="field-help">{tr("從色票或自訂色開始繪製", "Choose a swatch or custom color")}</span></div>
+                    <label className="color-picker"><input type="color" value={brushColor} onChange={(event) => setBrushColor(event.target.value)} aria-label={tr("筆刷顏色", "Brush color")} /><span style={{ backgroundColor: brushColor }} /></label>
                   </div>
-                  <RangeControl label="筆刷大小" value={brushSize} min={2} max={160} suffix=" px" onChange={setBrushSize} />
-                  <RangeControl label="筆刷不透明度" value={brushOpacity} min={1} max={100} suffix="%" onChange={setBrushOpacity} />
-                  <div className="swatch-row floating-swatch-row" role="group" aria-label="筆刷色票">
+                  <RangeControl label={tr("筆刷大小", "Brush size")} value={brushSize} min={2} max={160} suffix=" px" onChange={setBrushSize} />
+                  <RangeControl label={tr("筆刷不透明度", "Brush opacity")} value={brushOpacity} min={1} max={100} suffix="%" onChange={setBrushOpacity} />
+                  <div className="swatch-row floating-swatch-row" role="group" aria-label={tr("筆刷色票", "Brush colors")}>
                     {["#000000", "#1F2528", "#555B5D", "#FFFFFF", "#FFFDF8", "#E4513B", "#B72F34", "#F07C41", "#D59B42", "#2F855A", "#426B8A", "#2D5B9B", "#8B5CF6", "#D26A9C"].map((color) => (
-                      <button key={color} type="button" className={`swatch ${brushColor === color ? "is-selected" : ""}`} style={{ backgroundColor: color }} onClick={() => setBrushColor(color)} aria-label={`選擇顏色 ${color}`} />
+                      <button key={color} type="button" className={`swatch ${brushColor === color ? "is-selected" : ""}`} style={{ backgroundColor: color }} onClick={() => setBrushColor(color)} aria-label={`${tr("選擇顏色", "Choose color")} ${color}`} />
                     ))}
                   </div>
                 </div>
@@ -2313,12 +2406,12 @@ export default function Home() {
               {openDesktopTool === "shape" && (
                 <div className="desktop-tool-popover-content">
                   <div className="shape-choice-grid floating-shape-grid">
-                    <button type="button" className={`shape-choice ${shapeKind === "rectangle" ? "is-active" : ""}`} onClick={() => { setShapeKind("rectangle"); addShape("rectangle"); }}><Square size={18} /><span>方塊</span></button>
-                    <button type="button" className={`shape-choice ${shapeKind === "circle" ? "is-active" : ""}`} onClick={() => { setShapeKind("circle"); addShape("circle"); }}><Circle size={18} /><span>圓形</span></button>
-                    <button type="button" className={`shape-choice ${shapeKind === "star" ? "is-active" : ""}`} onClick={() => { setShapeKind("star"); addShape("star"); }}><Star size={18} /><span>星星</span></button>
-                    <button type="button" className={`shape-choice ${shapeKind === "heart" ? "is-active" : ""}`} onClick={() => { setShapeKind("heart"); addShape("heart"); }}><Heart size={18} /><span>愛心</span></button>
-                    <button type="button" className={`shape-choice ${shapeKind === "triangle" ? "is-active" : ""}`} onClick={() => { setShapeKind("triangle"); addShape("triangle"); }}><Triangle size={18} /><span>三角形</span></button>
-                    <button type="button" className={`shape-choice ${shapeKind === "pentagon" ? "is-active" : ""}`} onClick={() => { setShapeKind("pentagon"); addShape("pentagon"); }}><Pentagon size={18} /><span>五邊形</span></button>
+                    <button type="button" className={`shape-choice ${shapeKind === "rectangle" ? "is-active" : ""}`} onClick={() => { setShapeKind("rectangle"); addShape("rectangle"); }}><Square size={18} /><span>{tr("方塊", "Rectangle")}</span></button>
+                    <button type="button" className={`shape-choice ${shapeKind === "circle" ? "is-active" : ""}`} onClick={() => { setShapeKind("circle"); addShape("circle"); }}><Circle size={18} /><span>{tr("圓形", "Circle")}</span></button>
+                    <button type="button" className={`shape-choice ${shapeKind === "star" ? "is-active" : ""}`} onClick={() => { setShapeKind("star"); addShape("star"); }}><Star size={18} /><span>{tr("星星", "Star")}</span></button>
+                    <button type="button" className={`shape-choice ${shapeKind === "heart" ? "is-active" : ""}`} onClick={() => { setShapeKind("heart"); addShape("heart"); }}><Heart size={18} /><span>{tr("愛心", "Heart")}</span></button>
+                    <button type="button" className={`shape-choice ${shapeKind === "triangle" ? "is-active" : ""}`} onClick={() => { setShapeKind("triangle"); addShape("triangle"); }}><Triangle size={18} /><span>{tr("三角形", "Triangle")}</span></button>
+                    <button type="button" className={`shape-choice ${shapeKind === "pentagon" ? "is-active" : ""}`} onClick={() => { setShapeKind("pentagon"); addShape("pentagon"); }}><Pentagon size={18} /><span>{tr("五邊形", "Pentagon")}</span></button>
                   </div>
                   <div className="color-row"><span className="field-label">填色</span><label className="color-picker"><input type="color" value={shapeFill} onChange={(event) => { setShapeFill(event.target.value); if (selectedShape) updateShape({ fill: event.target.value }); }} aria-label="圖形填色" /><span style={{ backgroundColor: shapeFill }} /></label></div>
                   <div className="color-row"><span className="field-label">輪廓</span><label className="color-picker"><input type="color" value={shapeOutline} onChange={(event) => { setShapeOutline(event.target.value); if (selectedShape) updateShape({ outline: event.target.value }); }} aria-label="圖形輪廓" /><span style={{ backgroundColor: shapeOutline }} /></label></div>
@@ -2746,15 +2839,15 @@ export default function Home() {
             <div className="inspector-divider" />
 
             <div className="inspector-section">
-              <SectionTitle eyebrow="CANVAS" title="畫布尺寸" action={<Maximize2 size={15} className="section-icon" />} />
+              <SectionTitle eyebrow={copy.canvasSize} action={<Maximize2 size={15} className="section-icon" />} />
               <div className="dimension-grid">
-                <label><span>寬度</span><input id="canvas-width" type="number" min={240} max={2400} defaultValue={canvasSize.width} key={`width-${canvasSize.width}`} /></label>
+                <label><span>{copy.width}</span><input id="canvas-width" type="number" min={240} max={2400} defaultValue={canvasSize.width} key={`width-${canvasSize.width}`} /></label>
                 <span className="dimension-mark">×</span>
-                <label><span>高度</span><input id="canvas-height" type="number" min={180} max={1800} defaultValue={canvasSize.height} key={`height-${canvasSize.height}`} /></label>
+                <label><span>{copy.height}</span><input id="canvas-height" type="number" min={180} max={1800} defaultValue={canvasSize.height} key={`height-${canvasSize.height}`} /></label>
               </div>
-              <button type="button" className="secondary-button full-width" onClick={resizeCanvas}>套用解析度</button>
+              <button type="button" className="secondary-button full-width" onClick={resizeCanvas}>{copy.applyResolution}</button>
               <label className="toggle-row resolution-scale-toggle">
-                <span>等比例縮放圖片</span>
+                <span>{copy.scaleImages}</span>
                 <input type="checkbox" checked={scaleImagesWithCanvas} onChange={(event) => setScaleImagesWithCanvas(event.target.checked)} />
               </label>
               <div className="resolution-preset-row">
@@ -2762,18 +2855,18 @@ export default function Home() {
                 <button type="button" className="resolution-preset" onClick={() => applyResolutionPreset(1200, 800)}>1200 × 800</button>
                 <button type="button" className="resolution-preset" onClick={() => applyResolutionPreset(1280, 720)}>1280 × 720</button>
               </div>
-              <div className="canvas-meta"><span>比例</span><span className="mono-value">{(canvasSize.width / canvasSize.height).toFixed(2)} : 1</span></div>
+              <div className="canvas-meta"><span>{isEnglish ? "Ratio" : "比例"}</span><span className="mono-value">{(canvasSize.width / canvasSize.height).toFixed(2)} : 1</span></div>
             </div>
 
             <div className="inspector-divider" />
 
             <div className="inspector-section">
-              <SectionTitle eyebrow="IMAGE ADJUSTMENTS" title="影像調整" action={<SlidersHorizontal size={15} className="section-icon" />} />
-              <RangeControl label="曝光" value={activeAdjustmentValues.exposure} min={-60} max={60} suffix="%" onChange={(value) => updateActiveAdjustment({ exposure: value })} />
-              <RangeControl label="對比" value={activeAdjustmentValues.contrast} min={-60} max={60} suffix="%" onChange={(value) => updateActiveAdjustment({ contrast: value })} />
-              <RangeControl label="飽和度" value={activeAdjustmentValues.saturation} min={0} max={200} suffix="%" onChange={(value) => updateActiveAdjustment({ saturation: value })} />
-              <RangeControl label="不透明度" value={activeAdjustmentValues.opacity} min={1} max={100} suffix="%" onChange={(value) => updateActiveAdjustment({ opacity: value })} />
-              <button type="button" className="link-button" onClick={resetActiveAdjustment}><RotateCcw size={13} /> 重設目前調整</button>
+              <SectionTitle eyebrow={copy.imageAdjustments} action={<SlidersHorizontal size={15} className="section-icon" />} />
+              <RangeControl label={copy.exposure} value={activeAdjustmentValues.exposure} min={-60} max={60} suffix="%" onChange={(value) => updateActiveAdjustment({ exposure: value })} />
+              <RangeControl label={copy.contrast} value={activeAdjustmentValues.contrast} min={-60} max={60} suffix="%" onChange={(value) => updateActiveAdjustment({ contrast: value })} />
+              <RangeControl label={copy.saturation} value={activeAdjustmentValues.saturation} min={0} max={200} suffix="%" onChange={(value) => updateActiveAdjustment({ saturation: value })} />
+              <RangeControl label={copy.opacity} value={activeAdjustmentValues.opacity} min={1} max={100} suffix="%" onChange={(value) => updateActiveAdjustment({ opacity: value })} />
+              <button type="button" className="link-button" onClick={resetActiveAdjustment}><RotateCcw size={13} /> {isEnglish ? "Reset adjustments" : "重設目前調整"}</button>
             </div>
 
             <div className="inspector-divider" />

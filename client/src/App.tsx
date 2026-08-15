@@ -12,6 +12,7 @@ function Router() {
   return (
     <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
       <Switch>
+        <Route path={"/en"} component={Home} />
         <Route path={"/"} component={Home} />
         <Route path={"/404"} component={NotFound} />
         {/* Final fallback route */}

@@ -143,6 +143,10 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 .secondary-button:hover { background: rgba(245,240,229,0.12); border-color: rgba(227,213,187,0.3); }
 .primary-button { color: #fff8ec; background: #e4513b; box-shadow: 0 6px 18px rgba(228,81,59,0.22); }
 .primary-button:hover { background: #ef674f; }
+.language-switch { display: inline-flex; align-items: center; justify-content: center; min-height: 30px; padding: 0 8px; color: #aeb6af; border: 1px solid rgba(227,213,187,0.16); border-radius: 5px; background: rgba(245,240,229,0.035); font: 500 10px "DM Sans", "Noto Sans TC", sans-serif; letter-spacing: 0.04em; text-decoration: none; transition: color 180ms ease-out, background 180ms ease-out, border-color 180ms ease-out, transform 160ms ease-out; }
+.language-switch:hover { color: #fff8ec; border-color: rgba(228,81,59,0.5); background: rgba(228,81,59,0.1); }
+.language-switch:active { transform: scale(0.97); }
+.language-switch:focus-visible { outline: 2px solid rgba(228,81,59,0.72); outline-offset: 2px; }
 .full-width { width: 100%; }
 
 .studio-layout { min-height: calc(100vh - 74px); display: grid; grid-template-columns: 74px minmax(0, 1fr) 320px; }
