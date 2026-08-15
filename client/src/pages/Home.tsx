@@ -418,6 +418,8 @@ export default function Home() {
   const [desktopToolPosition, setDesktopToolPosition] = useState<{ x: number; y: number } | null>(null);
   const [isDesktopToolDragging, setIsDesktopToolDragging] = useState(false);
   const [isFaqOpen, setIsFaqOpen] = useState(false);
+  const [mobileMiniToolPosition, setMobileMiniToolPosition] = useState({ x: 14, y: 14 });
+  const [isMobileMiniToolDragging, setIsMobileMiniToolDragging] = useState(false);
   const clipboardTextRef = useRef<TextLayer | null>(null);
   const panDragRef = useRef<{ startX: number; startY: number; originX: number; originY: number } | null>(null);
   const touchPointsRef = useRef(new Map<number, { x: number; y: number }>());
@@ -432,6 +434,8 @@ export default function Home() {
   const desktopToolDragRef = useRef<{ startX: number; startY: number; originX: number; originY: number } | null>(null);
   const inspectorRef = useRef<HTMLElement>(null);
   const drawerDragRef = useRef<{ startY: number; startHeight: number } | null>(null);
+  const mobileMiniToolRef = useRef<HTMLDivElement>(null);
+  const mobileMiniToolDragRef = useRef<{ startX: number; startY: number; originX: number; originY: number } | null>(null);
   const hasInitializedPanRef = useRef(false);
 
   const selectedText = useMemo(
@@ -1979,6 +1983,34 @@ export default function Home() {
     };
   }, []);
 
+  useEffect(() => {
+    const moveMobileMiniTool = (event: PointerEvent) => {
+      const drag = mobileMiniToolDragRef.current;
+      const viewport = viewportRef.current;
+      const toolbar = mobileMiniToolRef.current;
+      if (!drag || !viewport || !toolbar) return;
+      const bounds = viewport.getBoundingClientRect();
+      const toolBounds = toolbar.getBoundingClientRect();
+      setMobileMiniToolPosition({
+        x: clamp(drag.originX + event.clientX - drag.startX, 8, Math.max(8, bounds.width - toolBounds.width - 8)),
+        y: clamp(drag.originY + event.clientY - drag.startY, 8, Math.max(8, bounds.height - toolBounds.height - 8)),
+      });
+    };
+    const finishMobileMiniToolDrag = () => {
+      if (!mobileMiniToolDragRef.current) return;
+      mobileMiniToolDragRef.current = null;
+      setIsMobileMiniToolDragging(false);
+    };
+    window.addEventListener("pointermove", moveMobileMiniTool);
+    window.addEventListener("pointerup", finishMobileMiniToolDrag);
+    window.addEventListener("pointercancel", finishMobileMiniToolDrag);
+    return () => {
+      window.removeEventListener("pointermove", moveMobileMiniTool);
+      window.removeEventListener("pointerup", finishMobileMiniToolDrag);
+      window.removeEventListener("pointercancel", finishMobileMiniToolDrag);
+    };
+  }, []);
+
   const handleMobileDrawerPointerDown = (event: ReactPointerEvent<HTMLButtonElement>) => {
     if (event.pointerType === "mouse" && event.button !== 0) return;
     event.preventDefault();
@@ -1987,6 +2019,25 @@ export default function Home() {
     const startHeight = inspectorRef.current?.getBoundingClientRect().height ?? 0;
     drawerDragRef.current = { startY: event.clientY, startHeight };
     setIsMobileDrawerDragging(true);
+  };
+
+  const handleMobileMiniToolPointerDown = (event: ReactPointerEvent<HTMLButtonElement>) => {
+    if (event.pointerType === "mouse" && event.button !== 0) return;
+    const toolbar = mobileMiniToolRef.current;
+    const viewport = viewportRef.current;
+    if (!toolbar || !viewport) return;
+    event.preventDefault();
+    event.stopPropagation();
+    event.currentTarget.setPointerCapture(event.pointerId);
+    const toolBounds = toolbar.getBoundingClientRect();
+    const viewportBounds = viewport.getBoundingClientRect();
+    mobileMiniToolDragRef.current = {
+      startX: event.clientX,
+      startY: event.clientY,
+      originX: toolBounds.left - viewportBounds.left,
+      originY: toolBounds.top - viewportBounds.top,
+    };
+    setIsMobileMiniToolDragging(true);
   };
 
   const handleDesktopToolPanelPointerDown = (event: ReactPointerEvent<HTMLDivElement>) => {
@@ -2014,6 +2065,7 @@ export default function Home() {
   const desktopToolPopoverStyle = desktopToolPosition === null
     ? undefined
     : ({ left: `${desktopToolPosition.x}px`, top: `${desktopToolPosition.y}px`, transform: "none" } as CSSProperties);
+  const mobileMiniToolsStyle = ({ left: `${mobileMiniToolPosition.x}px`, top: `${mobileMiniToolPosition.y}px` } as CSSProperties);
   const handleDesktopToolCreate = (nextTool: DesktopCreativeTool) => {
     setTool(nextTool);
     setActiveDesktopTool(nextTool);
@@ -2030,6 +2082,13 @@ export default function Home() {
       setSelectedImageId(null);
     }
     setOpenDesktopTool(nextTool);
+  };
+  const handleMobileMiniToolCreate = (nextTool: DesktopCreativeTool) => {
+    setTool(nextTool);
+    setActiveDesktopTool(nextTool);
+    setOpenDesktopTool(null);
+    if (nextTool === "shape") addShape(shapeKind);
+    if (nextTool === "text") addTextLayer();
   };
   const activeWorkspaceToolLabel = activeDesktopTool === "brush"
     ? "畫筆"
@@ -2270,6 +2329,19 @@ export default function Home() {
             onPointerUp={finishPan}
             onPointerCancel={finishPan}
           >
+            <div
+              ref={mobileMiniToolRef}
+              className={`mobile-mini-tools ${isMobileMiniToolDragging ? "is-dragging" : ""}`}
+              style={mobileMiniToolsStyle}
+              onPointerDown={(event) => event.stopPropagation()}
+              aria-label="手機迷你創作工具欄"
+            >
+              <button type="button" className="mobile-mini-drag-handle" onPointerDown={handleMobileMiniToolPointerDown} aria-label="拖曳移動工具欄" title="拖曳移動工具欄"><Move size={15} /></button>
+              <span className="mobile-mini-separator" />
+              <button type="button" className={`mobile-mini-tool ${activeDesktopTool === "brush" ? "is-active" : ""}`} onClick={() => handleMobileMiniToolCreate("brush")} aria-label="畫筆" title="畫筆"><Pencil size={16} /></button>
+              <button type="button" className={`mobile-mini-tool ${activeDesktopTool === "shape" ? "is-active" : ""}`} onClick={() => handleMobileMiniToolCreate("shape")} aria-label="新增圖形" title="新增圖形"><Shapes size={16} /></button>
+              <button type="button" className={`mobile-mini-tool ${activeDesktopTool === "text" ? "is-active" : ""}`} onClick={() => handleMobileMiniToolCreate("text")} aria-label="新增文字" title="新增文字"><Type size={16} /></button>
+            </div>
             <div className="stage-notes stage-note-bottom">{canvasSize.width} × {canvasSize.height}</div>
             <div
               className="canvas-shell-outer"

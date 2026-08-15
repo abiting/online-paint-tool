@@ -142,3 +142,4 @@
 - [x] 將 Banner alt 設定為線上圖片尺寸修改器並確認 Logo alt 為 AbiPaint
 - [x] 保留 GitHub 的 index.html 更新並合併其餘 WebP 資產變更
 - [x] 將 Logo 與 Banner 改為直接引用 client/public 下的本機 WebP 路徑
+- [x] 在手機畫布區加入可拖曳移動的迷你工具欄
