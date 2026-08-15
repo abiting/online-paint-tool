@@ -163,7 +163,7 @@ type TextLayer = {
   exposure: number;
   contrast: number;
   saturation: number;
-  fontFamily: "Noto Sans TC" | "Noto Serif TC" | "DFKai-SB" | "PMingLiU" | "Arial" | "DM Sans" | "IBM Plex Mono" | "Kaisei Decol" | "Klee One" | "Kosugi Maru" | "M PLUS Rounded 1c" | "Noto Sans JP" | "Noto Serif JP" | "Shippori Mincho" | "Times New Roman" | "Yomogi" | "Zen Kaku Gothic New";
+  fontFamily: "Noto Sans TC" | "Noto Serif TC" | "LXGW WenKai TC" | "PMingLiU" | "Arial" | "DM Sans" | "IBM Plex Mono" | "Kaisei Decol" | "Klee One" | "Kosugi Maru" | "M PLUS Rounded 1c" | "Shippori Mincho" | "Times New Roman" | "Yomogi" | "Zen Kaku Gothic New";
   anchorShapeId?: string;
 };
 
@@ -278,11 +278,11 @@ const SHAPE_LABELS: Record<ShapeKind, string> = {
   triangle: "三角形",
   pentagon: "五邊形",
 };
-const TEXT_FONT_OPTIONS: Array<{ value: TextLayer["fontFamily"]; label: string }> = [
-  { value: "Noto Sans TC", label: "思源黑體" },
-  { value: "Noto Serif TC", label: "思源宋體" },
-  { value: "PMingLiU", label: "新細明體" },
-  { value: "DFKai-SB", label: "標楷體" },
+const TEXT_FONT_OPTIONS: Array<{ value: TextLayer["fontFamily"]; label: string; labelEn?: string }> = [
+  { value: "Noto Sans TC", label: "思源黑體", labelEn: "Noto Sans TC" },
+  { value: "Noto Serif TC", label: "思源宋體", labelEn: "Noto Serif TC" },
+  { value: "PMingLiU", label: "新細明體", labelEn: "PMingLiU" },
+  { value: "LXGW WenKai TC", label: "楷體", labelEn: "Kai" },
   { value: "Arial", label: "Arial" },
   { value: "DM Sans", label: "DM Sans" },
   { value: "IBM Plex Mono", label: "IBM Plex Mono" },
@@ -290,8 +290,6 @@ const TEXT_FONT_OPTIONS: Array<{ value: TextLayer["fontFamily"]; label: string }
   { value: "Klee One", label: "Klee One" },
   { value: "Kosugi Maru", label: "Kosugi Maru" },
   { value: "M PLUS Rounded 1c", label: "M PLUS Rounded 1c" },
-  { value: "Noto Sans JP", label: "Noto Sans JP" },
-  { value: "Noto Serif JP", label: "Noto Serif JP" },
   { value: "Shippori Mincho", label: "Shippori Mincho" },
   { value: "Times New Roman", label: "Times New Roman" },
   { value: "Yomogi", label: "Yomogi" },
@@ -979,7 +977,7 @@ export default function Home() {
     const context = canvasRef.current?.getContext("2d");
     if (!context) return { width: Math.max(48, layer.text.length * layer.fontSize * 0.58), height: Math.ceil(layer.fontSize * 1.12) + 4 };
     context.save();
-    context.font = `${layer.fontWeight} ${layer.fontSize}px "${layer.fontFamily}", "Noto Sans TC", "Noto Sans JP", sans-serif`;
+    context.font = `${layer.fontWeight} ${layer.fontSize}px "${layer.fontFamily}", "Noto Sans TC", sans-serif`;
     const width = Math.max(48, Math.ceil(context.measureText(layer.text).width) + 8);
     context.restore();
     return { width, height: Math.ceil(layer.fontSize * 1.12) + 4 };
@@ -1473,7 +1471,7 @@ export default function Home() {
   const addTextLayer = () => {
     const draftLayer: TextLayer = {
       id: makeId(),
-      text: "在這裡輸入文字",
+      text: tr("在這裡輸入文字", "Type here"),
       x: 0,
       y: 0,
       fontSize: 52,
@@ -1497,7 +1495,7 @@ export default function Home() {
     setSelectedImageId(null);
     setTool("text");
     captureHistory();
-    toast.success("文字已加入畫布");
+    toast.success(tr("文字已加入畫布", "Text added to canvas"));
   };
 
   const handleCanvasPointerDown = (event: ReactPointerEvent<HTMLCanvasElement>) => {
@@ -1592,13 +1590,13 @@ export default function Home() {
     setSelectedTextId(nextLayer.id);
     setSelectedShapeId(null);
     setSelectedImageId(null);
-    toast.success("已新增文字卡，現在可以直接編輯");
+    toast.success(tr("已新增文字卡，現在可以直接編輯", "Text added — you can edit it now"));
     captureHistory();
   };
 
   const copySelection = async () => {
     if (!selectedText) {
-      toast.info("請先選取文字卡");
+      toast.info(tr("請先選取文字卡", "Select a text object first"));
       return;
     }
     clipboardTextRef.current = { ...selectedText };
@@ -1607,7 +1605,7 @@ export default function Home() {
     } catch {
       // 瀏覽器未授權 clipboard 時仍保留工作台內部複製內容。
     }
-    toast.success("文字卡已複製");
+    toast.success(tr("文字卡已複製", "Text object copied"));
   };
 
   const pasteSelection = async () => {
@@ -1619,7 +1617,7 @@ export default function Home() {
     }
     const source = clipboardTextRef.current;
     if (!source && !clipboardText) {
-      toast.info("請先複製文字卡，或將文字複製到剪貼簿");
+      toast.info(tr("請先複製文字卡，或將文字複製到剪貼簿", "Copy a text object or text to your clipboard first"));
       return;
     }
     const nextLayer: TextLayer = {
@@ -1647,7 +1645,7 @@ export default function Home() {
     setSelectedTextId(nextLayer.id);
     setSelectedShapeId(null);
     captureHistory();
-    toast.success("文字卡已貼上");
+    toast.success(tr("文字卡已貼上", "Text object pasted"));
   };
 
   const deleteSelectedText = () => {
@@ -1655,7 +1653,7 @@ export default function Home() {
     syncLayers(layersRef.current.filter((layer) => layer.id !== selectedTextId));
     setSelectedTextId(null);
     captureHistory();
-    toast.success("文字卡已移除");
+    toast.success(tr("文字卡已移除", "Text object removed"));
   };
 
   const updateShape = (patch: Partial<ShapeLayer>) => {
@@ -2722,28 +2720,28 @@ export default function Home() {
               {openDesktopTool === "text" && (
                 <div className="desktop-tool-popover-content">
                   {!selectedText ? (
-                    <p className="empty-inspector">點擊畫布上的文字即可開啟內容與樣式設定。</p>
+                    <p className="empty-inspector">{tr("點擊畫布上的文字即可開啟內容與樣式設定。", "Click a text object on the canvas to edit its content and style.")}</p>
                   ) : (
                     <>
-                      <label className="field-label" htmlFor="desktop-text-content">文字內容</label>
+                      <label className="field-label" htmlFor="desktop-text-content">{tr("文字內容", "Text content")}</label>
                       <textarea id="desktop-text-content" className="text-input" value={selectedText.text} onChange={(event) => updateTextLayer({ text: event.target.value })} rows={3} />
                       <div className="select-row">
                         <label className="select-wrap">
-                          <span className="field-label">字體</span>
+                          <span className="field-label">{tr("字體", "Font")}</span>
                           <select value={selectedText.fontFamily} onChange={(event) => updateTextLayer({ fontFamily: event.target.value as TextLayer["fontFamily"] })}>
-                            {TEXT_FONT_OPTIONS.map((font) => <option key={font.value} value={font.value}>{font.label}</option>)}
+                            {TEXT_FONT_OPTIONS.map((font) => <option key={font.value} value={font.value}>{isEnglish ? font.labelEn ?? font.label : font.label}</option>)}
                           </select>
                           <ChevronDown size={14} />
                         </label>
                       </div>
                       <div className="text-color-control">
-                        <div className="text-color-heading"><span className="field-label">文字顏色</span><label className="color-picker compact-color-picker"><input type="color" value={selectedText.color} onChange={(event) => updateTextLayer({ color: event.target.value })} aria-label="自訂文字顏色" /><span style={{ backgroundColor: selectedText.color }} /></label></div>
-                        <div className="text-palette" role="group" aria-label="文字色票">
-                          {["#000000", "#1F2528", "#555B5D", "#FFFFFF", "#FFFDF8", "#E4513B", "#B72F34", "#F07C41", "#D59B42", "#2F855A", "#426B8A", "#2D5B9B", "#8B5CF6", "#D26A9C"].map((color) => <button key={color} type="button" className={`text-swatch ${selectedText.color.toUpperCase() === color ? "is-selected" : ""}`} style={{ backgroundColor: color }} onClick={() => updateTextLayer({ color })} aria-label={`文字顏色 ${color}`} />)}
+                        <div className="text-color-heading"><span className="field-label">{tr("文字顏色", "Text color")}</span><label className="color-picker compact-color-picker"><input type="color" value={selectedText.color} onChange={(event) => updateTextLayer({ color: event.target.value })} aria-label={tr("自訂文字顏色", "Custom text color")} /><span style={{ backgroundColor: selectedText.color }} /></label></div>
+                        <div className="text-palette" role="group" aria-label={tr("文字色票", "Text color swatches")}>
+                          {["#000000", "#1F2528", "#555B5D", "#FFFFFF", "#FFFDF8", "#E4513B", "#B72F34", "#F07C41", "#D59B42", "#2F855A", "#426B8A", "#2D5B9B", "#8B5CF6", "#D26A9C"].map((color) => <button key={color} type="button" className={`text-swatch ${selectedText.color.toUpperCase() === color ? "is-selected" : ""}`} style={{ backgroundColor: color }} onClick={() => updateTextLayer({ color })} aria-label={`${tr("文字顏色", "Text color")} ${color}`} />)}
                         </div>
                       </div>
-                      <RangeControl label="字級" value={selectedText.fontSize} min={12} max={180} suffix=" px" onChange={(value) => updateTextLayer({ fontSize: value })} />
-                      <RangeControl label="文字不透明度" value={selectedText.opacity} min={1} max={100} suffix="%" onChange={(value) => updateTextLayer({ opacity: value })} />
+                      <RangeControl label={tr("字級", "Font size")} value={selectedText.fontSize} min={12} max={180} suffix=" px" onChange={(value) => updateTextLayer({ fontSize: value })} />
+                      <RangeControl label={tr("文字不透明度", "Text opacity")} value={selectedText.opacity} min={1} max={100} suffix="%" onChange={(value) => updateTextLayer({ opacity: value })} />
                     </>
                   )}
                 </div>
@@ -2960,7 +2958,7 @@ export default function Home() {
                         color: layer.color,
                         fontSize: `${layer.fontSize}px`,
                         fontWeight: layer.fontWeight,
-                      fontFamily: `"${layer.fontFamily}", "Noto Sans TC", "Noto Sans JP", sans-serif`,
+                      fontFamily: `"${layer.fontFamily}", "Noto Sans TC", sans-serif`,
                         opacity: layer.opacity / 100,
                         filter: makeAdjustmentFilter(layer.exposure, layer.contrast, layer.saturation),
                       }}

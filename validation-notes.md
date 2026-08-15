@@ -168,6 +168,17 @@
 - 繁中畫筆面板標題已由「畫筆設定」改為「畫筆」，且設定面板可正常開啟與關閉。
 - 英文畫筆面板標題已由 `Brush settings` 改為 `Brush`，三個筆刷文字選項與原有操作控制均正常顯示。
 
+## 楷體網路字型來源
+
+- Google Fonts 已確認提供繁體中文楷體 `LXGW WenKai TC` 的 400 與 700 字重，可透過 `https://fonts.googleapis.com/css2?family=LXGW+WenKai+TC:wght@400;700&display=swap` 載入，以取代依賴裝置安裝狀態的 `DFKai-SB`。
+
+## 英文文字面板驗證紀錄
+
+- 英文文字面板已顯示 `Text`、`Text content`、`Font`、`Text color`、`Font size`、`Text opacity`，新建文字的預設內容為 `Type here`，楷體選項顯示為 `Kai`。
+- 新增文字後的成功提示仍顯示繁中「文字已加入畫布」，需在發布前一併改為雙語提示。
+- 新增文字的提示已改為 `Text added to canvas`；實測仍顯示 `Noto Serif JP`，需完成其移除後再發布。
+- 已重新載入英文文字面板確認：`Noto Sans JP` 與 `Noto Serif JP` 均不在選單中，保留 `Kai` 楷體與其餘不同風格字型；新增文字提示維持英文。
+
 ## 響應式與英文圖層面板驗證紀錄
 
 - 手機版仍可同時顯示迷你工具列、畫布與底部設定抽屜；右上角圖層面板未遮擋其主要控制。
