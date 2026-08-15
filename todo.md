@@ -129,3 +129,15 @@
 - [x] 將 FAQ 內容改為不受左側欄寬限制的獨立浮動小視窗
 - [x] 移除 FAQ 使用情境條列句子的句尾句號
 - [x] 將阿比丁的第二個家外部連結明確維持為 dofollow
+- [x] 將提供的貓咪圖像整合至標題左側，作為 100% 圓角網站 Logo
+- [x] 在交付時提供圖片手動上傳用的確切資料夾路徑與檔名
+- [x] 將 Logo 圖片 alt 文字設定為 AbiPaint
+- [x] 保留 client/public/favicon.png 與既有引用不變
+- [x] 改用較小的 favicon02.jpeg 作為標題左側圓形 Logo
+- [x] 使用 favicon.webp 作為 100% 圓角網站 Logo
+- [x] 在頁尾上方加入 banner.webp 並設定 5px 圓角
+- [x] 上傳 favicon-1024.webp 作為暫不顯示的高解析備用資產
+- [x] 移除使用者已同意刪除的 client/public/favicon.png
+- [x] 將 Banner 從工作台頁尾移至 FAQ 使用說明內容下方
+- [x] 將 Banner alt 設定為線上圖片尺寸修改器並確認 Logo alt 為 AbiPaint
+- [ ] 保留 GitHub 的 index.html 更新並合併其餘 WebP 資產變更

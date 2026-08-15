@@ -121,8 +121,8 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 .topbar { height: 74px; display: flex; align-items: center; justify-content: space-between; gap: 24px; padding: 0 24px 0 22px; border-bottom: 1px solid rgba(227, 213, 187, 0.17); background: rgba(36, 34, 29, 0.9); backdrop-filter: blur(18px); }
 .brand-lockup, .top-actions, .document-meta, .workspace-actions, .active-tool-name, .brush-context, .footer-note, .color-row, .range-heading, .canvas-meta, .remove-bg-heading, .select-row { display: flex; align-items: center; }
 .brand-lockup { gap: 10px; min-width: 220px; }
-.brand-mark { width: 36px; height: 36px; display: grid; place-items: center; border: 1px solid rgba(255,255,255,0.17); background: #f5eee0; border-radius: 8px; overflow: hidden; box-shadow: 0 7px 18px rgba(0,0,0,0.14); }
-.brand-mark img { width: 26px; height: 26px; object-fit: contain; }
+.brand-mark { width: 36px; height: 36px; display: grid; place-items: center; border: 1px solid rgba(255,255,255,0.25); background: #f5eee0; border-radius: 100%; overflow: hidden; box-shadow: 0 7px 18px rgba(0,0,0,0.2); }
+.brand-mark img { width: 100%; height: 100%; object-fit: cover; }
 .brand-copy { display: grid; gap: 1px; }
 .brand-name { font-family: "DM Sans", sans-serif; font-weight: 700; font-size: 14px; letter-spacing: 0.04em; }
 .brand-status { color: #9da5a0; font-size: 10px; letter-spacing: 0.08em; }
@@ -183,6 +183,8 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 .faq-answer li::before { content: ""; position: absolute; left: 0; top: 0.72em; width: 4px; height: 4px; background: #e4513b; border-radius: 50%; }
 .faq-email { display: block; width: fit-content; margin-top: 9px; color: #e9c2ab; font: 11px "IBM Plex Mono", monospace; text-decoration: none; border-bottom: 1px solid rgba(228,81,59,0.55); }
 .faq-email:hover { color: #fff4e8; border-color: #e4513b; }
+.faq-banner { margin: 18px 0 2px; padding-top: 2px; }
+.faq-banner img { display: block; width: 100%; height: auto; border: 1px solid rgba(227,213,187,0.2); border-radius: 5px; box-shadow: 0 8px 18px rgba(8,12,13,0.24); }
 .rail-rule { width: 32px; height: 1px; margin: 20px 0; background: rgba(227,213,187,0.16); }
 .rail-secondary .tool-button { color: #6f7c77; }
 .rail-bottom { display: flex; flex-wrap: wrap; justify-content: center; gap: 5px; margin-top: auto; padding-top: 18px; }

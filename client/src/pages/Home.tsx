@@ -2062,6 +2062,9 @@ export default function Home() {
     <main className="studio-app" style={mobileDrawerStyle}>
       <header className="topbar">
         <div className="brand-lockup">
+          <span className="brand-mark brand-logo">
+            <img src="/manus-storage/abipaint-logo_546089a4.webp" alt="AbiPaint" />
+          </span>
           <div className="brand-copy">
             <span className="brand-name">AbiPaint</span>
           </div>
@@ -2150,6 +2153,9 @@ export default function Home() {
                   <summary><span>05</span>發現錯誤資訊該怎麼辦？</summary>
                   <div className="faq-answer">若發現錯誤資訊，歡迎透過以下電子郵件聯繫開發人員：<a className="faq-email" href="mailto:abiting.ct@gmail.com">abiting.ct@gmail.com</a></div>
                 </details>
+                <div className="faq-banner">
+                  <img src="/manus-storage/abipaint-footer-banner_a70786ec.webp" alt="線上圖片尺寸修改器" />
+                </div>
               </div>
             </section>
           )}
