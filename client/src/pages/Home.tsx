@@ -1460,7 +1460,7 @@ export default function Home() {
     setSelectedImageId(image.id);
     setSelectedTextId(null);
     setSelectedShapeId(null);
-    imageDragRef.current = tool === "move" ? { id: image.id, offsetX: point.x - image.x, offsetY: point.y - image.y } : null;
+    imageDragRef.current = { id: image.id, offsetX: point.x - image.x, offsetY: point.y - image.y };
   };
 
   const handleImageResizePointerDown = (event: ReactPointerEvent<HTMLDivElement>, image: ImageLayer, axis: ShapeResizeAxis) => {

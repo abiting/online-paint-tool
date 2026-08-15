@@ -311,7 +311,8 @@ input[type="range"]::-moz-range-thumb { width: 11px; height: 11px; border: 2px s
 .shape-rotation-handle { fill: #fff8ec; stroke: #e4513b; stroke-width: 1.8; vector-effect: non-scaling-stroke; cursor: grab; pointer-events: auto; }
 .shape-rotation-handle:active { cursor: grabbing; }
 .shape-rotation-label { fill: #1f2528; font: 700 8px "DM Sans", sans-serif; paint-order: stroke; stroke: #fff8ec; stroke-width: 3px; pointer-events: none; }
-.image-layer { position: absolute; display: block; overflow: visible; transform-origin: center; cursor: move; user-select: none; }
+.image-layer { position: absolute; display: block; overflow: visible; transform-origin: center; cursor: grab; user-select: none; touch-action: none; }
+.image-layer:active { cursor: grabbing; }
 .image-layer.is-selected { outline: 1px dashed #e4513b; outline-offset: 7px; }
 .image-layer-content { display: block; width: 100%; height: 100%; object-fit: fill; pointer-events: none; user-select: none; }
 .image-resize-handle { position: absolute; z-index: 2; width: 12px; height: 12px; margin: -6px; border: 1.5px solid #e4513b; background: #fff8ec; box-sizing: border-box; }
