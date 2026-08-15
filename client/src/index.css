@@ -200,6 +200,8 @@ kbd { min-width: 19px; padding: 3px 4px; text-align: center; color: #aab1aa; bac
 .workspace-toolbar { height: 56px; display: flex; align-items: center; justify-content: space-between; padding: 0 20px; border-bottom: 1px solid rgba(227,213,187,0.12); background: linear-gradient(90deg, rgba(228,81,59,0.045), transparent 28%); }
 .active-tool-name { gap: 8px; font-size: 12px; font-weight: 500; }
 .active-tool-marker { width: 7px; height: 7px; background: #e4513b; border-radius: 50%; box-shadow: 0 0 0 4px rgba(228,81,59,0.14); }
+.workspace-signature-link { color: #efd8c4; text-decoration: underline; text-decoration-color: rgba(228,81,59,0.55); text-underline-offset: 3px; transition: color 160ms var(--ease-out, ease-out), text-decoration-color 160ms var(--ease-out, ease-out); }
+.workspace-signature-link:hover { color: #fff8ec; text-decoration-color: #e4513b; }
 .tool-hint { margin-left: 3px; color: #7f8a85; font-size: 10px; font-weight: 400; }
 .workspace-actions { gap: 4px; }
 .ghost-button { display: grid; place-items: center; width: 28px; height: 28px; color: #929b96; background: transparent; border-radius: 5px; }

@@ -2356,7 +2356,13 @@ export default function Home() {
           <div className="workspace-toolbar">
             <div className="active-tool-name">
               <span className="active-tool-marker" />
-              <span>{activeWorkspaceToolLabel}</span>
+              {activeDesktopTool ? (
+                <span>{activeWorkspaceToolLabel}</span>
+              ) : isEnglish ? (
+                <span>Developed by <a className="workspace-signature-link" href="https://www.facebook.com/shimokitazawa.news/" target="_blank" rel="noopener">Abiting</a></span>
+              ) : (
+                <span>本工具由<a className="workspace-signature-link" href="https://www.facebook.com/shimokitazawa.news/" target="_blank" rel="noopener">阿比丁</a>開發製作</span>
+              )}
             </div>
             <div className="workspace-actions">
               <button type="button" className="ghost-button" onClick={() => setZoom((value) => clamp(value - 10, 25, 150))}>
