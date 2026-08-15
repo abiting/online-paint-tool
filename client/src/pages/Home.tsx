@@ -2500,9 +2500,9 @@ export default function Home() {
   const toolPanelTitle = selectedImage
     ? "圖片素材"
     : selectedShape
-      ? "圖形設定"
-      : selectedText
-        ? "文字設定"
+      ? "圖形"
+    : selectedText
+        ? "文字"
         : tool === "brush"
           ? "筆刷工具"
           : tool === "eraser"
@@ -2665,11 +2665,11 @@ export default function Home() {
           </aside>
 
           {openDesktopTool && (
-            <section ref={desktopToolPanelRef} className={`desktop-tool-popover ${isDesktopToolDragging ? "is-dragging" : ""}`} style={desktopToolPopoverStyle} aria-label={`${activeWorkspaceToolLabel} ${tr("設定", "settings")}`}>
+            <section ref={desktopToolPanelRef} className={`desktop-tool-popover ${isDesktopToolDragging ? "is-dragging" : ""}`} style={desktopToolPopoverStyle} aria-label={activeWorkspaceToolLabel}>
               <div className="desktop-tool-popover-heading" onPointerDown={handleDesktopToolPanelPointerDown}>
                 <div>
                   <span className="eyebrow">CREATIVE TOOL</span>
-                  <h2>{activeWorkspaceToolLabel} {tr("設定", "settings")}</h2>
+                  <h2>{activeWorkspaceToolLabel}</h2>
                 </div>
                 <button type="button" className="icon-button subtle" onClick={() => setOpenDesktopTool(null)} title={tr("完成設定", "Done")} aria-label={tr("完成設定", "Done")}><Check size={16} /></button>
               </div>
@@ -3068,7 +3068,7 @@ export default function Home() {
 
             {(tool === "shape" || selectedShape) && (
               <div className="inspector-section shape-inspector-section">
-                <SectionTitle eyebrow="SHAPES" title="圖形設定" action={<Shapes size={15} className="section-icon" />} />
+                <SectionTitle eyebrow="SHAPES" title="圖形" action={<Shapes size={15} className="section-icon" />} />
                 <div className="shape-choice-grid">
                   <button type="button" className={`shape-choice ${shapeKind === "rectangle" ? "is-active" : ""}`} onClick={() => { setShapeKind("rectangle"); addShape("rectangle"); }}><Square size={18} /><span>方塊</span></button>
                   <button type="button" className={`shape-choice ${shapeKind === "circle" ? "is-active" : ""}`} onClick={() => { setShapeKind("circle"); addShape("circle"); }}><Circle size={18} /><span>圓形</span></button>
