@@ -62,7 +62,7 @@ type TextLayer = {
   exposure: number;
   contrast: number;
   saturation: number;
-  fontFamily: "Noto Sans TC" | "Noto Serif TC" | "Noto Sans JP" | "Noto Serif JP" | "Zen Kaku Gothic New" | "DM Sans" | "IBM Plex Mono";
+  fontFamily: "Noto Sans TC" | "Noto Serif TC" | "Noto Sans JP" | "Noto Serif JP" | "Zen Kaku Gothic New" | "Kaisei Decol" | "Klee One" | "Kosugi Maru" | "M PLUS Rounded 1c" | "Shippori Mincho" | "Yomogi" | "DM Sans" | "IBM Plex Mono";
   anchorShapeId?: string;
 };
 
@@ -156,6 +156,21 @@ const SHAPE_LABELS: Record<ShapeKind, string> = {
   triangle: "三角形",
   pentagon: "五邊形",
 };
+const TEXT_FONT_OPTIONS: Array<{ value: TextLayer["fontFamily"]; label: string }> = [
+  { value: "Noto Sans TC", label: "思源黑體／繁中" },
+  { value: "Noto Serif TC", label: "思源宋體／繁中" },
+  { value: "Noto Sans JP", label: "Noto Sans JP／日文黑體" },
+  { value: "Noto Serif JP", label: "Noto Serif JP／日文明朝" },
+  { value: "Zen Kaku Gothic New", label: "Zen Kaku Gothic New／日文現代黑體" },
+  { value: "Kaisei Decol", label: "Kaisei Decol／日文裝飾明朝" },
+  { value: "Klee One", label: "Klee One／日文手寫" },
+  { value: "Kosugi Maru", label: "Kosugi Maru／日文圓體" },
+  { value: "M PLUS Rounded 1c", label: "M PLUS Rounded／日文圓體" },
+  { value: "Shippori Mincho", label: "Shippori Mincho／日文明朝" },
+  { value: "Yomogi", label: "Yomogi／日文手寫" },
+  { value: "DM Sans", label: "DM Sans／英文字體" },
+  { value: "IBM Plex Mono", label: "IBM Plex Mono／等寬字體" },
+];
 const makeAdjustmentFilter = (exposure: number, contrast: number, saturation: number) =>
   `brightness(${100 + exposure}%) contrast(${100 + contrast}%) saturate(${saturation}%)`;
 
@@ -338,6 +353,7 @@ export default function Home() {
   const [shapes, setShapes] = useState<ShapeLayer[]>([]);
   const [images, setImages] = useState<ImageLayer[]>([]);
   const [selectedTextId, setSelectedTextId] = useState<string | null>(null);
+  const [editingTextId, setEditingTextId] = useState<string | null>(null);
   const [selectedShapeId, setSelectedShapeId] = useState<string | null>(null);
   const [selectedImageId, setSelectedImageId] = useState<string | null>(null);
   const [shapeKind, setShapeKind] = useState<ShapeKind>("rectangle");
@@ -357,6 +373,8 @@ export default function Home() {
   const [snapGuides, setSnapGuides] = useState<SnapGuides>({ x: null, y: null });
   const [mobileDrawerHeight, setMobileDrawerHeight] = useState<number | null>(null);
   const [isMobileDrawerDragging, setIsMobileDrawerDragging] = useState(false);
+  const [desktopToolPosition, setDesktopToolPosition] = useState<{ x: number; y: number } | null>(null);
+  const [isDesktopToolDragging, setIsDesktopToolDragging] = useState(false);
   const clipboardTextRef = useRef<TextLayer | null>(null);
   const panDragRef = useRef<{ startX: number; startY: number; originX: number; originY: number } | null>(null);
   const touchPointsRef = useRef(new Map<number, { x: number; y: number }>());
@@ -365,6 +383,9 @@ export default function Home() {
   const imageUpdateFrameRef = useRef<number | null>(null);
   const pendingImagesRef = useRef<ImageLayer[] | null>(null);
   const viewportRef = useRef<HTMLDivElement>(null);
+  const workspaceRef = useRef<HTMLElement>(null);
+  const desktopToolPanelRef = useRef<HTMLElement>(null);
+  const desktopToolDragRef = useRef<{ startX: number; startY: number; originX: number; originY: number } | null>(null);
   const inspectorRef = useRef<HTMLElement>(null);
   const drawerDragRef = useRef<{ startY: number; startHeight: number } | null>(null);
   const hasInitializedPanRef = useRef(false);
@@ -1446,11 +1467,16 @@ export default function Home() {
 
   const handleTextPointerDown = (event: ReactPointerEvent<HTMLDivElement>, layer: TextLayer) => {
     event.stopPropagation();
+    if (editingTextId === layer.id) return;
     const point = getCanvasPoint(event.clientX, event.clientY);
+    const wasMoveTool = tool === "move";
     setSelectedTextId(layer.id);
     setSelectedShapeId(null);
     setSelectedImageId(null);
-    textDragRef.current = tool === "move" ? {
+    setTool("text");
+    setActiveDesktopTool("text");
+    setOpenDesktopTool("text");
+    textDragRef.current = wasMoveTool ? {
       id: layer.id,
       offsetX: point.x - layer.x,
       offsetY: point.y - layer.y,
@@ -1724,6 +1750,34 @@ export default function Home() {
     };
   }, []);
 
+  useEffect(() => {
+    const handleDesktopToolDragMove = (event: PointerEvent) => {
+      const drag = desktopToolDragRef.current;
+      const workspace = workspaceRef.current;
+      const panel = desktopToolPanelRef.current;
+      if (!drag || !workspace || !panel) return;
+      const workspaceBounds = workspace.getBoundingClientRect();
+      const panelBounds = panel.getBoundingClientRect();
+      setDesktopToolPosition({
+        x: clamp(drag.originX + event.clientX - drag.startX, 8, Math.max(8, workspaceBounds.width - panelBounds.width - 8)),
+        y: clamp(drag.originY + event.clientY - drag.startY, 62, Math.max(62, workspaceBounds.height - panelBounds.height - 8)),
+      });
+    };
+    const finishDesktopToolDrag = () => {
+      if (!desktopToolDragRef.current) return;
+      desktopToolDragRef.current = null;
+      setIsDesktopToolDragging(false);
+    };
+    window.addEventListener("pointermove", handleDesktopToolDragMove);
+    window.addEventListener("pointerup", finishDesktopToolDrag);
+    window.addEventListener("pointercancel", finishDesktopToolDrag);
+    return () => {
+      window.removeEventListener("pointermove", handleDesktopToolDragMove);
+      window.removeEventListener("pointerup", finishDesktopToolDrag);
+      window.removeEventListener("pointercancel", finishDesktopToolDrag);
+    };
+  }, []);
+
   const handleMobileDrawerPointerDown = (event: ReactPointerEvent<HTMLButtonElement>) => {
     if (event.pointerType === "mouse" && event.button !== 0) return;
     event.preventDefault();
@@ -1734,13 +1788,37 @@ export default function Home() {
     setIsMobileDrawerDragging(true);
   };
 
+  const handleDesktopToolPanelPointerDown = (event: ReactPointerEvent<HTMLDivElement>) => {
+    if (event.pointerType === "mouse" && event.button !== 0) return;
+    if ((event.target as HTMLElement).closest("button")) return;
+    const workspace = workspaceRef.current;
+    const panel = desktopToolPanelRef.current;
+    if (!workspace || !panel) return;
+    event.preventDefault();
+    event.currentTarget.setPointerCapture(event.pointerId);
+    const workspaceBounds = workspace.getBoundingClientRect();
+    const panelBounds = panel.getBoundingClientRect();
+    desktopToolDragRef.current = {
+      startX: event.clientX,
+      startY: event.clientY,
+      originX: panelBounds.left - workspaceBounds.left,
+      originY: panelBounds.top - workspaceBounds.top,
+    };
+    setIsDesktopToolDragging(true);
+  };
+
   const mobileDrawerStyle = mobileDrawerHeight === null
     ? undefined
     : ({ "--mobile-drawer-height": `${mobileDrawerHeight}px` } as CSSProperties);
+  const desktopToolPopoverStyle = desktopToolPosition === null
+    ? undefined
+    : ({ left: `${desktopToolPosition.x}px`, top: `${desktopToolPosition.y}px`, transform: "none" } as CSSProperties);
   const handleDesktopToolToggle = (nextTool: DesktopCreativeTool) => {
+    const isOpening = openDesktopTool !== nextTool;
     setTool(nextTool);
     setActiveDesktopTool(nextTool);
-    setOpenDesktopTool((currentTool) => currentTool === nextTool ? null : nextTool);
+    if (nextTool === "text" && isOpening && !selectedText) addTextLayer();
+    setOpenDesktopTool(isOpening ? nextTool : null);
   };
   const activeWorkspaceToolLabel = activeDesktopTool === "brush"
     ? "畫筆"
@@ -1822,12 +1900,12 @@ export default function Home() {
         <aside className="tool-rail desktop-creative-rail" aria-label="創作工具">
           <span className="rail-label">CREATIVE</span>
           <div className="tool-group">
-            <ToolButton label="畫筆" active={openDesktopTool === "brush"} icon={<Pencil size={18} />} onClick={() => handleDesktopToolToggle("brush")} />
-            <ToolButton label="圖形" active={openDesktopTool === "shape"} icon={<Shapes size={18} />} onClick={() => handleDesktopToolToggle("shape")} />
-            <ToolButton label="文字" active={openDesktopTool === "text"} icon={<Type size={18} />} onClick={() => handleDesktopToolToggle("text")} />
+            <ToolButton label="畫筆" active={activeDesktopTool === "brush"} icon={<Pencil size={18} />} onClick={() => handleDesktopToolToggle("brush")} />
+            <ToolButton label="圖形" active={activeDesktopTool === "shape"} icon={<Shapes size={18} />} onClick={() => handleDesktopToolToggle("shape")} />
+            <ToolButton label="文字" active={activeDesktopTool === "text"} icon={<Type size={18} />} onClick={() => handleDesktopToolToggle("text")} />
           </div>
         </aside>
-        <section className="workspace" aria-label="畫布工作區">
+        <section ref={workspaceRef} className="workspace" aria-label="畫布工作區">
           <div className="workspace-toolbar">
             <div className="active-tool-name">
               <span className="active-tool-marker" />
@@ -1854,8 +1932,8 @@ export default function Home() {
           </div>
 
           {openDesktopTool && (
-            <section className="desktop-tool-popover" aria-label={`${activeWorkspaceToolLabel}設定`}>
-              <div className="desktop-tool-popover-heading">
+            <section ref={desktopToolPanelRef} className={`desktop-tool-popover ${isDesktopToolDragging ? "is-dragging" : ""}`} style={desktopToolPopoverStyle} aria-label={`${activeWorkspaceToolLabel}設定`}>
+              <div className="desktop-tool-popover-heading" onPointerDown={handleDesktopToolPanelPointerDown}>
                 <div>
                   <span className="eyebrow">CREATIVE TOOL</span>
                   <h2>{activeWorkspaceToolLabel}設定</h2>
@@ -1900,11 +1978,20 @@ export default function Home() {
               {openDesktopTool === "text" && (
                 <div className="desktop-tool-popover-content">
                   {!selectedText ? (
-                    <button type="button" className="primary-button full-width" onClick={addTextLayer}><Type size={15} /> 在畫布新增文字</button>
+                    <p className="empty-inspector">點擊畫布上的文字即可開啟內容與樣式設定。</p>
                   ) : (
                     <>
                       <label className="field-label" htmlFor="desktop-text-content">文字內容</label>
                       <textarea id="desktop-text-content" className="text-input" value={selectedText.text} onChange={(event) => updateTextLayer({ text: event.target.value })} rows={3} />
+                      <div className="select-row">
+                        <label className="select-wrap">
+                          <span className="field-label">字體</span>
+                          <select value={selectedText.fontFamily} onChange={(event) => updateTextLayer({ fontFamily: event.target.value as TextLayer["fontFamily"] })}>
+                            {TEXT_FONT_OPTIONS.map((font) => <option key={font.value} value={font.value}>{font.label}</option>)}
+                          </select>
+                          <ChevronDown size={14} />
+                        </label>
+                      </div>
                       <div className="text-color-control">
                         <div className="text-color-heading"><span className="field-label">文字顏色</span><label className="color-picker compact-color-picker"><input type="color" value={selectedText.color} onChange={(event) => updateTextLayer({ color: event.target.value })} aria-label="自訂文字顏色" /><span style={{ backgroundColor: selectedText.color }} /></label></div>
                         <div className="text-palette" role="group" aria-label="文字色票">
@@ -2051,18 +2138,38 @@ export default function Home() {
                         color: layer.color,
                         fontSize: `${layer.fontSize}px`,
                         fontWeight: layer.fontWeight,
-                        fontFamily: `"${layer.fontFamily}", sans-serif`,
+                      fontFamily: `"${layer.fontFamily}", "Noto Sans TC", "Noto Sans JP", sans-serif`,
                         opacity: layer.opacity / 100,
                         filter: makeAdjustmentFilter(layer.exposure, layer.contrast, layer.saturation),
                       }}
                       onPointerDown={(event) => handleTextPointerDown(event, layer)}
-                      onDoubleClick={() => setSelectedTextId(layer.id)}
-                      role="button"
+                      contentEditable={editingTextId === layer.id}
+                      suppressContentEditableWarning
+                      onDoubleClick={(event) => {
+                        event.stopPropagation();
+                        setSelectedTextId(layer.id);
+                        setSelectedShapeId(null);
+                        setSelectedImageId(null);
+                        setTool("text");
+                        setActiveDesktopTool("text");
+                        setOpenDesktopTool("text");
+                        setEditingTextId(layer.id);
+                        window.requestAnimationFrame(() => event.currentTarget.focus());
+                      }}
+                      onInput={(event) => updateTextLayer({ text: event.currentTarget.textContent ?? "" })}
+                      onBlur={() => setEditingTextId(null)}
+                      onKeyDown={(event) => {
+                        if (event.key === "Escape" || (event.key === "Enter" && (event.metaKey || event.ctrlKey))) {
+                          event.preventDefault();
+                          event.currentTarget.blur();
+                        }
+                      }}
+                      role={editingTextId === layer.id ? "textbox" : "button"}
                       tabIndex={0}
                       aria-label={`文字卡：${layer.text}`}
                     >
                       {layer.text}
-                      {selectedTextId === layer.id && <span className="text-layer-tag">TEXT</span>}
+                      {selectedTextId === layer.id && <span className="text-layer-tag" contentEditable={false}>TEXT</span>}
                     </div>
                   ))}
                 </div>
