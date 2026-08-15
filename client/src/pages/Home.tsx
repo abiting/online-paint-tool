@@ -491,6 +491,34 @@ const buildSmoothSvgPath = (points: CanvasPoint[]) => {
   return `${path} L ${last.x} ${last.y}`;
 };
 
+type BrushStamp = CanvasPoint & { angle: number; scale: number };
+
+const buildBrushStamps = (points: CanvasPoint[], size: number): BrushStamp[] => {
+  if (!points.length) return [];
+  if (points.length === 1) return [{ ...points[0], angle: 0, scale: 1 }];
+  const stamps: BrushStamp[] = [];
+  const stepLength = Math.max(2.4, size * 0.42);
+  points.slice(1).forEach((point, index) => {
+    const previous = points[index];
+    const deltaX = point.x - previous.x;
+    const deltaY = point.y - previous.y;
+    const distance = Math.hypot(deltaX, deltaY);
+    if (distance < 0.08) return;
+    const steps = Math.max(1, Math.ceil(distance / stepLength));
+    const angle = Math.atan2(deltaY, deltaX);
+    for (let step = index === 0 ? 0 : 1; step <= steps; step += 1) {
+      const progress = step / steps;
+      stamps.push({ x: previous.x + deltaX * progress, y: previous.y + deltaY * progress, angle, scale: 1 });
+    }
+  });
+  const taperLength = Math.min(5, stamps.length);
+  stamps.forEach((stamp, index) => {
+    const fromEnd = stamps.length - 1 - index;
+    if (fromEnd < taperLength) stamp.scale = 0.46 + (fromEnd / Math.max(1, taperLength - 1)) * 0.54;
+  });
+  return stamps;
+};
+
 const drawSmoothCanvasStroke = (
   context: CanvasRenderingContext2D,
   points: CanvasPoint[],
@@ -505,10 +533,30 @@ const drawSmoothCanvasStroke = (
   context.save();
   context.strokeStyle = color;
   context.fillStyle = color;
+  if (isBrush) {
+    buildBrushStamps(points, size).forEach((stamp, index) => {
+      context.save();
+      context.translate(stamp.x, stamp.y);
+      context.rotate(stamp.angle);
+      context.scale(stamp.scale, stamp.scale);
+      context.globalAlpha = opacity * (index % 4 === 0 ? 0.31 : 0.36);
+      context.beginPath();
+      context.ellipse(0, 0, size * 0.66, size * 0.5, 0, 0, Math.PI * 2);
+      context.fill();
+      context.globalAlpha = opacity * 0.08;
+      context.beginPath();
+      context.ellipse(size * 0.06, -size * 0.32, size * 0.48, Math.max(0.6, size * 0.055), 0, 0, Math.PI * 2);
+      context.ellipse(size * 0.06, size * 0.32, size * 0.48, Math.max(0.6, size * 0.055), 0, 0, Math.PI * 2);
+      context.fill();
+      context.restore();
+    });
+    context.restore();
+    return;
+  }
   context.lineCap = "round";
   context.lineJoin = "round";
-  context.lineWidth = isPencil ? Math.max(1, size * 0.86) : isBrush ? Math.max(2, size * 0.92) : size;
-  context.globalAlpha = isPencil ? opacity * 0.62 : isBrush ? opacity * 0.76 : opacity;
+  context.lineWidth = isPencil ? Math.max(1, size * 0.78) : size;
+  context.globalAlpha = isPencil ? opacity * 0.56 : opacity;
   traceSmoothPath(context, points);
   context.stroke();
   if (points.length === 1) {
@@ -517,17 +565,16 @@ const drawSmoothCanvasStroke = (
     context.fill();
   }
   if (isPencil && points.length > 1) {
-    context.globalAlpha = opacity * 0.15;
-    context.lineWidth = Math.max(0.65, size * 0.1);
-    context.setLineDash([Math.max(0.7, size * 0.08), Math.max(1.6, size * 0.2)]);
-    traceSmoothPath(context, points);
-    context.stroke();
-  }
-  if (isBrush && points.length > 1) {
-    context.globalAlpha = opacity * 0.14;
-    context.lineWidth = Math.max(1, size * 0.56);
-    traceSmoothPath(context, points);
-    context.stroke();
+    [-0.85, 0.7].forEach((offset, index) => {
+      context.save();
+      context.translate(offset, index === 0 ? 0.45 : -0.45);
+      context.globalAlpha = opacity * (index === 0 ? 0.26 : 0.19);
+      context.lineWidth = Math.max(0.65, size * 0.14);
+      context.setLineDash([Math.max(0.8, size * 0.09), Math.max(1.8, size * 0.24)]);
+      traceSmoothPath(context, points);
+      context.stroke();
+      context.restore();
+    });
   }
   context.restore();
 };
@@ -2631,15 +2678,12 @@ export default function Home() {
                 <div className="desktop-tool-popover-content">
                   <div className="brush-choice-grid" role="group" aria-label={tr("選擇筆刷", "Choose brush")}> 
                     <button type="button" className={`brush-choice ${brushKind === "oil" ? "is-active" : ""}`} onClick={() => setBrushKind("oil")}>
-                      <span className="brush-choice-mark brush-choice-mark-oil" aria-hidden="true" />
                       <span>{tr("油線筆", "Oil liner")}</span>
                     </button>
                     <button type="button" className={`brush-choice ${brushKind === "pencil" ? "is-active" : ""}`} onClick={() => setBrushKind("pencil")}>
-                      <span className="brush-choice-mark brush-choice-mark-pencil" aria-hidden="true" />
                       <span>{tr("鉛筆", "Pencil")}</span>
                     </button>
                     <button type="button" className={`brush-choice ${brushKind === "brush" ? "is-active" : ""}`} onClick={() => setBrushKind("brush")}>
-                      <span className="brush-choice-mark brush-choice-mark-brush" aria-hidden="true" />
                       <span>{tr("毛筆", "Brush")}</span>
                     </button>
                   </div>
@@ -2769,8 +2813,8 @@ export default function Home() {
                     const smoothPath = buildSmoothSvgPath(stroke.points);
                     const isPencilStroke = stroke.kind === "pencil";
                     const isBrushStroke = stroke.kind === "brush";
-                    const strokeWidth = isPencilStroke ? Math.max(1, stroke.size * 0.86) : isBrushStroke ? Math.max(2, stroke.size * 0.92) : stroke.size;
-                    const terminalTaper = isBrushStroke ? getBrushTerminalTaper(stroke.points, stroke.size) : null;
+                    const strokeWidth = isPencilStroke ? Math.max(1, stroke.size * 0.78) : isBrushStroke ? Math.max(2, stroke.size * 1.32) : stroke.size;
+                    const brushStamps = isBrushStroke ? buildBrushStamps(stroke.points, stroke.size) : [];
                     return (
                       <svg
                         key={stroke.id}
@@ -2785,15 +2829,14 @@ export default function Home() {
                         <g transform={`translate(${stroke.x} ${stroke.y})`}>
                           {stroke.points.length === 1 ? (
                             <>
-                              <circle cx={stroke.points[0].x} cy={stroke.points[0].y} r={strokeWidth / 2} fill={stroke.color} opacity={isBrushStroke ? (stroke.opacity / 100) * 0.76 : isPencilStroke ? (stroke.opacity / 100) * 0.62 : stroke.opacity / 100} />
+                              {isBrushStroke ? <ellipse cx={stroke.points[0].x} cy={stroke.points[0].y} rx={stroke.size * 0.66} ry={stroke.size * 0.5} fill={stroke.color} opacity={(stroke.opacity / 100) * 0.44} /> : <circle cx={stroke.points[0].x} cy={stroke.points[0].y} r={strokeWidth / 2} fill={stroke.color} opacity={isPencilStroke ? (stroke.opacity / 100) * 0.56 : stroke.opacity / 100} />}
                               <circle className="stroke-hit-area" cx={stroke.points[0].x} cy={stroke.points[0].y} r={Math.max(12, strokeWidth)} />
                             </>
                           ) : (
                             <>
-                              <path className="stroke-visible" d={smoothPath} fill="none" stroke={stroke.color} strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round" opacity={isBrushStroke ? (stroke.opacity / 100) * 0.76 : isPencilStroke ? (stroke.opacity / 100) * 0.62 : stroke.opacity / 100} />
-                              {isPencilStroke && <path d={smoothPath} fill="none" stroke={stroke.color} strokeWidth={Math.max(0.65, stroke.size * 0.1)} strokeLinecap="round" strokeLinejoin="round" strokeDasharray={`${Math.max(0.7, stroke.size * 0.08)} ${Math.max(1.6, stroke.size * 0.2)}`} opacity={(stroke.opacity / 100) * 0.15} />}
-                              {isBrushStroke && <path d={smoothPath} fill="none" stroke={stroke.color} strokeWidth={Math.max(1, stroke.size * 0.56)} strokeLinecap="round" strokeLinejoin="round" opacity={(stroke.opacity / 100) * 0.14} />}
-                              {terminalTaper && <path d={`M ${terminalTaper.baseLeft.x} ${terminalTaper.baseLeft.y} Q ${terminalTaper.tipLeft.x} ${terminalTaper.tipLeft.y} ${terminalTaper.tipCenter.x} ${terminalTaper.tipCenter.y} Q ${terminalTaper.tipRight.x} ${terminalTaper.tipRight.y} ${terminalTaper.baseRight.x} ${terminalTaper.baseRight.y} Z`} fill={stroke.color} opacity={(stroke.opacity / 100) * 0.76} />}
+                              {!isBrushStroke && <path className="stroke-visible" d={smoothPath} fill="none" stroke={stroke.color} strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round" opacity={isPencilStroke ? (stroke.opacity / 100) * 0.56 : stroke.opacity / 100} />}
+                              {isPencilStroke && [-0.85, 0.7].map((offset, index) => <path key={`grain-${index}`} d={smoothPath} transform={`translate(${offset} ${index === 0 ? 0.45 : -0.45})`} fill="none" stroke={stroke.color} strokeWidth={Math.max(0.65, stroke.size * 0.14)} strokeLinecap="round" strokeLinejoin="round" strokeDasharray={`${Math.max(0.8, stroke.size * 0.09)} ${Math.max(1.8, stroke.size * 0.24)}`} opacity={(stroke.opacity / 100) * (index === 0 ? 0.26 : 0.19)} />)}
+                              {isBrushStroke && brushStamps.map((stamp, index) => <g key={`brush-stamp-${index}`} transform={`translate(${stamp.x} ${stamp.y}) rotate(${(stamp.angle * 180) / Math.PI}) scale(${stamp.scale})`}><ellipse cx="0" cy="0" rx={stroke.size * 0.66} ry={stroke.size * 0.5} fill={stroke.color} opacity={(stroke.opacity / 100) * (index % 4 === 0 ? 0.31 : 0.36)} /><ellipse cx={stroke.size * 0.06} cy={-stroke.size * 0.32} rx={stroke.size * 0.48} ry={Math.max(0.6, stroke.size * 0.055)} fill={stroke.color} opacity={(stroke.opacity / 100) * 0.08} /><ellipse cx={stroke.size * 0.06} cy={stroke.size * 0.32} rx={stroke.size * 0.48} ry={Math.max(0.6, stroke.size * 0.055)} fill={stroke.color} opacity={(stroke.opacity / 100) * 0.08} /></g>)}
                               <path className="stroke-hit-area" d={smoothPath} fill="none" strokeWidth={Math.max(18, strokeWidth + 12)} strokeLinecap="round" strokeLinejoin="round" />
                             </>
                           )}
