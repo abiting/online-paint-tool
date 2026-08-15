@@ -226,10 +226,6 @@ kbd { min-width: 19px; padding: 3px 4px; text-align: center; color: #aab1aa; bac
 .inspector-section { position: relative; padding: 2px 0 19px; margin-bottom: 20px; border-bottom: 1px solid rgba(227,213,187,0.11); }
 .field-label { display: block; margin-bottom: 6px; color: #cbc8bd; font-size: 10px; font-weight: 500; }
 .field-help, .empty-inspector { margin: 4px 0 0; color: #75807b; font-size: 10px; line-height: 1.65; }
-.resolution-scale-toggle strong { display: block; color: #cbc8bd; font-size: 10px; font-weight: 500; }
-.resolution-scale-toggle small { display: block; margin-top: 3px; color: #7f8982; font-size: 9px; line-height: 1.45; }
-.resolution-scale-note { margin: 7px 0 13px; padding-left: 8px; border-left: 2px solid rgba(227,213,187,0.24); color: #8c948e; font-size: 9px; line-height: 1.55; }
-.resolution-scale-note.is-enabled { border-left-color: #e4513b; color: #d9d2c4; }
 .color-row { justify-content: space-between; gap: 14px; margin-bottom: 18px; }
 .color-picker { position: relative; display: block; width: 42px; height: 32px; padding: 4px; border: 1px solid rgba(227,213,187,0.22); border-radius: 5px; background: rgba(245,240,229,0.05); cursor: pointer; }
 .color-picker input { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; }

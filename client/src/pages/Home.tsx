@@ -372,6 +372,7 @@ export default function Home() {
   const shapesRef = useRef<ShapeLayer[]>([]);
   const imagesRef = useRef<ImageLayer[]>([]);
   const strokesRef = useRef<BrushStroke[]>([]);
+  const textLayerElementsRef = useRef(new Map<string, HTMLDivElement>());
 
   const [canvasSize, setCanvasSize] = useState({ width: 960, height: 640 });
   const [scaleImagesWithCanvas, setScaleImagesWithCanvas] = useState(false);
@@ -552,6 +553,18 @@ export default function Home() {
     };
   }, [canvasSize.height, canvasSize.width, zoom]);
 
+  const getTextLayerDimensions = useCallback((layer: Pick<TextLayer, "id" | "text" | "fontFamily" | "fontWeight" | "fontSize">) => {
+    const element = textLayerElementsRef.current.get(layer.id);
+    if (element) return { width: element.offsetWidth, height: element.offsetHeight };
+    const context = canvasRef.current?.getContext("2d");
+    if (!context) return { width: Math.max(48, layer.text.length * layer.fontSize * 0.58), height: Math.ceil(layer.fontSize * 1.12) + 4 };
+    context.save();
+    context.font = `${layer.fontWeight} ${layer.fontSize}px "${layer.fontFamily}", "Noto Sans TC", "Noto Sans JP", sans-serif`;
+    const width = Math.max(48, Math.ceil(context.measureText(layer.text).width) + 8);
+    context.restore();
+    return { width, height: Math.ceil(layer.fontSize * 1.12) + 4 };
+  }, []);
+
   const captureHistory = useCallback(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -715,7 +728,16 @@ export default function Home() {
           const movesBottom = resize.axis.includes("bottom");
           let nextWidth = movesLeft ? resize.startWidth - deltaX : movesRight ? resize.startWidth + deltaX : resize.startWidth;
           let nextHeight = movesTop ? resize.startHeight - deltaY : movesBottom ? resize.startHeight + deltaY : resize.startHeight;
-          if (event.shiftKey) {
+          const isCorner = (movesLeft || movesRight) && (movesTop || movesBottom);
+          if (isCorner) {
+            const widthScale = nextWidth / resize.startWidth;
+            const heightScale = nextHeight / resize.startHeight;
+            const dominantScale = Math.abs(deltaX / Math.max(1, resize.startWidth)) >= Math.abs(deltaY / Math.max(1, resize.startHeight)) ? widthScale : heightScale;
+            const minimumScale = Math.max(60 / resize.startWidth, 60 / resize.startHeight);
+            const scale = Math.max(minimumScale, dominantScale);
+            nextWidth = resize.startWidth * scale;
+            nextHeight = resize.startHeight * scale;
+          } else if (event.shiftKey) {
             if (movesLeft || movesRight) nextHeight = nextWidth / resize.aspectRatio;
             if (movesTop || movesBottom) nextWidth = nextHeight * resize.aspectRatio;
           }
@@ -743,10 +765,10 @@ export default function Home() {
         let nextGuides: SnapGuides = { x: null, y: null };
         const nextLayers = layersRef.current.map((layer) => {
           if (layer.id !== drag.id) return layer;
-          const estimatedWidth = Math.max(48, layer.text.length * layer.fontSize * 0.58);
-          const rawX = clamp(point.x - drag.offsetX, 0, canvasSize.width - estimatedWidth);
-          const rawY = clamp(point.y - drag.offsetY, 0, canvasSize.height - layer.fontSize);
-          const snapped = getSnappedPosition(rawX, rawY, estimatedWidth, layer.fontSize);
+          const dimensions = getTextLayerDimensions(layer);
+          const rawX = clamp(point.x - drag.offsetX, 0, canvasSize.width - dimensions.width);
+          const rawY = clamp(point.y - drag.offsetY, 0, canvasSize.height - dimensions.height);
+          const snapped = getSnappedPosition(rawX, rawY, dimensions.width, dimensions.height);
           nextGuides = snapped.guides;
           return { ...layer, x: snapped.x, y: snapped.y };
         });
@@ -1084,11 +1106,11 @@ export default function Home() {
   };
 
   const addTextLayer = () => {
-    const nextLayer: TextLayer = {
+    const draftLayer: TextLayer = {
       id: makeId(),
       text: "在這裡輸入文字",
-      x: Math.max(24, canvasSize.width / 2 - 140),
-      y: Math.max(24, canvasSize.height / 2 - 32),
+      x: 0,
+      y: 0,
       fontSize: 52,
       fontWeight: 700,
       color: GRAPHITE,
@@ -1097,6 +1119,12 @@ export default function Home() {
       contrast: 0,
       saturation: 100,
       fontFamily: "Noto Sans TC",
+    };
+    const dimensions = getTextLayerDimensions(draftLayer);
+    const nextLayer = {
+      ...draftLayer,
+      x: Math.max(24, (canvasSize.width - dimensions.width) / 2),
+      y: Math.max(24, (canvasSize.height - dimensions.height) / 2),
     };
     syncLayers([...layersRef.current, nextLayer]);
     setSelectedTextId(nextLayer.id);
@@ -1300,10 +1328,10 @@ export default function Home() {
     if (!selectedText) return;
     const anchor = selectedText.anchorShapeId ? shapesRef.current.find((shape) => shape.id === selectedText.anchorShapeId) : undefined;
     const target = anchor ?? { x: 0, y: 0, width: canvasSize.width, height: canvasSize.height };
-    const estimatedWidth = Math.max(48, selectedText.text.length * selectedText.fontSize * 0.58);
+    const dimensions = getTextLayerDimensions(selectedText);
     updateTextLayer({
-      ...(axis === "horizontal" || axis === "both" ? { x: target.x + (target.width - estimatedWidth) / 2 } : {}),
-      ...(axis === "vertical" || axis === "both" ? { y: target.y + (target.height - selectedText.fontSize) / 2 } : {}),
+      ...(axis === "horizontal" || axis === "both" ? { x: target.x + (target.width - dimensions.width) / 2 } : {}),
+      ...(axis === "vertical" || axis === "both" ? { y: target.y + (target.height - dimensions.height) / 2 } : {}),
     });
     captureHistory();
   };
@@ -1668,6 +1696,7 @@ export default function Home() {
 
   const handleShapeResizePointerDown = (event: ReactPointerEvent<SVGRectElement>, shape: ShapeLayer, axis: ShapeResizeAxis) => {
     event.stopPropagation();
+    event.preventDefault();
     event.currentTarget.setPointerCapture(event.pointerId);
     const point = getCanvasPoint(event.clientX, event.clientY);
     setSelectedShapeId(shape.id);
@@ -2333,10 +2362,10 @@ export default function Home() {
                           <rect className="shape-resize-handle shape-resize-handle-right" x="96" y="43" width="8" height="14" onPointerDown={(event) => handleShapeResizePointerDown(event, shape, "right")} />
                           <rect className="shape-resize-handle shape-resize-handle-top" x="43" y="-4" width="14" height="8" onPointerDown={(event) => handleShapeResizePointerDown(event, shape, "top")} />
                           <rect className="shape-resize-handle shape-resize-handle-bottom" x="43" y="96" width="14" height="8" onPointerDown={(event) => handleShapeResizePointerDown(event, shape, "bottom")} />
-                          <rect className="shape-resize-handle shape-resize-handle-corner shape-resize-handle-top-left" x="-6" y="-6" width="12" height="12" onPointerDown={(event) => handleShapeResizePointerDown(event, shape, "top-left")} />
-                          <rect className="shape-resize-handle shape-resize-handle-corner shape-resize-handle-top-right" x="94" y="-6" width="12" height="12" onPointerDown={(event) => handleShapeResizePointerDown(event, shape, "top-right")} />
-                          <rect className="shape-resize-handle shape-resize-handle-corner shape-resize-handle-bottom-left" x="-6" y="94" width="12" height="12" onPointerDown={(event) => handleShapeResizePointerDown(event, shape, "bottom-left")} />
-                          <rect className="shape-resize-handle shape-resize-handle-corner shape-resize-handle-bottom-right" x="94" y="94" width="12" height="12" onPointerDown={(event) => handleShapeResizePointerDown(event, shape, "bottom-right")} />
+                          <rect className="shape-resize-handle shape-resize-handle-corner shape-resize-handle-top-left" x="0" y="0" width="16" height="16" onPointerDown={(event) => handleShapeResizePointerDown(event, shape, "top-left")} />
+                          <rect className="shape-resize-handle shape-resize-handle-corner shape-resize-handle-top-right" x="84" y="0" width="16" height="16" onPointerDown={(event) => handleShapeResizePointerDown(event, shape, "top-right")} />
+                          <rect className="shape-resize-handle shape-resize-handle-corner shape-resize-handle-bottom-left" x="0" y="84" width="16" height="16" onPointerDown={(event) => handleShapeResizePointerDown(event, shape, "bottom-left")} />
+                          <rect className="shape-resize-handle shape-resize-handle-corner shape-resize-handle-bottom-right" x="84" y="84" width="16" height="16" onPointerDown={(event) => handleShapeResizePointerDown(event, shape, "bottom-right")} />
                           <line className="shape-rotation-stem" x1="50" y1="0" x2="50" y2="16" />
                           <circle className="shape-rotation-handle" cx="50" cy="24" r="7" onPointerDown={(event) => handleShapeRotatePointerDown(event, shape)} />
                           <text className="shape-rotation-label" x="50" y="38" textAnchor="middle">{Math.round(shape.rotation)}°</text>
@@ -2348,6 +2377,10 @@ export default function Home() {
                     <div
                       key={layer.id}
                       className={`text-layer ${selectedTextId === layer.id ? "is-selected" : ""}`}
+                      ref={(element) => {
+                        if (element) textLayerElementsRef.current.set(layer.id, element);
+                        else textLayerElementsRef.current.delete(layer.id);
+                      }}
                       style={{
                         left: `${layer.x}px`,
                         top: `${layer.y}px`,
@@ -2553,12 +2586,9 @@ export default function Home() {
               </div>
               <button type="button" className="secondary-button full-width" onClick={resizeCanvas}>套用解析度</button>
               <label className="toggle-row resolution-scale-toggle">
-                <span><strong>等比例縮放圖片</strong><small>只會在按下「套用解析度」時生效</small></span>
+                <span>等比例縮放圖片</span>
                 <input type="checkbox" checked={scaleImagesWithCanvas} onChange={(event) => setScaleImagesWithCanvas(event.target.checked)} />
               </label>
-              <p className={`resolution-scale-note ${scaleImagesWithCanvas ? "is-enabled" : ""}`}>
-                {scaleImagesWithCanvas ? "已開啟：圖片會依畫布尺寸等比例縮放並維持位置關係。" : "已關閉：圖片保留原始尺寸，畫布可出現留白或裁切。"}
-              </p>
               <div className="resolution-preset-row">
                 <button type="button" className="resolution-preset" onClick={() => applyResolutionPreset(800, 800)}>800 × 800</button>
                 <button type="button" className="resolution-preset" onClick={() => applyResolutionPreset(1200, 800)}>1200 × 800</button>
