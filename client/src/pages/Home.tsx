@@ -79,7 +79,7 @@ const localeCopy = {
     applyResolution: "套用解析度",
     scaleImages: "等比例縮放圖片",
     imageAdjustments: "影像調色",
-    exposure: "曝光",
+    exposure: "曝光度",
     contrast: "對比",
     saturation: "飽和度",
     opacity: "不透明度",
