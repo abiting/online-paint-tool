@@ -14,6 +14,7 @@ import {
   Circle,
   Download,
   Eraser,
+  GripVertical,
   Heart,
   ImagePlus,
   Maximize2,
@@ -906,7 +907,7 @@ export default function Home() {
     };
     window.addEventListener("keydown", handleShortcut);
     return () => window.removeEventListener("keydown", handleShortcut);
-  }, [selectedImageId, selectedShapeId, selectedTextId]);
+  }, [captureHistory, selectedImageId, selectedShapeId, selectedStrokeId, selectedTextId, syncStrokes]);
 
   const drawStroke = (from: CanvasPoint, to: CanvasPoint) => {
     const context = canvasRef.current?.getContext("2d");
@@ -2113,6 +2114,28 @@ export default function Home() {
       : activeDesktopTool === "text"
         ? "文字"
         : "解析度調整";
+  const hasMovableArtwork = layers.length > 0 || shapes.length > 0 || images.length > 0 || strokes.length > 0;
+  const hasSelectedObject = Boolean(selectedTextId || selectedShapeId || selectedImageId || selectedStrokeId);
+  const handleSelectedObjectSettings = () => {
+    if (selectedText) {
+      handleDesktopToolSettings("text");
+      return;
+    }
+    if (selectedShape) {
+      handleDesktopToolSettings("shape");
+      return;
+    }
+    if (selectedStrokeId) {
+      setTool("brush");
+      setActiveDesktopTool("brush");
+      setOpenDesktopTool("brush");
+      return;
+    }
+    if (selectedImageId) {
+      inspectorRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+      toast("圖片設定位於右側調整欄");
+    }
+  };
   const toolPanelTitle = selectedImage
     ? "圖片素材"
     : selectedShape
@@ -2189,10 +2212,11 @@ export default function Home() {
         <aside className="tool-rail desktop-creative-rail" aria-label="創作工具">
           <span className="rail-label">CREATIVE</span>
           <div className="tool-group">
-            <ToolButton label="選取" active={tool === "move"} icon={<Move size={18} />} onClick={activateStrokeMoveMode} />
+            <ToolButton label="選取" active={tool === "move"} icon={<Move size={18} />} onClick={activateStrokeMoveMode} disabled={!hasMovableArtwork} />
             <ToolButton label="畫筆" active={activeDesktopTool === "brush"} icon={<Pencil size={18} />} onClick={() => handleDesktopToolCreate("brush")} onDoubleActivate={() => handleDesktopToolSettings("brush")} />
             <ToolButton label="圖形" active={activeDesktopTool === "shape"} icon={<Shapes size={18} />} onClick={() => handleDesktopToolCreate("shape")} onDoubleActivate={() => handleDesktopToolSettings("shape")} />
             <ToolButton label="文字" active={activeDesktopTool === "text"} icon={<Type size={18} />} onClick={() => handleDesktopToolCreate("text")} onDoubleActivate={() => handleDesktopToolSettings("text")} />
+            <button type="button" className="tool-button tool-settings-entry" onClick={handleSelectedObjectSettings} disabled={!hasSelectedObject} aria-label="開啟已選取物件設定" title="開啟已選取物件設定"><SlidersHorizontal size={18} /><span>設定</span></button>
             <button type="button" className={`faq-rail-toggle ${isFaqOpen ? "is-active" : ""}`} onClick={() => setIsFaqOpen((open) => !open)} aria-expanded={isFaqOpen} aria-controls="abipaint-faq-panel">
               <span className="faq-rail-glyph">?</span>
               <span>FAQ</span>
@@ -2353,14 +2377,14 @@ export default function Home() {
               onPointerDown={(event) => event.stopPropagation()}
               aria-label="手機迷你創作工具欄"
             >
-              <button type="button" className="mobile-mini-drag-handle" onPointerDown={handleMobileMiniToolPointerDown} aria-label="拖曳移動工具欄" title="拖曳移動工具欄"><Move size={15} /></button>
+              <button type="button" className="mobile-mini-drag-handle" onPointerDown={handleMobileMiniToolPointerDown} aria-label="拖曳移動工具欄" title="拖曳移動工具欄"><GripVertical size={16} /></button>
               <span className="mobile-mini-separator" />
-              <button type="button" className={`mobile-mini-tool ${tool === "move" ? "is-active" : ""}`} onClick={activateStrokeMoveMode} aria-label="選取並移動筆觸" title="選取並移動筆觸"><Move size={16} /></button>
+              <button type="button" className={`mobile-mini-tool ${tool === "move" ? "is-active" : ""}`} onClick={activateStrokeMoveMode} disabled={!hasMovableArtwork} aria-label="選取並移動筆觸" title="選取並移動筆觸"><Move size={16} /></button>
               <button type="button" className={`mobile-mini-tool ${activeDesktopTool === "brush" ? "is-active" : ""}`} onClick={() => handleMobileMiniToolCreate("brush")} aria-label="畫筆" title="畫筆"><Pencil size={16} /></button>
               <button type="button" className={`mobile-mini-tool ${activeDesktopTool === "shape" ? "is-active" : ""}`} onClick={() => handleMobileMiniToolCreate("shape")} aria-label="新增圖形" title="新增圖形"><Shapes size={16} /></button>
               <button type="button" className={`mobile-mini-tool ${activeDesktopTool === "text" ? "is-active" : ""}`} onClick={() => handleMobileMiniToolCreate("text")} aria-label="新增文字" title="新增文字"><Type size={16} /></button>
               <span className="mobile-mini-separator" />
-              <button type="button" className="mobile-mini-tool mobile-mini-settings" onClick={handleMobileMiniToolSettings} aria-label="開啟工具設定" title="開啟工具設定"><SlidersHorizontal size={16} /></button>
+              <button type="button" className="mobile-mini-tool mobile-mini-settings" onClick={hasSelectedObject ? handleSelectedObjectSettings : handleMobileMiniToolSettings} disabled={!hasSelectedObject && !activeDesktopTool} aria-label="開啟工具設定" title="開啟工具設定"><SlidersHorizontal size={16} /></button>
             </div>
             <div className="stage-notes stage-note-bottom">{canvasSize.width} × {canvasSize.height}</div>
             <div

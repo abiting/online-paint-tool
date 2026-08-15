@@ -334,6 +334,8 @@ input[type="range"]::-moz-range-thumb { width: 11px; height: 11px; border: 2px s
   .mobile-mini-tools.is-dragging .mobile-mini-drag-handle { cursor: grabbing; }
   .mobile-mini-tool.is-active { color: #fff4e8; background: rgba(228,81,59,0.16); box-shadow: inset 0 0 0 1px rgba(228,81,59,0.32); }
   .mobile-mini-settings { color: #d7c7b1; }
+  .mobile-mini-tool:disabled, .tool-button:disabled { color: #59615e; opacity: 0.48; cursor: not-allowed; }
+  .mobile-mini-tool:disabled:active { transform: none; }
   .mobile-mini-tool:active, .mobile-mini-drag-handle:active { transform: scale(0.94); }
   .mobile-mini-separator { width: 1px; height: 20px; margin: 0 2px; background: rgba(227,213,187,0.16); }
   .topbar { height: 64px; }
