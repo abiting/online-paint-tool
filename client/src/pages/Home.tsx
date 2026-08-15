@@ -62,7 +62,7 @@ type TextLayer = {
   exposure: number;
   contrast: number;
   saturation: number;
-  fontFamily: "Noto Sans TC" | "Noto Serif TC" | "Noto Sans JP" | "Noto Serif JP" | "Zen Kaku Gothic New" | "Kaisei Decol" | "Klee One" | "Kosugi Maru" | "M PLUS Rounded 1c" | "Shippori Mincho" | "Yomogi" | "DM Sans" | "IBM Plex Mono";
+  fontFamily: "Noto Sans TC" | "Noto Serif TC" | "DFKai-SB" | "PMingLiU" | "Arial" | "DM Sans" | "IBM Plex Mono" | "Kaisei Decol" | "Klee One" | "Kosugi Maru" | "M PLUS Rounded 1c" | "Noto Sans JP" | "Noto Serif JP" | "Shippori Mincho" | "Times New Roman" | "Yomogi" | "Zen Kaku Gothic New";
   anchorShapeId?: string;
 };
 
@@ -157,19 +157,23 @@ const SHAPE_LABELS: Record<ShapeKind, string> = {
   pentagon: "五邊形",
 };
 const TEXT_FONT_OPTIONS: Array<{ value: TextLayer["fontFamily"]; label: string }> = [
-  { value: "Noto Sans TC", label: "思源黑體／繁中" },
-  { value: "Noto Serif TC", label: "思源宋體／繁中" },
-  { value: "Noto Sans JP", label: "Noto Sans JP／日文黑體" },
-  { value: "Noto Serif JP", label: "Noto Serif JP／日文明朝" },
-  { value: "Zen Kaku Gothic New", label: "Zen Kaku Gothic New／日文現代黑體" },
-  { value: "Kaisei Decol", label: "Kaisei Decol／日文裝飾明朝" },
-  { value: "Klee One", label: "Klee One／日文手寫" },
-  { value: "Kosugi Maru", label: "Kosugi Maru／日文圓體" },
-  { value: "M PLUS Rounded 1c", label: "M PLUS Rounded／日文圓體" },
-  { value: "Shippori Mincho", label: "Shippori Mincho／日文明朝" },
-  { value: "Yomogi", label: "Yomogi／日文手寫" },
-  { value: "DM Sans", label: "DM Sans／英文字體" },
-  { value: "IBM Plex Mono", label: "IBM Plex Mono／等寬字體" },
+  { value: "Noto Sans TC", label: "思源黑體" },
+  { value: "Noto Serif TC", label: "思源宋體" },
+  { value: "PMingLiU", label: "新細明體" },
+  { value: "DFKai-SB", label: "標楷體" },
+  { value: "Arial", label: "Arial" },
+  { value: "DM Sans", label: "DM Sans" },
+  { value: "IBM Plex Mono", label: "IBM Plex Mono" },
+  { value: "Kaisei Decol", label: "Kaisei Decol" },
+  { value: "Klee One", label: "Klee One" },
+  { value: "Kosugi Maru", label: "Kosugi Maru" },
+  { value: "M PLUS Rounded 1c", label: "M PLUS Rounded 1c" },
+  { value: "Noto Sans JP", label: "Noto Sans JP" },
+  { value: "Noto Serif JP", label: "Noto Serif JP" },
+  { value: "Shippori Mincho", label: "Shippori Mincho" },
+  { value: "Times New Roman", label: "Times New Roman" },
+  { value: "Yomogi", label: "Yomogi" },
+  { value: "Zen Kaku Gothic New", label: "Zen Kaku Gothic New" },
 ];
 const makeAdjustmentFilter = (exposure: number, contrast: number, saturation: number) =>
   `brightness(${100 + exposure}%) contrast(${100 + contrast}%) saturate(${saturation}%)`;
@@ -197,19 +201,38 @@ function ToolButton({
   active,
   icon,
   onClick,
+  onDoubleActivate,
   disabled = false,
 }: {
   label: string;
   active?: boolean;
   icon: React.ReactNode;
   onClick: () => void;
+  onDoubleActivate?: () => void;
   disabled?: boolean;
 }) {
+  const clickTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const handleClick = () => {
+    if (!onDoubleActivate) {
+      onClick();
+      return;
+    }
+    if (clickTimerRef.current) {
+      clearTimeout(clickTimerRef.current);
+      clickTimerRef.current = null;
+      onDoubleActivate();
+      return;
+    }
+    clickTimerRef.current = setTimeout(() => {
+      clickTimerRef.current = null;
+      onClick();
+    }, 220);
+  };
   return (
     <button
       type="button"
       className={`tool-button ${active ? "is-active" : ""}`}
-      onClick={onClick}
+      onClick={handleClick}
       disabled={disabled}
       aria-label={label}
       title={label}
@@ -974,30 +997,7 @@ export default function Home() {
     if (tool === "shape") {
       return;
     }
-    if (tool === "text") {
-      const nextLayer: TextLayer = {
-        id: makeId(),
-        text: "在這裡輸入文字",
-        x: point.x,
-        y: point.y,
-        fontSize: 52,
-        fontWeight: 700,
-        color: GRAPHITE,
-        opacity: 100,
-        exposure: 0,
-        contrast: 0,
-        saturation: 100,
-        fontFamily: "Noto Sans TC",
-      };
-      const nextLayers = [...layersRef.current, nextLayer];
-      syncLayers(nextLayers);
-      setSelectedTextId(nextLayer.id);
-      setSelectedShapeId(null);
-      setTool("brush");
-      captureHistory();
-      toast.success("文字卡已加入畫布");
-      return;
-    }
+    if (tool === "text") return;
     event.currentTarget.setPointerCapture(event.pointerId);
     setIsDrawing(true);
     setHasArtwork(true);
@@ -1469,18 +1469,17 @@ export default function Home() {
     event.stopPropagation();
     if (editingTextId === layer.id) return;
     const point = getCanvasPoint(event.clientX, event.clientY);
-    const wasMoveTool = tool === "move";
     setSelectedTextId(layer.id);
     setSelectedShapeId(null);
     setSelectedImageId(null);
     setTool("text");
     setActiveDesktopTool("text");
-    setOpenDesktopTool("text");
-    textDragRef.current = wasMoveTool ? {
+    setOpenDesktopTool(null);
+    textDragRef.current = {
       id: layer.id,
       offsetX: point.x - layer.x,
       offsetY: point.y - layer.y,
-    } : null;
+    };
   };
 
   const handleShapePointerDown = (event: ReactPointerEvent<SVGSVGElement>, shape: ShapeLayer) => {
@@ -1813,12 +1812,22 @@ export default function Home() {
   const desktopToolPopoverStyle = desktopToolPosition === null
     ? undefined
     : ({ left: `${desktopToolPosition.x}px`, top: `${desktopToolPosition.y}px`, transform: "none" } as CSSProperties);
-  const handleDesktopToolToggle = (nextTool: DesktopCreativeTool) => {
-    const isOpening = openDesktopTool !== nextTool;
+  const handleDesktopToolCreate = (nextTool: DesktopCreativeTool) => {
     setTool(nextTool);
     setActiveDesktopTool(nextTool);
-    if (nextTool === "text" && isOpening && !selectedText) addTextLayer();
-    setOpenDesktopTool(isOpening ? nextTool : null);
+    setOpenDesktopTool(null);
+    if (nextTool === "shape") addShape(shapeKind);
+    if (nextTool === "text") addTextLayer();
+  };
+  const handleDesktopToolSettings = (nextTool: DesktopCreativeTool) => {
+    setTool(nextTool);
+    setActiveDesktopTool(nextTool);
+    if (nextTool === "text" && !selectedText && layersRef.current.length > 0) {
+      setSelectedTextId(layersRef.current[layersRef.current.length - 1].id);
+      setSelectedShapeId(null);
+      setSelectedImageId(null);
+    }
+    setOpenDesktopTool(nextTool);
   };
   const activeWorkspaceToolLabel = activeDesktopTool === "brush"
     ? "畫筆"
@@ -1900,9 +1909,9 @@ export default function Home() {
         <aside className="tool-rail desktop-creative-rail" aria-label="創作工具">
           <span className="rail-label">CREATIVE</span>
           <div className="tool-group">
-            <ToolButton label="畫筆" active={activeDesktopTool === "brush"} icon={<Pencil size={18} />} onClick={() => handleDesktopToolToggle("brush")} />
-            <ToolButton label="圖形" active={activeDesktopTool === "shape"} icon={<Shapes size={18} />} onClick={() => handleDesktopToolToggle("shape")} />
-            <ToolButton label="文字" active={activeDesktopTool === "text"} icon={<Type size={18} />} onClick={() => handleDesktopToolToggle("text")} />
+            <ToolButton label="畫筆" active={activeDesktopTool === "brush"} icon={<Pencil size={18} />} onClick={() => handleDesktopToolCreate("brush")} onDoubleActivate={() => handleDesktopToolSettings("brush")} />
+            <ToolButton label="圖形" active={activeDesktopTool === "shape"} icon={<Shapes size={18} />} onClick={() => handleDesktopToolCreate("shape")} onDoubleActivate={() => handleDesktopToolSettings("shape")} />
+            <ToolButton label="文字" active={activeDesktopTool === "text"} icon={<Type size={18} />} onClick={() => handleDesktopToolCreate("text")} onDoubleActivate={() => handleDesktopToolSettings("text")} />
           </div>
         </aside>
         <section ref={workspaceRef} className="workspace" aria-label="畫布工作區">
@@ -2285,13 +2294,7 @@ export default function Home() {
                       <label className="select-wrap">
                         <span className="field-label">字型</span>
                         <select value={selectedText.fontFamily} onChange={(event) => updateTextLayer({ fontFamily: event.target.value as TextLayer["fontFamily"] })}>
-                          <option value="Noto Sans TC">思源黑體／Noto Sans TC</option>
-                          <option value="Noto Serif TC">思源宋體／Noto Serif TC</option>
-                          <option value="Noto Sans JP">Noto Sans JP（日文黑體）</option>
-                          <option value="Noto Serif JP">Noto Serif JP（日文明朝體）</option>
-                          <option value="Zen Kaku Gothic New">Zen Kaku Gothic New（日文）</option>
-                          <option value="DM Sans">DM Sans</option>
-                          <option value="IBM Plex Mono">IBM Plex Mono</option>
+                          {TEXT_FONT_OPTIONS.map((font) => <option key={font.value} value={font.value}>{font.label}</option>)}
                         </select>
                         <ChevronDown size={14} />
                       </label>
