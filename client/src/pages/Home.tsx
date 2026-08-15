@@ -17,6 +17,8 @@ import {
   GripVertical,
   Heart,
   ImagePlus,
+  Layers,
+  Lock,
   Maximize2,
   Move,
   Minus,
@@ -34,6 +36,7 @@ import {
   Pentagon,
   Trash2,
   Type,
+  Unlock,
   Undo2,
   Upload,
   WandSparkles,
@@ -43,7 +46,7 @@ import { useSeo } from "@/hooks/useSeo";
 
 type Tool = "brush" | "eraser" | "fill" | "text" | "shape" | "retouch" | "move";
 type DesktopCreativeTool = Extract<Tool, "brush" | "shape" | "text">;
-type BrushKind = "oil" | "pencil" | "watercolor";
+type BrushKind = "oil" | "pencil" | "brush";
 type ShapeKind = "rectangle" | "circle" | "star" | "heart" | "triangle" | "pentagon";
 type ShapeResizeAxis = "left" | "right" | "top" | "bottom" | "top-left" | "top-right" | "bottom-left" | "bottom-right";
 type Locale = "zh-Hant" | "en";
@@ -205,6 +208,7 @@ type ImageLayer = {
 
 type BrushStroke = {
   id: string;
+  paintLayerId: string;
   points: CanvasPoint[];
   x: number;
   y: number;
@@ -212,6 +216,12 @@ type BrushStroke = {
   size: number;
   opacity: number;
   kind: BrushKind;
+};
+
+type PaintLayer = {
+  id: string;
+  name: string;
+  locked: boolean;
 };
 
 type SnapGuides = {
@@ -240,6 +250,8 @@ type AdjustmentPatch = Partial<Adjustments>;
 const BRAND_RED = "#E4513B";
 const PAPER = "#FFFDF8";
 const GRAPHITE = "#1F2528";
+const MAX_PAINT_LAYERS = 5;
+const BASE_PAINT_LAYER_ID = "paint-layer-base";
 
 const clamp = (value: number, min: number, max: number) =>
   Math.min(max, Math.max(min, value));
@@ -291,6 +303,233 @@ const makeAdjustmentFilter = (exposure: number, contrast: number, saturation: nu
 const hexToRgba = (hex: string, opacity: number) => {
   const { r, g, b } = hexToRgb(hex);
   return `rgba(${r}, ${g}, ${b}, ${opacity})`;
+};
+
+const drawBrushBristles = (
+  context: CanvasRenderingContext2D,
+  from: CanvasPoint,
+  to: CanvasPoint,
+  color: string,
+  size: number,
+  opacity: number,
+) => {
+  const deltaX = to.x - from.x;
+  const deltaY = to.y - from.y;
+  const distance = Math.hypot(deltaX, deltaY);
+  if (distance < 0.25) return;
+  const unitX = deltaX / distance;
+  const unitY = deltaY / distance;
+  const normalX = -unitY;
+  const normalY = unitX;
+  const tailLength = Math.min(size * 0.8, Math.max(1, distance * 0.46));
+  const bristles = [-0.28, 0, 0.28];
+
+  context.save();
+  context.strokeStyle = color;
+  context.lineCap = "round";
+  bristles.forEach((offset, index) => {
+    const spread = offset * size;
+    context.globalAlpha = opacity * (index === 1 ? 0.32 : 0.2);
+    context.lineWidth = Math.max(0.8, size * (index === 1 ? 0.15 : 0.1));
+    context.beginPath();
+    context.moveTo(from.x + normalX * spread, from.y + normalY * spread);
+    context.lineTo(to.x - unitX * tailLength + normalX * spread, to.y - unitY * tailLength + normalY * spread);
+    context.stroke();
+  });
+  context.restore();
+};
+
+const getBrushSegmentShape = (from: CanvasPoint, to: CanvasPoint, size: number) => {
+  const deltaX = to.x - from.x;
+  const deltaY = to.y - from.y;
+  const distance = Math.hypot(deltaX, deltaY);
+  if (distance < 0.25) return null;
+  const unitX = deltaX / distance;
+  const unitY = deltaY / distance;
+  const normalX = -unitY;
+  const normalY = unitX;
+  const startHalfWidth = size * 0.5;
+  const endHalfWidth = Math.max(1, size * 0.47);
+  return {
+    startLeft: { x: from.x + normalX * startHalfWidth, y: from.y + normalY * startHalfWidth },
+    startRight: { x: from.x - normalX * startHalfWidth, y: from.y - normalY * startHalfWidth },
+    endLeft: { x: to.x + normalX * endHalfWidth, y: to.y + normalY * endHalfWidth },
+    endRight: { x: to.x - normalX * endHalfWidth, y: to.y - normalY * endHalfWidth },
+  };
+};
+
+const drawBrushCalligraphySegment = (
+  context: CanvasRenderingContext2D,
+  from: CanvasPoint,
+  to: CanvasPoint,
+  color: string,
+  size: number,
+  opacity: number,
+) => {
+  const segment = getBrushSegmentShape(from, to, size);
+  if (!segment) return;
+  context.save();
+  context.fillStyle = color;
+  context.globalAlpha = opacity * 0.86;
+  context.beginPath();
+  context.moveTo(segment.startLeft.x, segment.startLeft.y);
+  context.lineTo(segment.endLeft.x, segment.endLeft.y);
+  context.lineTo(segment.endRight.x, segment.endRight.y);
+  context.lineTo(segment.startRight.x, segment.startRight.y);
+  context.closePath();
+  context.fill();
+  context.restore();
+};
+
+const drawPencilTexture = (
+  context: CanvasRenderingContext2D,
+  from: CanvasPoint,
+  to: CanvasPoint,
+  color: string,
+  size: number,
+  opacity: number,
+) => {
+  const deltaX = to.x - from.x;
+  const deltaY = to.y - from.y;
+  const distance = Math.hypot(deltaX, deltaY);
+  if (distance < 0.25) return;
+  const normalX = -deltaY / distance;
+  const normalY = deltaX / distance;
+  const seed = Math.abs(Math.floor(from.x * 7 + from.y * 13 + to.x * 3 + to.y));
+  const grainOffsets = [-0.34, -0.12, 0.18, 0.39];
+  context.save();
+  context.strokeStyle = color;
+  context.lineCap = "butt";
+  context.lineWidth = Math.max(0.7, size * 0.075);
+  grainOffsets.forEach((offset, index) => {
+    if ((seed + index) % 3 === 0) return;
+    const shift = offset * size;
+    const inset = ((seed + index * 5) % 7) / 16;
+    context.globalAlpha = opacity * (index % 2 === 0 ? 0.19 : 0.13);
+    context.beginPath();
+    context.moveTo(from.x + normalX * shift + deltaX * inset, from.y + normalY * shift + deltaY * inset);
+    context.lineTo(to.x + normalX * shift - deltaX * inset, to.y + normalY * shift - deltaY * inset);
+    context.stroke();
+  });
+  context.restore();
+};
+
+const getBrushTerminalTaper = (points: CanvasPoint[], size: number) => {
+  if (points.length < 2) return null;
+  const end = points[points.length - 1];
+  const start = points[Math.max(0, points.length - 3)];
+  const deltaX = end.x - start.x;
+  const deltaY = end.y - start.y;
+  const distance = Math.hypot(deltaX, deltaY);
+  if (distance < 0.25) return null;
+  const unitX = deltaX / distance;
+  const unitY = deltaY / distance;
+  const normalX = -unitY;
+  const normalY = unitX;
+  const baseHalfWidth = size * 0.48;
+  const tipHalfWidth = Math.max(1, size * 0.12);
+  const tailLength = Math.min(size * 0.95, Math.max(size * 0.42, distance * 0.5));
+  return {
+    baseLeft: { x: end.x + normalX * baseHalfWidth, y: end.y + normalY * baseHalfWidth },
+    baseRight: { x: end.x - normalX * baseHalfWidth, y: end.y - normalY * baseHalfWidth },
+    tipLeft: { x: end.x + unitX * tailLength + normalX * tipHalfWidth, y: end.y + unitY * tailLength + normalY * tipHalfWidth },
+    tipCenter: { x: end.x + unitX * (tailLength + tipHalfWidth * 0.45), y: end.y + unitY * (tailLength + tipHalfWidth * 0.45) },
+    tipRight: { x: end.x + unitX * tailLength - normalX * tipHalfWidth, y: end.y + unitY * tailLength - normalY * tipHalfWidth },
+  };
+};
+
+const drawBrushTerminalTaper = (
+  context: CanvasRenderingContext2D,
+  points: CanvasPoint[],
+  color: string,
+  size: number,
+  opacity: number,
+) => {
+  const taper = getBrushTerminalTaper(points, size);
+  if (!taper) return;
+  context.save();
+  context.fillStyle = color;
+  context.globalAlpha = opacity * 0.76;
+  context.beginPath();
+  context.moveTo(taper.baseLeft.x, taper.baseLeft.y);
+  context.quadraticCurveTo(taper.tipLeft.x, taper.tipLeft.y, taper.tipCenter.x, taper.tipCenter.y);
+  context.quadraticCurveTo(taper.tipRight.x, taper.tipRight.y, taper.baseRight.x, taper.baseRight.y);
+  context.closePath();
+  context.fill();
+  context.restore();
+};
+
+const traceSmoothPath = (context: CanvasRenderingContext2D, points: CanvasPoint[]) => {
+  if (!points.length) return;
+  context.beginPath();
+  context.moveTo(points[0].x, points[0].y);
+  if (points.length === 1) return;
+  if (points.length === 2) {
+    context.lineTo(points[1].x, points[1].y);
+    return;
+  }
+  for (let index = 1; index < points.length - 1; index += 1) {
+    const current = points[index];
+    const next = points[index + 1];
+    context.quadraticCurveTo(current.x, current.y, (current.x + next.x) / 2, (current.y + next.y) / 2);
+  }
+  const last = points[points.length - 1];
+  context.lineTo(last.x, last.y);
+};
+
+const buildSmoothSvgPath = (points: CanvasPoint[]) => {
+  if (!points.length) return "";
+  let path = `M ${points[0].x} ${points[0].y}`;
+  if (points.length === 1) return path;
+  if (points.length === 2) return `${path} L ${points[1].x} ${points[1].y}`;
+  for (let index = 1; index < points.length - 1; index += 1) {
+    const current = points[index];
+    const next = points[index + 1];
+    path += ` Q ${current.x} ${current.y} ${(current.x + next.x) / 2} ${(current.y + next.y) / 2}`;
+  }
+  const last = points[points.length - 1];
+  return `${path} L ${last.x} ${last.y}`;
+};
+
+const drawSmoothCanvasStroke = (
+  context: CanvasRenderingContext2D,
+  points: CanvasPoint[],
+  color: string,
+  size: number,
+  opacity: number,
+  kind: BrushKind,
+) => {
+  if (!points.length) return;
+  const isPencil = kind === "pencil";
+  const isBrush = kind === "brush";
+  context.save();
+  context.strokeStyle = color;
+  context.fillStyle = color;
+  context.lineCap = "round";
+  context.lineJoin = "round";
+  context.lineWidth = isPencil ? Math.max(1, size * 0.86) : isBrush ? Math.max(2, size * 0.92) : size;
+  context.globalAlpha = isPencil ? opacity * 0.62 : isBrush ? opacity * 0.76 : opacity;
+  traceSmoothPath(context, points);
+  context.stroke();
+  if (points.length === 1) {
+    context.beginPath();
+    context.arc(points[0].x, points[0].y, context.lineWidth / 2, 0, Math.PI * 2);
+    context.fill();
+  }
+  if (isPencil && points.length > 1) {
+    context.globalAlpha = opacity * 0.15;
+    context.lineWidth = Math.max(0.65, size * 0.1);
+    context.setLineDash([Math.max(0.7, size * 0.08), Math.max(1.6, size * 0.2)]);
+    traceSmoothPath(context, points);
+    context.stroke();
+  }
+  if (isBrush && points.length > 1) {
+    context.globalAlpha = opacity * 0.14;
+    context.lineWidth = Math.max(1, size * 0.56);
+    traceSmoothPath(context, points);
+    context.stroke();
+  }
+  context.restore();
 };
 
 const formatBytes = (bytes: number) => {
@@ -498,6 +737,8 @@ export default function Home() {
   const [images, setImages] = useState<ImageLayer[]>([]);
   const [strokes, setStrokes] = useState<BrushStroke[]>([]);
   const [drawingStroke, setDrawingStroke] = useState<BrushStroke | null>(null);
+  const [paintLayers, setPaintLayers] = useState<PaintLayer[]>(() => [{ id: BASE_PAINT_LAYER_ID, name: isEnglish ? "Layer 1" : "圖層 1", locked: false }]);
+  const [activePaintLayerId, setActivePaintLayerId] = useState(BASE_PAINT_LAYER_ID);
   const [selectedTextId, setSelectedTextId] = useState<string | null>(null);
   const [editingTextId, setEditingTextId] = useState<string | null>(null);
   const [selectedShapeId, setSelectedShapeId] = useState<string | null>(null);
@@ -555,6 +796,10 @@ export default function Home() {
     () => images.find((image) => image.id === selectedImageId) ?? null,
     [images, selectedImageId],
   );
+  const activePaintLayer = useMemo(
+    () => paintLayers.find((layer) => layer.id === activePaintLayerId) ?? paintLayers[0] ?? null,
+    [activePaintLayerId, paintLayers],
+  );
   const activeAdjustmentValues: Adjustments = selectedShape
     ? { exposure: selectedShape.exposure ?? 0, contrast: selectedShape.contrast ?? 0, saturation: selectedShape.saturation ?? 100, opacity: selectedShape.opacity }
     : selectedImage
@@ -608,6 +853,24 @@ export default function Home() {
     strokesRef.current = nextStrokes;
     setStrokes(nextStrokes);
   }, []);
+
+  const addPaintLayer = () => {
+    if (paintLayers.length >= MAX_PAINT_LAYERS) {
+      toast.info(tr("最多可建立 5 個圖層", "You can create up to 5 layers"));
+      return;
+    }
+    const nextLayer: PaintLayer = {
+      id: makeId("paint-layer"),
+      name: isEnglish ? `Layer ${paintLayers.length + 1}` : `圖層 ${paintLayers.length + 1}`,
+      locked: false,
+    };
+    setPaintLayers((current) => [...current, nextLayer]);
+    setActivePaintLayerId(nextLayer.id);
+  };
+
+  const togglePaintLayerLock = (id: string) => {
+    setPaintLayers((current) => current.map((layer) => layer.id === id ? { ...layer, locked: !layer.locked } : layer));
+  };
 
   const scheduleImages = useCallback((nextImages: ImageLayer[]) => {
     pendingImagesRef.current = nextImages;
@@ -1018,74 +1281,16 @@ export default function Home() {
   const drawStroke = (from: CanvasPoint, to: CanvasPoint) => {
     const context = canvasRef.current?.getContext("2d");
     if (!context) return;
-    const baseAlpha = brushOpacity / 100;
-    const isPencil = brushKind === "pencil";
-    const isWatercolor = brushKind === "watercolor";
     context.save();
-    context.lineCap = isPencil ? "butt" : "round";
-    context.lineJoin = "round";
-    context.lineWidth = isPencil ? Math.max(1, brushSize * 0.52) : isWatercolor ? brushSize * 1.35 : brushSize;
-    context.globalAlpha = isWatercolor ? baseAlpha * 0.34 : isPencil ? baseAlpha * 0.82 : baseAlpha;
-    context.strokeStyle = brushColor;
-    context.fillStyle = brushColor;
     context.globalCompositeOperation = tool === "eraser" ? "destination-out" : "source-over";
-    context.beginPath();
-    context.moveTo(from.x, from.y);
-    context.lineTo(to.x, to.y);
-    context.stroke();
-    if (isWatercolor && tool !== "eraser") {
-      const jitter = Math.max(1, brushSize * 0.18);
-      context.globalAlpha = baseAlpha * 0.12;
-      context.lineWidth = brushSize * 0.72;
-      context.beginPath();
-      context.moveTo(from.x - jitter, from.y + jitter);
-      context.lineTo(to.x - jitter, to.y + jitter);
-      context.stroke();
-      context.beginPath();
-      context.moveTo(from.x + jitter, from.y - jitter);
-      context.lineTo(to.x + jitter, to.y - jitter);
-      context.stroke();
-    }
-    context.beginPath();
-    context.globalAlpha = isWatercolor ? baseAlpha * 0.22 : isPencil ? baseAlpha * 0.7 : baseAlpha;
-    context.arc(to.x, to.y, (isPencil ? brushSize * 0.28 : isWatercolor ? brushSize * 0.68 : brushSize / 2), 0, Math.PI * 2);
-    context.fill();
+    drawSmoothCanvasStroke(context, [from, to], brushColor, brushSize, brushOpacity / 100, brushKind);
     context.restore();
   };
 
   const renderBrushStroke = (context: CanvasRenderingContext2D, stroke: BrushStroke) => {
     if (stroke.points.length === 0) return;
-    const baseAlpha = stroke.opacity / 100;
-    const isPencil = stroke.kind === "pencil";
-    const isWatercolor = stroke.kind === "watercolor";
     const points = stroke.points.map((point) => ({ x: point.x + stroke.x, y: point.y + stroke.y }));
-    context.save();
-    context.lineCap = isPencil ? "butt" : "round";
-    context.lineJoin = "round";
-    context.lineWidth = isPencil ? Math.max(1, stroke.size * 0.52) : isWatercolor ? stroke.size * 1.35 : stroke.size;
-    context.globalAlpha = isWatercolor ? baseAlpha * 0.34 : isPencil ? baseAlpha * 0.82 : baseAlpha;
-    context.strokeStyle = stroke.color;
-    context.fillStyle = stroke.color;
-    if (points.length === 1) {
-      context.beginPath();
-      context.arc(points[0].x, points[0].y, isPencil ? stroke.size * 0.28 : isWatercolor ? stroke.size * 0.68 : stroke.size / 2, 0, Math.PI * 2);
-      context.fill();
-    } else {
-      context.beginPath();
-      context.moveTo(points[0].x, points[0].y);
-      points.slice(1).forEach((point) => context.lineTo(point.x, point.y));
-      context.stroke();
-      if (isWatercolor) {
-        const jitter = Math.max(1, stroke.size * 0.18);
-        context.globalAlpha = baseAlpha * 0.12;
-        context.lineWidth = stroke.size * 0.72;
-        context.beginPath();
-        context.moveTo(points[0].x - jitter, points[0].y + jitter);
-        points.slice(1).forEach((point) => context.lineTo(point.x - jitter, point.y + jitter));
-        context.stroke();
-      }
-    }
-    context.restore();
+    drawSmoothCanvasStroke(context, points, stroke.color, stroke.size, stroke.opacity / 100, stroke.kind);
   };
 
   const floodFill = (point: CanvasPoint) => {
@@ -1260,6 +1465,10 @@ export default function Home() {
       return;
     }
     if (tool === "text") return;
+    if (tool === "brush" && activePaintLayer?.locked) {
+      toast.info(tr("目前圖層已鎖定，請先解除鎖定", "This layer is locked. Unlock it before drawing"));
+      return;
+    }
     event.currentTarget.setPointerCapture(event.pointerId);
     setIsDrawing(true);
     setHasArtwork(true);
@@ -1267,7 +1476,7 @@ export default function Home() {
     if (tool === "retouch") {
       healSpot(point);
     } else {
-      const nextStroke: BrushStroke = { id: makeId("stroke"), points: [point], x: 0, y: 0, color: brushColor, size: brushSize, opacity: brushOpacity, kind: brushKind };
+      const nextStroke: BrushStroke = { id: makeId("stroke"), paintLayerId: activePaintLayer?.id ?? BASE_PAINT_LAYER_ID, points: [point], x: 0, y: 0, color: brushColor, size: brushSize, opacity: brushOpacity, kind: brushKind };
       drawingStrokeRef.current = nextStroke;
       setDrawingStroke(nextStroke);
     }
@@ -2387,6 +2596,27 @@ export default function Home() {
             </div>
           </div>
 
+          <aside className="paint-layer-panel" aria-label={tr("畫筆圖層", "Paint layers")}>
+            <div className="paint-layer-panel-heading">
+              <span><Layers size={13} /> {tr("圖層", "Layers")}</span>
+              <button type="button" className="paint-layer-add" onClick={addPaintLayer} disabled={paintLayers.length >= MAX_PAINT_LAYERS} title={tr("新增圖層", "Add layer")} aria-label={tr("新增圖層", "Add layer")}><Plus size={13} /></button>
+            </div>
+            <div className="paint-layer-list">
+              {[...paintLayers].reverse().map((layer) => (
+                <div key={layer.id} className={`paint-layer-row ${activePaintLayerId === layer.id ? "is-active" : ""} ${layer.locked ? "is-locked" : ""}`}>
+                  <button type="button" className="paint-layer-select" onClick={() => setActivePaintLayerId(layer.id)} aria-pressed={activePaintLayerId === layer.id}>
+                    <span className="paint-layer-swatch" />
+                    <span>{layer.name}</span>
+                  </button>
+                  <button type="button" className="paint-layer-lock" onClick={() => togglePaintLayerLock(layer.id)} title={layer.locked ? tr("解除鎖定", "Unlock layer") : tr("鎖定圖層", "Lock layer")} aria-label={layer.locked ? tr("解除鎖定", "Unlock layer") : tr("鎖定圖層", "Lock layer")}>
+                    {layer.locked ? <Lock size={12} /> : <Unlock size={12} />}
+                  </button>
+                </div>
+              ))}
+            </div>
+            <span className="paint-layer-limit">{paintLayers.length} / {MAX_PAINT_LAYERS}</span>
+          </aside>
+
           {openDesktopTool && (
             <section ref={desktopToolPanelRef} className={`desktop-tool-popover ${isDesktopToolDragging ? "is-dragging" : ""}`} style={desktopToolPopoverStyle} aria-label={`${activeWorkspaceToolLabel} ${tr("設定", "settings")}`}>
               <div className="desktop-tool-popover-heading" onPointerDown={handleDesktopToolPanelPointerDown}>
@@ -2399,6 +2629,20 @@ export default function Home() {
 
               {openDesktopTool === "brush" && (
                 <div className="desktop-tool-popover-content">
+                  <div className="brush-choice-grid" role="group" aria-label={tr("選擇筆刷", "Choose brush")}> 
+                    <button type="button" className={`brush-choice ${brushKind === "oil" ? "is-active" : ""}`} onClick={() => setBrushKind("oil")}>
+                      <span className="brush-choice-mark brush-choice-mark-oil" aria-hidden="true" />
+                      <span>{tr("油線筆", "Oil liner")}</span>
+                    </button>
+                    <button type="button" className={`brush-choice ${brushKind === "pencil" ? "is-active" : ""}`} onClick={() => setBrushKind("pencil")}>
+                      <span className="brush-choice-mark brush-choice-mark-pencil" aria-hidden="true" />
+                      <span>{tr("鉛筆", "Pencil")}</span>
+                    </button>
+                    <button type="button" className={`brush-choice ${brushKind === "brush" ? "is-active" : ""}`} onClick={() => setBrushKind("brush")}>
+                      <span className="brush-choice-mark brush-choice-mark-brush" aria-hidden="true" />
+                      <span>{tr("毛筆", "Brush")}</span>
+                    </button>
+                  </div>
                   <div className="color-row">
                     <div><span className="field-label">{tr("筆刷顏色", "Brush color")}</span><span className="field-help">{tr("從色票或自訂色開始繪製", "Choose a swatch or custom color")}</span></div>
                     <label className="color-picker"><input type="color" value={brushColor} onChange={(event) => setBrushColor(event.target.value)} aria-label={tr("筆刷顏色", "Brush color")} /><span style={{ backgroundColor: brushColor }} /></label>
@@ -2520,15 +2764,17 @@ export default function Home() {
                   {snapGuides.y !== null && <div className="snap-guide snap-guide-horizontal" style={{ top: `${snapGuides.y}px` }} />}
                   {[...strokes, ...(drawingStroke ? [drawingStroke] : [])].map((stroke) => {
                     const isDraftStroke = drawingStroke?.id === stroke.id;
-                    const isStrokeSelectable = !isDraftStroke && tool === "move";
-                    const pathPoints = stroke.points.map((point) => `${point.x},${point.y}`).join(" ");
+                    const isStrokeLayerLocked = paintLayers.find((layer) => layer.id === stroke.paintLayerId)?.locked ?? false;
+                    const isStrokeSelectable = !isDraftStroke && tool === "move" && !isStrokeLayerLocked;
+                    const smoothPath = buildSmoothSvgPath(stroke.points);
                     const isPencilStroke = stroke.kind === "pencil";
-                    const isWatercolorStroke = stroke.kind === "watercolor";
-                    const strokeWidth = isPencilStroke ? Math.max(1, stroke.size * 0.52) : isWatercolorStroke ? stroke.size * 1.35 : stroke.size;
+                    const isBrushStroke = stroke.kind === "brush";
+                    const strokeWidth = isPencilStroke ? Math.max(1, stroke.size * 0.86) : isBrushStroke ? Math.max(2, stroke.size * 0.92) : stroke.size;
+                    const terminalTaper = isBrushStroke ? getBrushTerminalTaper(stroke.points, stroke.size) : null;
                     return (
                       <svg
                         key={stroke.id}
-                        className={`stroke-layer ${selectedStrokeId === stroke.id ? "is-selected" : ""} ${isDraftStroke ? "is-draft" : ""}`}
+                        className={`stroke-layer ${selectedStrokeId === stroke.id ? "is-selected" : ""} ${isDraftStroke ? "is-draft" : ""} ${isStrokeLayerLocked ? "is-locked" : ""}`}
                         viewBox={`0 0 ${canvasSize.width} ${canvasSize.height}`}
                         style={{ width: `${canvasSize.width}px`, height: `${canvasSize.height}px`, pointerEvents: isStrokeSelectable ? "auto" : "none" }}
                         onPointerDown={isStrokeSelectable ? (event) => handleStrokePointerDown(event, stroke) : undefined}
@@ -2539,14 +2785,16 @@ export default function Home() {
                         <g transform={`translate(${stroke.x} ${stroke.y})`}>
                           {stroke.points.length === 1 ? (
                             <>
-                              <circle cx={stroke.points[0].x} cy={stroke.points[0].y} r={isPencilStroke ? stroke.size * 0.28 : isWatercolorStroke ? stroke.size * 0.68 : stroke.size / 2} fill={stroke.color} opacity={isWatercolorStroke ? stroke.opacity / 450 : stroke.opacity / 100} />
+                              <circle cx={stroke.points[0].x} cy={stroke.points[0].y} r={strokeWidth / 2} fill={stroke.color} opacity={isBrushStroke ? (stroke.opacity / 100) * 0.76 : isPencilStroke ? (stroke.opacity / 100) * 0.62 : stroke.opacity / 100} />
                               <circle className="stroke-hit-area" cx={stroke.points[0].x} cy={stroke.points[0].y} r={Math.max(12, strokeWidth)} />
                             </>
                           ) : (
                             <>
-                              <polyline className="stroke-visible" points={pathPoints} fill="none" stroke={stroke.color} strokeWidth={strokeWidth} strokeLinecap={isPencilStroke ? "butt" : "round"} strokeLinejoin="round" opacity={isWatercolorStroke ? stroke.opacity / 300 : stroke.opacity / 100} />
-                              {isWatercolorStroke && <polyline points={pathPoints} fill="none" stroke={stroke.color} strokeWidth={stroke.size * 0.72} strokeLinecap="round" strokeLinejoin="round" opacity={stroke.opacity / 800} transform={`translate(${Math.max(1, stroke.size * 0.18)} ${-Math.max(1, stroke.size * 0.18)})`} />}
-                              <polyline className="stroke-hit-area" points={pathPoints} fill="none" strokeWidth={Math.max(18, strokeWidth + 12)} strokeLinecap="round" strokeLinejoin="round" />
+                              <path className="stroke-visible" d={smoothPath} fill="none" stroke={stroke.color} strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round" opacity={isBrushStroke ? (stroke.opacity / 100) * 0.76 : isPencilStroke ? (stroke.opacity / 100) * 0.62 : stroke.opacity / 100} />
+                              {isPencilStroke && <path d={smoothPath} fill="none" stroke={stroke.color} strokeWidth={Math.max(0.65, stroke.size * 0.1)} strokeLinecap="round" strokeLinejoin="round" strokeDasharray={`${Math.max(0.7, stroke.size * 0.08)} ${Math.max(1.6, stroke.size * 0.2)}`} opacity={(stroke.opacity / 100) * 0.15} />}
+                              {isBrushStroke && <path d={smoothPath} fill="none" stroke={stroke.color} strokeWidth={Math.max(1, stroke.size * 0.56)} strokeLinecap="round" strokeLinejoin="round" opacity={(stroke.opacity / 100) * 0.14} />}
+                              {terminalTaper && <path d={`M ${terminalTaper.baseLeft.x} ${terminalTaper.baseLeft.y} Q ${terminalTaper.tipLeft.x} ${terminalTaper.tipLeft.y} ${terminalTaper.tipCenter.x} ${terminalTaper.tipCenter.y} Q ${terminalTaper.tipRight.x} ${terminalTaper.tipRight.y} ${terminalTaper.baseRight.x} ${terminalTaper.baseRight.y} Z`} fill={stroke.color} opacity={(stroke.opacity / 100) * 0.76} />}
+                              <path className="stroke-hit-area" d={smoothPath} fill="none" strokeWidth={Math.max(18, strokeWidth + 12)} strokeLinecap="round" strokeLinejoin="round" />
                             </>
                           )}
                         </g>
