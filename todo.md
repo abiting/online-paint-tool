@@ -140,4 +140,4 @@
 - [x] 移除使用者已同意刪除的 client/public/favicon.png
 - [x] 將 Banner 從工作台頁尾移至 FAQ 使用說明內容下方
 - [x] 將 Banner alt 設定為線上圖片尺寸修改器並確認 Logo alt 為 AbiPaint
-- [ ] 保留 GitHub 的 index.html 更新並合併其餘 WebP 資產變更
+- [x] 保留 GitHub 的 index.html 更新並合併其餘 WebP 資產變更
