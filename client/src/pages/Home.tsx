@@ -2136,7 +2136,7 @@ export default function Home() {
                 </details>
                 <details className="faq-item">
                   <summary><span>02</span>什麼情況會使用 AbiPaint？</summary>
-                  <div className="faq-answer">想修改圖片、照片的解析度，但手邊沒有 Photoshop、Illustrator 或 Canva 時，本工具可快速派上用場：<ul><li>將 1080 × 1080 的大頭照縮小為符合線上系統規範的尺寸。</li><li>將遭 AI 工具壓縮失真的網站 Banner 校正並還原細節樣貌。</li><li>將檔案肥大的 PNG 插畫修改並轉換為不佔空間的 JPG 圖檔。</li></ul></div>
+                  <div className="faq-answer">想修改圖片、照片的解析度，但手邊沒有 Photoshop、Illustrator 或 Canva 時，本工具可快速派上用場：<ul><li>將 1080 × 1080 的大頭照縮小為符合線上系統規範的尺寸</li><li>將遭 AI 工具壓縮失真的網站 Banner 校正並還原細節樣貌</li><li>將檔案肥大的 PNG 插畫修改並轉換為不佔空間的 JPG 圖檔</li></ul></div>
                 </details>
                 <details className="faq-item">
                   <summary><span>03</span>使用 AbiPaint 是否需要註冊帳號？</summary>
