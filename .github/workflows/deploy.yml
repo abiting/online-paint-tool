@@ -31,7 +31,7 @@ jobs:
 
       # 只建置前端(client),不需要 server
       # 若 vite.config.ts 裡 build.outDir 已經固定,可以拿掉 --base 以外的參數
-      - run: pnpm exec vite build --base=/${{ github.event.repository.name }}/
+      - run: pnpm exec vite build --base=/
 
       # 讓 GitHub Pages 找不到子路徑(如 /converter)時,改回傳 index.html
       # 交給前端路由自己判斷要顯示哪一頁,SPA 深連結才不會 404
