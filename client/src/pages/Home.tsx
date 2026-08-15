@@ -5,7 +5,7 @@
 */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { PointerEvent as ReactPointerEvent } from "react";
+import type { CSSProperties, PointerEvent as ReactPointerEvent } from "react";
 import {
   AlignCenter,
   AlignVerticalJustifyCenter,
@@ -351,6 +351,8 @@ export default function Home() {
   const [fileMeta, setFileMeta] = useState({ name: "未命名畫布", size: "—" });
   const [documentNameDraft, setDocumentNameDraft] = useState("未命名畫布");
   const [snapGuides, setSnapGuides] = useState<SnapGuides>({ x: null, y: null });
+  const [mobileDrawerHeight, setMobileDrawerHeight] = useState<number | null>(null);
+  const [isMobileDrawerDragging, setIsMobileDrawerDragging] = useState(false);
   const clipboardTextRef = useRef<TextLayer | null>(null);
   const panDragRef = useRef<{ startX: number; startY: number; originX: number; originY: number } | null>(null);
   const touchPointsRef = useRef(new Map<number, { x: number; y: number }>());
@@ -359,6 +361,8 @@ export default function Home() {
   const imageUpdateFrameRef = useRef<number | null>(null);
   const pendingImagesRef = useRef<ImageLayer[] | null>(null);
   const viewportRef = useRef<HTMLDivElement>(null);
+  const inspectorRef = useRef<HTMLElement>(null);
+  const drawerDragRef = useRef<{ startY: number; startHeight: number } | null>(null);
   const hasInitializedPanRef = useRef(false);
 
   const selectedText = useMemo(
@@ -1667,6 +1671,43 @@ export default function Home() {
       y: Math.max(18, (bounds.height - displayHeight) / 2),
     });
   };
+
+  useEffect(() => {
+    const handleDrawerMove = (event: PointerEvent) => {
+      const drag = drawerDragRef.current;
+      if (!drag) return;
+      const maxHeight = Math.min(Math.round(window.innerHeight * 0.76), 560);
+      setMobileDrawerHeight(clamp(drag.startHeight + drag.startY - event.clientY, 72, maxHeight));
+    };
+    const finishDrawerDrag = () => {
+      if (!drawerDragRef.current) return;
+      setMobileDrawerHeight((height) => (height !== null && height < 118 ? 72 : height));
+      drawerDragRef.current = null;
+      setIsMobileDrawerDragging(false);
+    };
+    window.addEventListener("pointermove", handleDrawerMove);
+    window.addEventListener("pointerup", finishDrawerDrag);
+    window.addEventListener("pointercancel", finishDrawerDrag);
+    return () => {
+      window.removeEventListener("pointermove", handleDrawerMove);
+      window.removeEventListener("pointerup", finishDrawerDrag);
+      window.removeEventListener("pointercancel", finishDrawerDrag);
+    };
+  }, []);
+
+  const handleMobileDrawerPointerDown = (event: ReactPointerEvent<HTMLButtonElement>) => {
+    if (event.pointerType === "mouse" && event.button !== 0) return;
+    event.preventDefault();
+    event.stopPropagation();
+    event.currentTarget.setPointerCapture(event.pointerId);
+    const startHeight = inspectorRef.current?.getBoundingClientRect().height ?? 0;
+    drawerDragRef.current = { startY: event.clientY, startHeight };
+    setIsMobileDrawerDragging(true);
+  };
+
+  const mobileDrawerStyle = mobileDrawerHeight === null
+    ? undefined
+    : ({ "--mobile-drawer-height": `${mobileDrawerHeight}px` } as CSSProperties);
   const toolPanelTitle = selectedImage
     ? "圖片素材"
     : selectedShape
@@ -1688,7 +1729,7 @@ export default function Home() {
                     : "移動工具";
 
   return (
-    <main className="studio-app">
+    <main className="studio-app" style={mobileDrawerStyle}>
       <header className="topbar">
         <div className="brand-lockup">
           <div className="brand-copy">
@@ -1915,7 +1956,8 @@ export default function Home() {
 
         </section>
 
-        <aside className="inspector" aria-label="屬性與調整">
+        <aside ref={inspectorRef} className={`inspector ${isMobileDrawerDragging ? "is-dragging" : ""}`} aria-label="屬性與調整">
+          <button type="button" className="mobile-drawer-handle" onPointerDown={handleMobileDrawerPointerDown} aria-label="拖曳調整設定面板高度"><span /></button>
           <div className="inspector-scroll">
             {/*
               <div className="legacy-tool-settings">
