@@ -370,6 +370,18 @@ type AbiPaintProject = {
   };
 };
 
+type WorkingFile = {
+  id: string;
+  project: AbiPaintProject;
+};
+
+type AbiPaintWorkspace = {
+  format: "abipaint-workspace";
+  version: 1;
+  activeWorkingFileId: string;
+  files: WorkingFile[];
+};
+
 const BRAND_RED = "#E4513B";
 const PAPER = "#FFFDF8";
 const GRAPHITE = "#1F2528";
@@ -378,6 +390,8 @@ const BASE_PAINT_LAYER_ID = "paint-layer-base";
 const AUTOSAVE_DB_NAME = "abipaint-project-storage";
 const AUTOSAVE_DB_STORE = "projects";
 const AUTOSAVE_PROJECT_KEY = "current-project";
+const AUTOSAVE_WORKSPACE_KEY = "current-workspace";
+const MAX_WORKING_FILES = 3;
 const MATERIAL_STACK_BASE: Record<MaterialType, number> = {
   stroke: 0,
   image: 1000,
@@ -417,6 +431,24 @@ const writeAutoSavedProject = async (project: AbiPaintProject) => {
   }).finally(() => database.close());
 };
 
+const readAutoSavedWorkspace = async () => {
+  const database = await openProjectDatabase();
+  return new Promise<unknown>((resolve, reject) => {
+    const request = database.transaction(AUTOSAVE_DB_STORE, "readonly").objectStore(AUTOSAVE_DB_STORE).get(AUTOSAVE_WORKSPACE_KEY);
+    request.onsuccess = () => resolve(request.result ?? null);
+    request.onerror = () => reject(request.error);
+  }).finally(() => database.close());
+};
+
+const writeAutoSavedWorkspace = async (workspace: AbiPaintWorkspace) => {
+  const database = await openProjectDatabase();
+  return new Promise<void>((resolve, reject) => {
+    const request = database.transaction(AUTOSAVE_DB_STORE, "readwrite").objectStore(AUTOSAVE_DB_STORE).put(workspace, AUTOSAVE_WORKSPACE_KEY);
+    request.onsuccess = () => resolve();
+    request.onerror = () => reject(request.error);
+  }).finally(() => database.close());
+};
+
 const isAbiPaintProject = (value: unknown): value is AbiPaintProject => {
   if (!value || typeof value !== "object") return false;
   const project = value as Partial<AbiPaintProject>;
@@ -430,6 +462,18 @@ const isAbiPaintProject = (value: unknown): value is AbiPaintProject => {
     && Array.isArray(project.materials?.shapes)
     && Array.isArray(project.materials?.images)
     && Array.isArray(project.materials?.strokes);
+};
+
+const isAbiPaintWorkspace = (value: unknown): value is AbiPaintWorkspace => {
+  if (!value || typeof value !== "object") return false;
+  const workspace = value as Partial<AbiPaintWorkspace>;
+  return workspace.format === "abipaint-workspace"
+    && workspace.version === 1
+    && typeof workspace.activeWorkingFileId === "string"
+    && Array.isArray(workspace.files)
+    && workspace.files.length > 0
+    && workspace.files.length <= MAX_WORKING_FILES
+    && workspace.files.every((file) => typeof file?.id === "string" && isAbiPaintProject(file.project));
 };
 
 const hexToRgb = (hex: string) => {
@@ -995,6 +1039,9 @@ export default function Home() {
   const projectImportInputRef = useRef<HTMLInputElement>(null);
   const isProjectHydratedRef = useRef(false);
   const autosaveTimerRef = useRef<number | null>(null);
+  const workingFilesRef = useRef<WorkingFile[]>([]);
+  const activeWorkingFileIdRef = useRef("");
+  const isApplyingWorkingFileRef = useRef(false);
 
   const [canvasSize, setCanvasSize] = useState({ width: 960, height: 640 });
   const [bleedGuide, setBleedGuide] = useState<BleedGuide | null>(null);
@@ -1042,6 +1089,8 @@ export default function Home() {
   });
   const [fileMeta, setFileMeta] = useState<{ name: string; size: string }>({ name: copy.documentName, size: "—" });
   const [documentNameDraft, setDocumentNameDraft] = useState<string>(copy.documentName);
+  const [workingFiles, setWorkingFiles] = useState<WorkingFile[]>([]);
+  const [activeWorkingFileId, setActiveWorkingFileId] = useState("");
   const [snapGuides, setSnapGuides] = useState<SnapGuides>({ x: null, y: null });
   const [mobileDrawerHeight, setMobileDrawerHeight] = useState<number | null>(null);
   const [isMobileDrawerDragging, setIsMobileDrawerDragging] = useState(false);
@@ -1165,6 +1214,11 @@ export default function Home() {
   const syncStrokes = useCallback((nextStrokes: BrushStroke[]) => {
     strokesRef.current = nextStrokes;
     setStrokes(nextStrokes);
+  }, []);
+
+  const syncWorkingFiles = useCallback((nextFiles: WorkingFile[]) => {
+    workingFilesRef.current = nextFiles;
+    setWorkingFiles(nextFiles);
   }, []);
 
   const getNextMaterialStackOrder = () => {
@@ -1434,6 +1488,51 @@ export default function Home() {
     }
   }, [activePaintLayerId, adjustments, bleedGuide, brushColor, brushKind, brushOpacity, brushSize, documentNameDraft, fileMeta, hasArtwork, paintLayers, scaleImagesWithCanvas, shapeCornerRadius, shapeFill, shapeKind, shapeOutline, shapeOutlineWidth, shapeShadow]);
 
+  const createBlankProject = useCallback((fileNumber: number): AbiPaintProject => {
+    const width = 960;
+    const height = 640;
+    const surface = document.createElement("canvas");
+    surface.width = width;
+    surface.height = height;
+    const context = surface.getContext("2d");
+    if (context) context.fillStyle = PAPER;
+    context?.fillRect(0, 0, width, height);
+    const name = isEnglish ? `Untitled canvas ${fileNumber}` : `未命名畫布 ${fileNumber}`;
+    return {
+      format: "abipaint-project",
+      version: 1,
+      savedAt: new Date().toISOString(),
+      hasArtwork: false,
+      canvas: {
+        width,
+        height,
+        baseImage: surface.toDataURL("image/png"),
+        bleedGuide: null,
+        adjustments: { exposure: 0, contrast: 0, saturation: 100, opacity: 100 },
+      },
+      document: {
+        name,
+        fileMeta: { name, size: `${width} × ${height}` },
+        scaleImagesWithCanvas: false,
+      },
+      paintLayers: [{ id: BASE_PAINT_LAYER_ID, name: isEnglish ? "Layer 1" : "圖層 1", locked: false }],
+      activePaintLayerId: BASE_PAINT_LAYER_ID,
+      materials: { layers: [], shapes: [], images: [], strokes: [] },
+      tools: {
+        brushKind: "oil",
+        brushColor: BRAND_RED,
+        brushSize: 18,
+        brushOpacity: 100,
+        shapeKind: "rectangle",
+        shapeFill: BRAND_RED,
+        shapeOutline: "#FFFDF8",
+        shapeOutlineWidth: 2,
+        shapeShadow: true,
+        shapeCornerRadius: 12,
+      },
+    };
+  }, [isEnglish]);
+
   const applyProjectSnapshot = useCallback(async (project: AbiPaintProject, showNotice = false) => {
     const canvas = canvasRef.current;
     if (!canvas) throw new Error("Canvas unavailable");
@@ -1542,37 +1641,143 @@ export default function Home() {
     }
   };
 
+  const writeWorkingFileSnapshot = useCallback((snapshot = createProjectSnapshot()) => {
+    const currentId = activeWorkingFileIdRef.current;
+    if (!snapshot || !currentId) return workingFilesRef.current;
+    const nextFiles = workingFilesRef.current.map((file) => file.id === currentId ? { ...file, project: snapshot } : file);
+    syncWorkingFiles(nextFiles);
+    return nextFiles;
+  }, [createProjectSnapshot, syncWorkingFiles]);
+
+  const persistWorkspace = useCallback((files: WorkingFile[] = workingFilesRef.current, activeId = activeWorkingFileIdRef.current) => {
+    if (!files.length || !activeId) return;
+    void writeAutoSavedWorkspace({
+      format: "abipaint-workspace",
+      version: 1,
+      activeWorkingFileId: activeId,
+      files,
+    }).catch(() => undefined);
+  }, []);
+
+  const switchWorkingFile = useCallback(async (workingFileId: string) => {
+    if (!workingFileId || workingFileId === activeWorkingFileIdRef.current) return;
+    const nextFiles = writeWorkingFileSnapshot();
+    const target = nextFiles.find((file) => file.id === workingFileId);
+    if (!target) return;
+    activeWorkingFileIdRef.current = target.id;
+    setActiveWorkingFileId(target.id);
+    isApplyingWorkingFileRef.current = true;
+    try {
+      await applyProjectSnapshot(target.project);
+      persistWorkspace(nextFiles, target.id);
+    } finally {
+      isApplyingWorkingFileRef.current = false;
+    }
+  }, [applyProjectSnapshot, persistWorkspace, writeWorkingFileSnapshot]);
+
+  const createWorkingFile = async () => {
+    if (workingFilesRef.current.length >= MAX_WORKING_FILES) {
+      toast.info(tr("最多可同時開啟 3 個 Working File", "You can open up to 3 Working Files"));
+      return;
+    }
+    const nextFiles = writeWorkingFileSnapshot();
+    const nextFile: WorkingFile = {
+      id: makeId("working-file"),
+      project: createBlankProject(nextFiles.length + 1),
+    };
+    const filesWithNew = [...nextFiles, nextFile];
+    syncWorkingFiles(filesWithNew);
+    activeWorkingFileIdRef.current = nextFile.id;
+    setActiveWorkingFileId(nextFile.id);
+    isApplyingWorkingFileRef.current = true;
+    try {
+      await applyProjectSnapshot(nextFile.project);
+      persistWorkspace(filesWithNew, nextFile.id);
+    } finally {
+      isApplyingWorkingFileRef.current = false;
+    }
+  };
+
+  const closeWorkingFile = async (event: ReactMouseEvent<HTMLButtonElement>, workingFileId: string) => {
+    event.stopPropagation();
+    const currentFiles = writeWorkingFileSnapshot();
+    if (currentFiles.length <= 1) {
+      toast.info(tr("至少保留一個 Working File", "Keep at least one Working File open"));
+      return;
+    }
+    const closingIndex = currentFiles.findIndex((file) => file.id === workingFileId);
+    if (closingIndex < 0) return;
+    const nextFiles = currentFiles.filter((file) => file.id !== workingFileId);
+    syncWorkingFiles(nextFiles);
+    if (workingFileId !== activeWorkingFileIdRef.current) {
+      persistWorkspace(nextFiles);
+      return;
+    }
+    const nextActive = nextFiles[Math.max(0, closingIndex - 1)] ?? nextFiles[0];
+    activeWorkingFileIdRef.current = nextActive.id;
+    setActiveWorkingFileId(nextActive.id);
+    isApplyingWorkingFileRef.current = true;
+    try {
+      await applyProjectSnapshot(nextActive.project);
+      persistWorkspace(nextFiles, nextActive.id);
+    } finally {
+      isApplyingWorkingFileRef.current = false;
+    }
+  };
+
   useEffect(() => {
     let cancelled = false;
     void (async () => {
       try {
-        const savedProject = await readAutoSavedProject();
-        if (!cancelled && isAbiPaintProject(savedProject)) {
-          await applyProjectSnapshot(savedProject, true);
+        const savedWorkspace = await readAutoSavedWorkspace();
+        let workspace: AbiPaintWorkspace | null = isAbiPaintWorkspace(savedWorkspace) ? savedWorkspace : null;
+        if (!workspace) {
+          const legacyProject = await readAutoSavedProject();
+          const initialProject = isAbiPaintProject(legacyProject) ? legacyProject : createBlankProject(1);
+          const initialId = makeId("working-file");
+          workspace = {
+            format: "abipaint-workspace",
+            version: 1,
+            activeWorkingFileId: initialId,
+            files: [{ id: initialId, project: initialProject }],
+          };
+        }
+        const activeFile = workspace.files.find((file) => file.id === workspace.activeWorkingFileId) ?? workspace.files[0];
+        if (!cancelled && activeFile) {
+          syncWorkingFiles(workspace.files);
+          activeWorkingFileIdRef.current = activeFile.id;
+          setActiveWorkingFileId(activeFile.id);
+          isApplyingWorkingFileRef.current = true;
+          await applyProjectSnapshot(activeFile.project, true);
+          void writeAutoSavedWorkspace(workspace).catch(() => undefined);
         }
       } catch {
         // 本機暫存不可用時，維持既有的新畫布流程。
       } finally {
-        if (!cancelled) isProjectHydratedRef.current = true;
+        if (!cancelled) {
+          isApplyingWorkingFileRef.current = false;
+          isProjectHydratedRef.current = true;
+        }
       }
     })();
     return () => {
       cancelled = true;
     };
-  }, [applyProjectSnapshot]);
+  }, [applyProjectSnapshot, createBlankProject, syncWorkingFiles]);
 
   useEffect(() => {
-    if (!isProjectHydratedRef.current) return;
+    if (!isProjectHydratedRef.current || isApplyingWorkingFileRef.current) return;
     if (autosaveTimerRef.current !== null) window.clearTimeout(autosaveTimerRef.current);
     autosaveTimerRef.current = window.setTimeout(() => {
       const snapshot = createProjectSnapshot();
       if (!snapshot) return;
-      void writeAutoSavedProject(snapshot).catch(() => undefined);
+      const nextFiles = writeWorkingFileSnapshot(snapshot);
+      persistWorkspace(nextFiles);
     }, 700);
     return () => {
       if (autosaveTimerRef.current !== null) window.clearTimeout(autosaveTimerRef.current);
     };
-  }, [activePaintLayerId, adjustments, bleedGuide, brushColor, brushKind, brushOpacity, brushSize, canvasSize.height, canvasSize.width, createProjectSnapshot, documentNameDraft, fileMeta, hasArtwork, images, layers, paintLayers, projectRevision, scaleImagesWithCanvas, shapeCornerRadius, shapeFill, shapeKind, shapeOutline, shapeOutlineWidth, shapeShadow, shapes, strokes]);
+  }, [activePaintLayerId, adjustments, bleedGuide, brushColor, brushKind, brushOpacity, brushSize, canvasSize.height, canvasSize.width, createProjectSnapshot, documentNameDraft, fileMeta, hasArtwork, images, layers, paintLayers, persistWorkspace, projectRevision, scaleImagesWithCanvas, shapeCornerRadius, shapeFill, shapeKind, shapeOutline, shapeOutlineWidth, shapeShadow, shapes, strokes, writeWorkingFileSnapshot]);
 
   useEffect(() => {
     const viewport = viewportRef.current;
@@ -3362,21 +3567,59 @@ export default function Home() {
         </div>
 
         <div className="document-meta">
+          <button
+            type="button"
+            className="working-file-add"
+            onClick={() => void createWorkingFile()}
+            disabled={!isProjectHydratedRef.current || workingFiles.length >= MAX_WORKING_FILES}
+            title={tr("新增 Working File", "New Working File")}
+            aria-label={tr("新增 Working File", "New Working File")}
+          >
+            <Plus size={15} />
+          </button>
           <span className="document-kicker">WORKING FILE</span>
-          <input
-            className="document-name-input"
-            value={documentNameDraft}
-            onChange={(event) => setDocumentNameDraft(event.target.value)}
-            onBlur={(event) => saveDocumentName(event.target.value)}
-            onKeyDown={(event) => {
-              if (event.key === "Enter") {
-                event.preventDefault();
-                saveDocumentName(event.currentTarget.value);
-                event.currentTarget.blur();
-              }
-            }}
-            aria-label={isEnglish ? "Document name" : "文件名稱"}
-          />
+          <div className="working-file-tabs" aria-label={tr("Working File 切換", "Working File switcher")}>
+            {workingFiles.length ? workingFiles.map((file) => {
+              const isActive = file.id === activeWorkingFileId;
+              return isActive ? (
+                <div key={file.id} className="working-file-tab is-active">
+                  <input
+                    className="document-name-input"
+                    value={documentNameDraft}
+                    onChange={(event) => setDocumentNameDraft(event.target.value)}
+                    onBlur={(event) => saveDocumentName(event.target.value)}
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter") {
+                        event.preventDefault();
+                        saveDocumentName(event.currentTarget.value);
+                        event.currentTarget.blur();
+                      }
+                    }}
+                    aria-label={isEnglish ? "Document name" : "文件名稱"}
+                  />
+                  {workingFiles.length > 1 && (
+                    <button type="button" className="working-file-close" onClick={(event) => void closeWorkingFile(event, file.id)} aria-label={tr("關閉 Working File", "Close Working File")}>
+                      <span>×</span>
+                    </button>
+                  )}
+                </div>
+              ) : (
+                <button key={file.id} type="button" className="working-file-tab" onClick={() => void switchWorkingFile(file.id)} title={file.project.document.name}>
+                  {file.project.document.name || copy.documentName}
+                </button>
+              );
+            }) : (
+              <div className="working-file-tab is-active">
+                <input
+                  className="document-name-input"
+                  value={documentNameDraft}
+                  onChange={(event) => setDocumentNameDraft(event.target.value)}
+                  onBlur={(event) => saveDocumentName(event.target.value)}
+                  aria-label={isEnglish ? "Document name" : "文件名稱"}
+                />
+              </div>
+            )}
+          </div>
           <span className="document-size">{fileMeta.size === "—" ? `${canvasSize.width} × ${canvasSize.height}` : fileMeta.size}</span>
         </div>
 

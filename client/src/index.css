@@ -127,10 +127,22 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 .brand-name { font-family: "DM Sans", sans-serif; font-weight: 700; font-size: 14px; letter-spacing: 0.04em; }
 .brand-status { color: #9da5a0; font-size: 10px; letter-spacing: 0.08em; }
 .status-dot { display: inline-block; width: 6px; height: 6px; background: #82a480; border-radius: 50%; margin-right: 4px; box-shadow: 0 0 0 3px rgba(130, 164, 128, 0.12); }
-.document-meta { gap: 9px; margin-left: 40px; flex: 1; }
+.document-meta { gap: 9px; min-width: 0; margin-left: 24px; flex: 1; }
 .document-kicker, .eyebrow, .rail-label, .context-label { font-size: 9px; letter-spacing: 0.16em; font-weight: 700; color: #9aa49f; }
 .document-meta strong { font-family: "DM Sans", sans-serif; font-size: 13px; font-weight: 500; color: #eee8db; }
 .document-size { padding-left: 9px; border-left: 1px solid rgba(227, 213, 187, 0.17); color: #7e8b86; font: 11px "IBM Plex Mono", monospace; }
+.working-file-add, .working-file-close { display: grid; place-items: center; border: 0; cursor: pointer; }
+.working-file-add { flex: 0 0 auto; width: 28px; height: 28px; color: #c7d0ca; border: 1px solid rgba(227,213,187,0.22); border-radius: 5px; background: rgba(245,240,229,0.04); transition: color 180ms ease-out, border-color 180ms ease-out, background 180ms ease-out, transform 160ms ease-out; }
+.working-file-add:hover:not(:disabled) { color: #fff8ec; border-color: rgba(228,81,59,0.65); background: rgba(228,81,59,0.12); }
+.working-file-add:active:not(:disabled) { transform: scale(0.96); }
+.working-file-add:disabled { opacity: 0.35; cursor: not-allowed; }
+.working-file-tabs { display: flex; align-items: center; min-width: 0; max-width: min(380px, 31vw); gap: 3px; }
+.working-file-tab { display: inline-flex; align-items: center; min-width: 0; max-width: 150px; height: 30px; padding: 0 7px 0 9px; overflow: hidden; color: #aeb7b1; border: 1px solid transparent; border-radius: 5px; background: transparent; font: 500 12px "DM Sans", "Noto Sans TC", sans-serif; text-overflow: ellipsis; white-space: nowrap; cursor: pointer; transition: color 180ms ease-out, border-color 180ms ease-out, background 180ms ease-out; }
+.working-file-tab:hover { color: #f2ece0; background: rgba(245,240,229,0.06); }
+.working-file-tab.is-active { max-width: 190px; color: #eee8db; border-color: rgba(227,213,187,0.15); background: rgba(245,240,229,0.055); }
+.working-file-tab .document-name-input { width: 100%; min-width: 74px; padding: 2px 0; }
+.working-file-close { flex: 0 0 auto; width: 18px; height: 18px; margin-left: 3px; color: #83908a; border-radius: 4px; background: transparent; font-size: 15px; line-height: 1; }
+.working-file-close:hover { color: #fff8ec; background: rgba(228,81,59,0.24); }
 .top-actions { gap: 8px; }
 .top-divider { width: 1px; height: 21px; margin: 0 5px; background: rgba(227, 213, 187, 0.17); }
 .icon-button, .ghost-button, .secondary-button, .primary-button, .link-button, .tool-button, .swatch { border: 0; cursor: pointer; transition: transform 160ms ease-out, background 180ms ease-out, color 180ms ease-out, border-color 180ms ease-out, opacity 180ms ease-out; }
