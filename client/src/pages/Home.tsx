@@ -1717,7 +1717,7 @@ export default function Home() {
 
   const createWorkingFile = async () => {
     if (workingFilesRef.current.length >= MAX_WORKING_FILES) {
-      toast.info(tr("最多可同時開啟 3 個 Working File", "You can open up to 3 Working Files"));
+      toast.info(tr("最多可同時開啟 3 個工作檔", "You can open up to 3 Working Files"));
       return;
     }
     const nextFiles = writeWorkingFileSnapshot();
@@ -1760,7 +1760,7 @@ export default function Home() {
     event.stopPropagation();
     const currentFiles = writeWorkingFileSnapshot();
     if (currentFiles.length <= 1) {
-      toast.info(tr("至少保留一個 Working File", "Keep at least one Working File open"));
+      toast.info(tr("至少保留一個工作檔", "Keep at least one Working File open"));
       return;
     }
     const closingIndex = currentFiles.findIndex((file) => file.id === workingFileId);
@@ -3632,13 +3632,13 @@ export default function Home() {
             className="working-file-add"
             onClick={() => void createWorkingFile()}
             disabled={!isProjectHydratedRef.current || workingFiles.length >= MAX_WORKING_FILES}
-            title={tr("新增 Working File", "New Working File")}
-            aria-label={tr("新增 Working File", "New Working File")}
+            title={tr("新增工作檔", "New Working File")}
+            aria-label={tr("新增工作檔", "New Working File")}
           >
             <Plus size={15} />
           </button>
-          <span className="document-kicker">WORKING FILE</span>
-          <div className="working-file-tabs" aria-label={tr("Working File 切換", "Working File switcher")}>
+          <span className="document-kicker">{isEnglish ? "WORKING FILE" : "工作檔"}</span>
+          <div className="working-file-tabs" aria-label={tr("工作檔切換", "Working File switcher")}>
             {workingFiles.length ? workingFiles.map((file) => {
               const isActive = file.id === activeWorkingFileId;
               return isActive ? (
@@ -3658,7 +3658,7 @@ export default function Home() {
                     aria-label={isEnglish ? "Document name" : "文件名稱"}
                   />
                   {workingFiles.length > 1 && (
-                    <button type="button" className="working-file-close" onClick={(event) => void closeWorkingFile(event, file.id)} aria-label={tr("關閉 Working File", "Close Working File")}>
+                    <button type="button" className="working-file-close" onClick={(event) => void closeWorkingFile(event, file.id)} aria-label={tr("關閉工作檔", "Close Working File")}>
                       <span>×</span>
                     </button>
                   )}
@@ -4050,14 +4050,14 @@ export default function Home() {
                           {stroke.points.length === 1 ? (
                             <>
                               {isBrushStroke ? <ellipse cx={stroke.points[0].x} cy={stroke.points[0].y} rx={stroke.size * 0.66} ry={stroke.size * 0.5} fill={stroke.color} opacity={(stroke.opacity / 100) * 0.44} /> : <circle cx={stroke.points[0].x} cy={stroke.points[0].y} r={strokeWidth / 2} fill={stroke.color} opacity={isPencilStroke ? (stroke.opacity / 100) * 0.56 : stroke.opacity / 100} />}
-                              <circle className="stroke-hit-area" cx={stroke.points[0].x} cy={stroke.points[0].y} r={Math.max(12, strokeWidth)} />
+                              {isStrokeSelectable && <circle className="stroke-hit-area" cx={stroke.points[0].x} cy={stroke.points[0].y} r={Math.max(12, strokeWidth)} />}
                             </>
                           ) : (
                             <>
                               {!isBrushStroke && <path className="stroke-visible" d={smoothPath} fill="none" stroke={stroke.color} strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round" opacity={isPencilStroke ? (stroke.opacity / 100) * 0.56 : stroke.opacity / 100} />}
                               {isPencilStroke && [-0.85, 0.7].map((offset, index) => <path key={`grain-${index}`} d={smoothPath} transform={`translate(${offset} ${index === 0 ? 0.45 : -0.45})`} fill="none" stroke={stroke.color} strokeWidth={Math.max(0.65, stroke.size * 0.14)} strokeLinecap="round" strokeLinejoin="round" strokeDasharray={`${Math.max(0.8, stroke.size * 0.09)} ${Math.max(1.8, stroke.size * 0.24)}`} opacity={(stroke.opacity / 100) * (index === 0 ? 0.26 : 0.19)} />)}
                               {isBrushStroke && brushStamps.map((stamp, index) => <g key={`brush-stamp-${index}`} transform={`translate(${stamp.x} ${stamp.y}) rotate(${(stamp.angle * 180) / Math.PI}) scale(${stamp.scale})`}><ellipse cx="0" cy="0" rx={stroke.size * 0.66} ry={stroke.size * 0.5} fill={stroke.color} opacity={(stroke.opacity / 100) * (index % 4 === 0 ? 0.31 : 0.36)} /><ellipse cx={stroke.size * 0.06} cy={-stroke.size * 0.32} rx={stroke.size * 0.48} ry={Math.max(0.6, stroke.size * 0.055)} fill={stroke.color} opacity={(stroke.opacity / 100) * 0.08} /><ellipse cx={stroke.size * 0.06} cy={stroke.size * 0.32} rx={stroke.size * 0.48} ry={Math.max(0.6, stroke.size * 0.055)} fill={stroke.color} opacity={(stroke.opacity / 100) * 0.08} /></g>)}
-                              <path className="stroke-hit-area" d={smoothPath} fill="none" strokeWidth={Math.max(18, strokeWidth + 12)} strokeLinecap="round" strokeLinejoin="round" />
+                              {isStrokeSelectable && <path className="stroke-hit-area" d={smoothPath} fill="none" strokeWidth={Math.max(18, strokeWidth + 12)} strokeLinecap="round" strokeLinejoin="round" />}
                             </>
                           )}
                         </g>
