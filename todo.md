@@ -205,6 +205,7 @@
 - [x] 恢復 0px 收合的介紹文字顯示，並改為與頁尾版權相同字級
 - [x] 以使用者提供的新繁中與英文文案完整取代頁尾原有介紹
 - [x] 將頁尾介紹標籤改為「開發者的話」與 A Note from the Developer
+- [x] 在桌面版左下角加入 Ko-fi 浮動抖內按鈕，手機版不顯示
 - [x] 建立英文 `/en` 路由與英文介面字串
 - [x] 移除動態 SEO 覆寫，讓繁中與英文入口 HTML 的 title 與 description 保持生效
 - [x] 新增中英文動態 title、description 與 lang 設定

@@ -401,6 +401,12 @@ input[type="range"]::-moz-range-thumb { width: 11px; height: 11px; border: 2px s
   .paint-layer-panel { top: 65px; right: 12px; width: 145px; }
   .workspace-footer { padding-left: 14px; padding-right: 14px; }
   .footer-note { display: none; }
+  .floatingchat-container-wrap,
+  .floatingchat-container-wrap-mobi,
+  .floating-chat-kofi-popup-iframe,
+  .floating-chat-kofi-popup-iframe-mobi,
+  .floating-chat-kofi-popup-iframe-notice,
+  .floating-chat-kofi-popup-iframe-notice-mobi { display: none !important; }
 }
 @media (max-width: 560px) {
   .topbar { padding: 0 10px; }

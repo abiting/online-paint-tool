@@ -59,6 +59,13 @@ type CropHandleAxis = ShapeResizeAxis | "move";
 type Locale = "zh-Hant" | "en";
 type MaterialType = "stroke" | "image" | "shape" | "text";
 type DesktopToolPanel = DesktopCreativeTool | "object";
+type KofiWidgetOverlay = {
+  draw: (pageId: string, configuration: Record<string, string>) => void;
+};
+type KofiWindow = Window & typeof globalThis & {
+  kofiWidgetOverlay?: KofiWidgetOverlay;
+  __abiPaintKofiMounted?: boolean;
+};
 
 const localeCopy = {
   "zh-Hant": {
@@ -786,6 +793,44 @@ export default function Home() {
   const copy = localeCopy[locale];
   const isEnglish = locale === "en";
   const tr = (zh: string, en: string) => (isEnglish ? en : zh);
+
+  useEffect(() => {
+    const desktopQuery = window.matchMedia("(min-width: 768px)");
+    const kofiWindow = window as KofiWindow;
+    let isDisposed = false;
+
+    const initializeKofi = () => {
+      if (isDisposed || !desktopQuery.matches || kofiWindow.__abiPaintKofiMounted || !kofiWindow.kofiWidgetOverlay) return;
+
+      kofiWindow.kofiWidgetOverlay.draw("abiting168", {
+        type: "floating-chat",
+        "floating-chat.donateButton.text": "Donate",
+        "floating-chat.donateButton.background-color": "#348f37",
+        "floating-chat.donateButton.text-color": "#fff",
+      });
+      kofiWindow.__abiPaintKofiMounted = true;
+    };
+
+    if (desktopQuery.matches && kofiWindow.kofiWidgetOverlay) {
+      initializeKofi();
+    } else if (desktopQuery.matches) {
+      const existingScript = document.getElementById("abipaint-kofi-widget-script") as HTMLScriptElement | null;
+      if (existingScript) {
+        existingScript.addEventListener("load", initializeKofi, { once: true });
+      } else {
+        const script = document.createElement("script");
+        script.id = "abipaint-kofi-widget-script";
+        script.src = "https://storage.ko-fi.com/cdn/scripts/overlay-widget.js";
+        script.async = true;
+        script.onload = initializeKofi;
+        document.body.appendChild(script);
+      }
+    }
+
+    return () => {
+      isDisposed = true;
+    };
+  }, []);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const lastPointRef = useRef<CanvasPoint | null>(null);
