@@ -3816,7 +3816,7 @@ export default function Home() {
                 <button type="button" className="faq-close" onClick={() => setIsEasterEggOpen(false)} aria-label={tr("關閉彩蛋", "Close surprise")}><ChevronDown size={16} /></button>
               </header>
               <div className="easter-egg-content">
-                <img src="https://coai.abiting.cc/wp-content/uploads/2026/08/IMG_5516-scaled.jpeg" alt="線上圖片尺寸修改" loading="lazy" decoding="async" />
+                <img src="https://coai.abiting.cc/wp-content/uploads/2026/08/Bazaart_FBDC2594-967A-4E63-B52D-0B174FF3D65A.jpeg" alt="線上圖片尺寸修改" loading="lazy" decoding="async" />
                 <p>{isEnglish ? "August 16, 2026. Abi, a nine-year-old white-and-tabby cat. 😼" : "2026 年 8 月 16 日，白底虎斑貓 Abi 今年九歲 😼"}</p>
               </div>
             </section>
