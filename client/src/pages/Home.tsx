@@ -49,6 +49,7 @@ import {
 import { toast } from "sonner";
 import { jsPDF } from "jspdf";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 
 type Tool = "brush" | "eraser" | "fill" | "text" | "shape" | "retouch" | "move" | "crop";
 type DesktopCreativeTool = Extract<Tool, "brush" | "shape" | "text">;
@@ -78,6 +79,12 @@ const localeCopy = {
     project: "檔案",
     exportProject: "匯出專案",
     importProject: "匯入專案",
+    resetWorkingFile: "全部重置",
+    resetWorkingFileTitle: "確定要清空目前工作檔嗎？",
+    resetWorkingFileDescription: "這會移除目前 Working File 的圖片、文字、圖形、筆觸與圖層，並還原為空白畫布。其他工作檔不受影響。",
+    cancel: "取消",
+    confirmResetWorkingFile: "清空目前工作檔",
+    workingFileReset: "目前工作檔已重置",
     exportPng: "匯出 PNG",
     exportJpg: "匯出 JPG",
     exportPdf: "匯出 PDF",
@@ -140,6 +147,12 @@ const localeCopy = {
     project: "File",
     exportProject: "Export project",
     importProject: "Import project",
+    resetWorkingFile: "Reset all",
+    resetWorkingFileTitle: "Clear the current Working File?",
+    resetWorkingFileDescription: "This removes images, text, shapes, strokes, and layers from the current Working File and restores a blank canvas. Other Working Files will not be affected.",
+    cancel: "Cancel",
+    confirmResetWorkingFile: "Clear current file",
+    workingFileReset: "Current Working File reset",
     exportPng: "Export PNG",
     exportJpg: "Export JPG",
     exportPdf: "Export PDF",
@@ -1101,6 +1114,7 @@ export default function Home() {
   const [imageEditingId, setImageEditingId] = useState<string | null>(null);
   const [cropDraft, setCropDraft] = useState<(ImageCrop & { imageId: string }) | null>(null);
   const [selectedStrokeId, setSelectedStrokeId] = useState<string | null>(null);
+  const [resetWorkingFileDialogOpen, setResetWorkingFileDialogOpen] = useState(false);
   const [shapeKind, setShapeKind] = useState<ShapeKind>("rectangle");
   const [shapeFill, setShapeFill] = useState(BRAND_RED);
   const [shapeOutline, setShapeOutline] = useState("#FFFDF8");
@@ -1721,6 +1735,24 @@ export default function Home() {
       persistWorkspace(filesWithNew, nextFile.id);
     } finally {
       isApplyingWorkingFileRef.current = false;
+    }
+  };
+
+  const resetCurrentWorkingFile = async () => {
+    const currentId = activeWorkingFileIdRef.current;
+    if (!currentId) return;
+    const currentIndex = Math.max(0, workingFilesRef.current.findIndex((file) => file.id === currentId));
+    const blankProject = createBlankProject(currentIndex + 1);
+    const nextFiles = workingFilesRef.current.map((file) => file.id === currentId ? { ...file, project: blankProject } : file);
+    syncWorkingFiles(nextFiles);
+    isApplyingWorkingFileRef.current = true;
+    try {
+      await applyProjectSnapshot(blankProject);
+      persistWorkspace(nextFiles, currentId);
+      toast.success(copy.workingFileReset);
+    } finally {
+      isApplyingWorkingFileRef.current = false;
+      setResetWorkingFileDialogOpen(false);
     }
   };
 
@@ -3669,6 +3701,7 @@ export default function Home() {
             <DropdownMenuContent align="end" className="export-menu-content">
               <DropdownMenuItem onSelect={() => projectImportInputRef.current?.click()}><Upload size={15} /><span>{copy.importProject}</span></DropdownMenuItem>
               <DropdownMenuItem onSelect={exportProject}><Download size={15} /><span>{copy.exportProject}</span></DropdownMenuItem>
+              <DropdownMenuItem className="project-reset-menu-item" onSelect={() => setResetWorkingFileDialogOpen(true)}><Trash2 size={15} /><span>{copy.resetWorkingFile}</span></DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
           <button type="button" className="secondary-button" onClick={() => fileInputRef.current?.click()} title={copy.importImage} aria-label={copy.importImage}>
@@ -4425,6 +4458,18 @@ export default function Home() {
         </aside>
       </div>
       <span className="app-version-corner" aria-label="AbiPaint version 1.0.0">v1.0.0</span>
+      <AlertDialog open={resetWorkingFileDialogOpen} onOpenChange={setResetWorkingFileDialogOpen}>
+        <AlertDialogContent className="border-[rgba(228,81,59,0.56)] bg-[#24221d] text-[#f5f0e5]">
+          <AlertDialogHeader>
+            <AlertDialogTitle>{copy.resetWorkingFileTitle}</AlertDialogTitle>
+            <AlertDialogDescription className="text-[#b8b8af]">{copy.resetWorkingFileDescription}</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>{copy.cancel}</AlertDialogCancel>
+            <AlertDialogAction className="bg-[#b72f34] text-white hover:bg-[#d54045]" onClick={() => void resetCurrentWorkingFile()}>{copy.confirmResetWorkingFile}</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </main>
   );
 }

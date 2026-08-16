@@ -300,6 +300,8 @@ kbd { min-width: 19px; padding: 3px 4px; text-align: center; color: #aab1aa; bac
 .product-footer-meta { flex: 0 0 auto; margin-left: auto; }
 .product-copyright { margin: 0; color: #66716d; font: 9px "IBM Plex Mono", monospace; white-space: nowrap; }
 .app-version-corner { position: fixed; z-index: 16; right: 13px; bottom: 10px; color: rgba(142, 152, 146, 0.56); pointer-events: none; font: 8px "IBM Plex Mono", monospace; letter-spacing: 0.08em; }
+.project-reset-menu-item { margin-top: 5px; color: #e57b72 !important; border-top: 1px solid rgba(228,81,59,0.22); border-radius: 0; }
+.project-reset-menu-item:hover, .project-reset-menu-item:focus { color: #fff6ea !important; background: rgba(183,47,52,0.26) !important; }
 .product-copyright a { color: #a6aca4; text-decoration: none; border-bottom: 1px solid rgba(228,81,59,0.42); transition: color 160ms var(--ease-out), border-color 160ms var(--ease-out); }
 .product-copyright a:hover { color: #f0e8d8; border-color: #e4513b; }
 
