@@ -4217,7 +4217,6 @@ export default function Home() {
             </div>
             <div className="product-footer-meta">
               <p className="product-copyright">Copyright © 2026 <a href={isEnglish ? "/en" : "/"}>AbiPaint</a></p>
-              <span className="product-version" aria-label="AbiPaint version 1.0.0">v1.0.0</span>
             </div>
           </footer>
 
@@ -4425,6 +4424,7 @@ export default function Home() {
           </div>
         </aside>
       </div>
+      <span className="app-version-corner" aria-label="AbiPaint version 1.0.0">v1.0.0</span>
     </main>
   );
 }
