@@ -12,6 +12,7 @@ import {
   Check,
   ChevronDown,
   Circle,
+  Crop,
   Download,
   Eraser,
   GripVertical,
@@ -42,7 +43,6 @@ import {
   WandSparkles,
 } from "lucide-react";
 import { toast } from "sonner";
-import { useSeo } from "@/hooks/useSeo";
 
 type Tool = "brush" | "eraser" | "fill" | "text" | "shape" | "retouch" | "move";
 type DesktopCreativeTool = Extract<Tool, "brush" | "shape" | "text">;
@@ -153,6 +153,7 @@ type CanvasPoint = {
 
 type TextLayer = {
   id: string;
+  paintLayerId: string;
   text: string;
   x: number;
   y: number;
@@ -169,6 +170,7 @@ type TextLayer = {
 
 type ShapeLayer = {
   id: string;
+  paintLayerId: string;
   kind: ShapeKind;
   x: number;
   y: number;
@@ -193,6 +195,7 @@ type ShapeLayer = {
 
 type ImageLayer = {
   id: string;
+  paintLayerId: string;
   name: string;
   src: string;
   x: number;
@@ -204,6 +207,14 @@ type ImageLayer = {
   exposure: number;
   contrast: number;
   saturation: number;
+  crop?: ImageCrop;
+};
+
+type ImageCrop = {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
 };
 
 type BrushStroke = {
@@ -270,6 +281,7 @@ const makeId = (prefix = "layer") => `${prefix}-${Date.now()}-${Math.floor(Math.
 const STAR_POINTS = "50,4 61,37 96,38 68,59 78,94 50,74 22,94 32,59 4,38 39,37";
 const TRIANGLE_POINTS = "50,5 94,90 6,90";
 const PENTAGON_POINTS = "50,4 97,38 79,94 21,94 3,38";
+const FULL_IMAGE_CROP: ImageCrop = { x: 0, y: 0, width: 1, height: 1 };
 const SHAPE_LABELS: Record<ShapeKind, string> = {
   rectangle: "方塊",
   circle: "圓形",
@@ -702,7 +714,6 @@ export default function Home() {
   const copy = localeCopy[locale];
   const isEnglish = locale === "en";
   const tr = (zh: string, en: string) => (isEnglish ? en : zh);
-  useSeo({ title: copy.title, description: copy.description, lang: locale, canonical: copy.canonical });
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const lastPointRef = useRef<CanvasPoint | null>(null);
@@ -788,6 +799,8 @@ export default function Home() {
   const [editingTextId, setEditingTextId] = useState<string | null>(null);
   const [selectedShapeId, setSelectedShapeId] = useState<string | null>(null);
   const [selectedImageId, setSelectedImageId] = useState<string | null>(null);
+  const [imageEditingId, setImageEditingId] = useState<string | null>(null);
+  const [cropDraft, setCropDraft] = useState<(ImageCrop & { imageId: string }) | null>(null);
   const [selectedStrokeId, setSelectedStrokeId] = useState<string | null>(null);
   const [shapeKind, setShapeKind] = useState<ShapeKind>("rectangle");
   const [shapeFill, setShapeFill] = useState(BRAND_RED);
@@ -845,6 +858,10 @@ export default function Home() {
     () => paintLayers.find((layer) => layer.id === activePaintLayerId) ?? paintLayers[0] ?? null,
     [activePaintLayerId, paintLayers],
   );
+  const isPaintLayerLocked = useCallback(
+    (paintLayerId?: string) => paintLayers.find((layer) => layer.id === (paintLayerId ?? BASE_PAINT_LAYER_ID))?.locked ?? false,
+    [paintLayers],
+  );
   const activeAdjustmentValues: Adjustments = selectedShape
     ? { exposure: selectedShape.exposure ?? 0, contrast: selectedShape.contrast ?? 0, saturation: selectedShape.saturation ?? 100, opacity: selectedShape.opacity }
     : selectedImage
@@ -862,6 +879,7 @@ export default function Home() {
   const syncLayers = useCallback((nextLayers: TextLayer[]) => {
     const normalizedLayers = nextLayers.map((layer) => ({
       ...layer,
+      paintLayerId: layer.paintLayerId ?? BASE_PAINT_LAYER_ID,
       exposure: layer.exposure ?? 0,
       contrast: layer.contrast ?? 0,
       saturation: layer.saturation ?? 100,
@@ -873,6 +891,7 @@ export default function Home() {
   const syncShapes = useCallback((nextShapes: ShapeLayer[]) => {
     const normalizedShapes = nextShapes.map((shape) => ({
       ...shape,
+      paintLayerId: shape.paintLayerId ?? BASE_PAINT_LAYER_ID,
       exposure: shape.exposure ?? 0,
       contrast: shape.contrast ?? 0,
       saturation: shape.saturation ?? 100,
@@ -885,10 +904,12 @@ export default function Home() {
   const syncImages = useCallback((nextImages: ImageLayer[]) => {
     const normalizedImages = nextImages.map((image) => ({
       ...image,
+      paintLayerId: image.paintLayerId ?? BASE_PAINT_LAYER_ID,
       exposure: image.exposure ?? 0,
       contrast: image.contrast ?? 0,
       saturation: image.saturation ?? 100,
       rotation: image.rotation ?? 0,
+      crop: image.crop ?? FULL_IMAGE_CROP,
     }));
     imagesRef.current = normalizedImages;
     setImages(normalizedImages);
@@ -915,6 +936,13 @@ export default function Home() {
 
   const togglePaintLayerLock = (id: string) => {
     setPaintLayers((current) => current.map((layer) => layer.id === id ? { ...layer, locked: !layer.locked } : layer));
+    const isLocking = !paintLayers.find((layer) => layer.id === id)?.locked;
+    if (!isLocking) return;
+    if (selectedText?.paintLayerId === id) setSelectedTextId(null);
+    if (selectedShape?.paintLayerId === id) setSelectedShapeId(null);
+    if (selectedImage?.paintLayerId === id) setSelectedImageId(null);
+    if (strokes.find((stroke) => stroke.id === selectedStrokeId)?.paintLayerId === id) setSelectedStrokeId(null);
+    if (layers.find((layer) => layer.id === editingTextId)?.paintLayerId === id) setEditingTextId(null);
   };
 
   const scheduleImages = useCallback((nextImages: ImageLayer[]) => {
@@ -1289,6 +1317,8 @@ export default function Home() {
         if (selectedTextId || selectedShapeId || selectedImageId || selectedStrokeId) {
           event.preventDefault();
           if (selectedTextId) deleteSelectedText(); else if (selectedShapeId) deleteSelectedShape(); else if (selectedImageId) deleteSelectedImage(); else {
+            const selectedStroke = strokesRef.current.find((stroke) => stroke.id === selectedStrokeId);
+            if (!selectedStroke || isPaintLayerLocked(selectedStroke.paintLayerId)) return;
             syncStrokes(strokesRef.current.filter((stroke) => stroke.id !== selectedStrokeId));
             setSelectedStrokeId(null);
             captureHistory();
@@ -1321,7 +1351,7 @@ export default function Home() {
     };
     window.addEventListener("keydown", handleShortcut);
     return () => window.removeEventListener("keydown", handleShortcut);
-  }, [captureHistory, selectedImageId, selectedShapeId, selectedStrokeId, selectedTextId, syncStrokes]);
+  }, [captureHistory, isPaintLayerLocked, selectedImageId, selectedShapeId, selectedStrokeId, selectedTextId, syncStrokes]);
 
   const drawStroke = (from: CanvasPoint, to: CanvasPoint) => {
     const context = canvasRef.current?.getContext("2d");
@@ -1432,11 +1462,16 @@ export default function Home() {
   };
 
   const addShape = (kind: ShapeKind = shapeKind) => {
+    if (activePaintLayer?.locked) {
+      toast.info(tr("目前圖層已鎖定，請先解除鎖定", "This layer is locked. Unlock it before adding artwork"));
+      return;
+    }
     const isSquareDefault = ["circle", "star", "heart", "pentagon"].includes(kind);
     const width = isSquareDefault ? 190 : 220;
     const height = isSquareDefault ? 190 : 150;
     const nextShape: ShapeLayer = {
       id: makeId("shape"),
+      paintLayerId: activePaintLayer?.id ?? BASE_PAINT_LAYER_ID,
       kind,
       x: (canvasSize.width - width) / 2,
       y: (canvasSize.height - height) / 2,
@@ -1469,8 +1504,13 @@ export default function Home() {
   };
 
   const addTextLayer = () => {
+    if (activePaintLayer?.locked) {
+      toast.info(tr("目前圖層已鎖定，請先解除鎖定", "This layer is locked. Unlock it before adding artwork"));
+      return;
+    }
     const draftLayer: TextLayer = {
       id: makeId(),
+      paintLayerId: activePaintLayer?.id ?? BASE_PAINT_LAYER_ID,
       text: tr("在這裡輸入文字", "Type here"),
       x: 0,
       y: 0,
@@ -1562,16 +1602,79 @@ export default function Home() {
 
   const updateTextLayer = (patch: Partial<TextLayer>) => {
     if (!selectedTextId) return;
+    const selectedLayer = layersRef.current.find((layer) => layer.id === selectedTextId);
+    if (!selectedLayer || isPaintLayerLocked(selectedLayer.paintLayerId)) return;
     const nextLayers = layersRef.current.map((layer) =>
       layer.id === selectedTextId ? { ...layer, ...patch } : layer,
     );
     syncLayers(nextLayers);
   };
 
+  const startImageEditing = () => {
+    if (!selectedImage || isPaintLayerLocked(selectedImage.paintLayerId)) return;
+    setImageEditingId(selectedImage.id);
+    setCropDraft(null);
+  };
+
+  const beginImageCrop = () => {
+    if (!selectedImage || imageEditingId !== selectedImage.id || isPaintLayerLocked(selectedImage.paintLayerId)) return;
+    const crop = selectedImage.crop ?? FULL_IMAGE_CROP;
+    setCropDraft({ imageId: selectedImage.id, ...crop });
+  };
+
+  const updateCropDraft = (patch: Partial<ImageCrop>) => {
+    setCropDraft((current) => {
+      if (!current) return current;
+      const next = { ...current, ...patch };
+      next.x = clamp(next.x, 0, 0.9);
+      next.y = clamp(next.y, 0, 0.9);
+      next.width = clamp(next.width, 0.1, 1 - next.x);
+      next.height = clamp(next.height, 0.1, 1 - next.y);
+      return next;
+    });
+  };
+
+  const applyImageCrop = async () => {
+    if (!cropDraft) return;
+    const image = imagesRef.current.find((item) => item.id === cropDraft.imageId);
+    if (!image || isPaintLayerLocked(image.paintLayerId)) return;
+    try {
+      const source = await loadImageElement(image.src);
+      const sourceWidth = Math.max(1, source.naturalWidth || source.width);
+      const sourceHeight = Math.max(1, source.naturalHeight || source.height);
+      const cropped = document.createElement("canvas");
+      cropped.width = Math.max(1, Math.round(sourceWidth * cropDraft.width));
+      cropped.height = Math.max(1, Math.round(sourceHeight * cropDraft.height));
+      const context = cropped.getContext("2d");
+      if (!context) return;
+      context.drawImage(source, Math.round(sourceWidth * cropDraft.x), Math.round(sourceHeight * cropDraft.y), cropped.width, cropped.height, 0, 0, cropped.width, cropped.height);
+      syncImages(imagesRef.current.map((item) => item.id === image.id ? {
+        ...item,
+        src: cropped.toDataURL("image/png"),
+        x: item.x + item.width * cropDraft.x,
+        y: item.y + item.height * cropDraft.y,
+        width: item.width * cropDraft.width,
+        height: item.height * cropDraft.height,
+        crop: FULL_IMAGE_CROP,
+      } : item));
+      setCropDraft(null);
+      setImageEditingId(null);
+      captureHistory();
+      toast.success(tr("圖片已裁切", "Image cropped"));
+    } catch {
+      toast.error(tr("圖片裁切失敗，請再試一次", "Image crop failed. Please try again"));
+    }
+  };
+
   const addTextCard = () => {
+    if (activePaintLayer?.locked) {
+      toast.info(tr("目前圖層已鎖定，請先解除鎖定", "This layer is locked. Unlock it before adding artwork"));
+      return;
+    }
     const anchorShape = selectedShapeId ? shapesRef.current.find((shape) => shape.id === selectedShapeId) : undefined;
     const nextLayer: TextLayer = {
       id: makeId("text"),
+      paintLayerId: activePaintLayer?.id ?? BASE_PAINT_LAYER_ID,
       text: "標題文字",
       x: anchorShape ? anchorShape.x + anchorShape.width / 2 - 90 : canvasSize.width * 0.16,
       y: anchorShape ? anchorShape.y + anchorShape.height / 2 - 32 : canvasSize.height * 0.18,
@@ -1623,6 +1726,7 @@ export default function Home() {
     const nextLayer: TextLayer = {
       ...(source ?? {
         id: makeId("text"),
+        paintLayerId: activePaintLayer?.id ?? BASE_PAINT_LAYER_ID,
         text: clipboardText,
         x: canvasSize.width * 0.2,
         y: canvasSize.height * 0.2,
@@ -1636,6 +1740,7 @@ export default function Home() {
         fontFamily: "Noto Sans TC" as TextLayer["fontFamily"],
       }),
       id: makeId("text"),
+      paintLayerId: activePaintLayer?.id ?? BASE_PAINT_LAYER_ID,
       text: clipboardText || source?.text || "貼上的文字",
       x: (source?.x ?? canvasSize.width * 0.2) + 24,
       y: (source?.y ?? canvasSize.height * 0.2) + 24,
@@ -1650,6 +1755,8 @@ export default function Home() {
 
   const deleteSelectedText = () => {
     if (!selectedTextId) return;
+    const selectedLayer = layersRef.current.find((layer) => layer.id === selectedTextId);
+    if (!selectedLayer || isPaintLayerLocked(selectedLayer.paintLayerId)) return;
     syncLayers(layersRef.current.filter((layer) => layer.id !== selectedTextId));
     setSelectedTextId(null);
     captureHistory();
@@ -1658,6 +1765,8 @@ export default function Home() {
 
   const updateShape = (patch: Partial<ShapeLayer>) => {
     if (!selectedShapeId) return;
+    const selectedLayer = shapesRef.current.find((shape) => shape.id === selectedShapeId);
+    if (!selectedLayer || isPaintLayerLocked(selectedLayer.paintLayerId)) return;
     const nextShapes = shapesRef.current.map((shape) =>
       shape.id === selectedShapeId ? { ...shape, ...patch } : shape,
     );
@@ -1666,6 +1775,8 @@ export default function Home() {
 
   const deleteSelectedShape = () => {
     if (!selectedShapeId) return;
+    const selectedLayer = shapesRef.current.find((shape) => shape.id === selectedShapeId);
+    if (!selectedLayer || isPaintLayerLocked(selectedLayer.paintLayerId)) return;
     syncShapes(shapesRef.current.filter((shape) => shape.id !== selectedShapeId));
     syncLayers(layersRef.current.map((layer) => (
       layer.anchorShapeId === selectedShapeId ? { ...layer, anchorShapeId: undefined } : layer
@@ -1677,6 +1788,8 @@ export default function Home() {
 
   const deleteSelectedImage = () => {
     if (!selectedImageId) return;
+    const selectedLayer = imagesRef.current.find((image) => image.id === selectedImageId);
+    if (!selectedLayer || isPaintLayerLocked(selectedLayer.paintLayerId)) return;
     syncImages(imagesRef.current.filter((image) => image.id !== selectedImageId));
     setSelectedImageId(null);
     captureHistory();
@@ -1848,32 +1961,53 @@ export default function Home() {
   const handleImport = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
+    if (activePaintLayer?.locked) {
+      toast.info(tr("目前圖層已鎖定，請先解除鎖定", "This layer is locked. Unlock it before importing an image"));
+      event.target.value = "";
+      return;
+    }
     const image = new Image();
     image.onload = () => {
       const canvas = canvasRef.current;
       if (!canvas) return;
-      const width = Math.max(1, image.naturalWidth);
-      const height = Math.max(1, image.naturalHeight);
-      const scaleX = width / canvasSize.width;
-      const scaleY = height / canvasSize.height;
-      const previousCanvas = document.createElement("canvas");
-      previousCanvas.width = canvas.width;
-      previousCanvas.height = canvas.height;
-      previousCanvas.getContext("2d")?.drawImage(canvas, 0, 0);
-      canvas.width = width;
-      canvas.height = height;
-      const canvasContext = canvas.getContext("2d");
-      if (canvasContext) {
-        canvasContext.fillStyle = PAPER;
-        canvasContext.fillRect(0, 0, width, height);
-        canvasContext.drawImage(previousCanvas, 0, 0, width, height);
+      const sourceWidth = Math.max(1, image.naturalWidth);
+      const sourceHeight = Math.max(1, image.naturalHeight);
+      const isFirstImportedImage = imagesRef.current.length === 0;
+      const targetCanvasWidth = isFirstImportedImage ? sourceWidth : canvasSize.width;
+      const targetCanvasHeight = isFirstImportedImage ? sourceHeight : canvasSize.height;
+      const fitScale = isFirstImportedImage ? 1 : Math.min(1, targetCanvasWidth / sourceWidth, targetCanvasHeight / sourceHeight);
+      const width = sourceWidth * fitScale;
+      const height = sourceHeight * fitScale;
+
+      if (isFirstImportedImage) {
+        const scaleX = targetCanvasWidth / canvasSize.width;
+        const scaleY = targetCanvasHeight / canvasSize.height;
+        const previousCanvas = document.createElement("canvas");
+        previousCanvas.width = canvas.width;
+        previousCanvas.height = canvas.height;
+        previousCanvas.getContext("2d")?.drawImage(canvas, 0, 0);
+        canvas.width = targetCanvasWidth;
+        canvas.height = targetCanvasHeight;
+        const canvasContext = canvas.getContext("2d");
+        if (canvasContext) {
+          canvasContext.fillStyle = PAPER;
+          canvasContext.fillRect(0, 0, targetCanvasWidth, targetCanvasHeight);
+          canvasContext.drawImage(previousCanvas, 0, 0, targetCanvasWidth, targetCanvasHeight);
+        }
+        syncLayers(layersRef.current.map((layer) => ({ ...layer, x: layer.x * scaleX, y: layer.y * scaleY, fontSize: layer.fontSize * Math.min(scaleX, scaleY) })));
+        syncShapes(shapesRef.current.map((shape) => ({ ...shape, x: shape.x * scaleX, y: shape.y * scaleY, width: shape.width * scaleX, height: shape.height * scaleY, outlineWidth: shape.outlineWidth * Math.min(scaleX, scaleY), shadowBlur: shape.shadowBlur * Math.min(scaleX, scaleY), shadowX: shape.shadowX * scaleX, shadowY: shape.shadowY * scaleY })));
+        syncImages(imagesRef.current.map((existing) => ({ ...existing, x: existing.x * scaleX, y: existing.y * scaleY, width: existing.width * scaleX, height: existing.height * scaleY })));
+        setCanvasSize({ width: targetCanvasWidth, height: targetCanvasHeight });
+        setFileMeta({ name: file.name, size: `${targetCanvasWidth} × ${targetCanvasHeight}` });
+        setDocumentNameDraft(file.name);
       }
       const nextImage: ImageLayer = {
         id: makeId("image"),
+        paintLayerId: activePaintLayer?.id ?? BASE_PAINT_LAYER_ID,
         name: file.name,
         src: image.src,
-        x: 0,
-        y: 0,
+        x: (targetCanvasWidth - width) / 2,
+        y: (targetCanvasHeight - height) / 2,
         width,
         height,
         rotation: 0,
@@ -1882,18 +2016,15 @@ export default function Home() {
         contrast: 0,
         saturation: 100,
       };
-      syncLayers(layersRef.current.map((layer) => ({ ...layer, x: layer.x * scaleX, y: layer.y * scaleY, fontSize: layer.fontSize * Math.min(scaleX, scaleY) })));
-      syncShapes(shapesRef.current.map((shape) => ({ ...shape, x: shape.x * scaleX, y: shape.y * scaleY, width: shape.width * scaleX, height: shape.height * scaleY, outlineWidth: shape.outlineWidth * Math.min(scaleX, scaleY), shadowBlur: shape.shadowBlur * Math.min(scaleX, scaleY), shadowX: shape.shadowX * scaleX, shadowY: shape.shadowY * scaleY })));
-      syncImages([...imagesRef.current.map((existing) => ({ ...existing, x: existing.x * scaleX, y: existing.y * scaleY, width: existing.width * scaleX, height: existing.height * scaleY })), nextImage]);
-      setCanvasSize({ width, height });
-      setFileMeta({ name: file.name, size: `${width} × ${height}` });
-      setDocumentNameDraft(file.name);
+      syncImages([...imagesRef.current, nextImage]);
       setSelectedImageId(nextImage.id);
       setSelectedTextId(null);
       setSelectedShapeId(null);
       setHasArtwork(true);
       captureHistory();
-      toast.success(`影像已加入畫布，解析度 ${width} × ${height}`);
+      toast.success(isFirstImportedImage
+        ? tr(`影像已加入畫布，解析度 ${targetCanvasWidth} × ${targetCanvasHeight}`, `Image added. Canvas set to ${targetCanvasWidth} × ${targetCanvasHeight}`)
+        : tr("影像已等比例置入既有畫布", "Image placed proportionally on the existing canvas"));
     };
     image.src = URL.createObjectURL(file);
     event.target.value = "";
@@ -2001,6 +2132,7 @@ export default function Home() {
 
   const handleTextPointerDown = (event: ReactPointerEvent<HTMLDivElement>, layer: TextLayer) => {
     event.stopPropagation();
+    if (isPaintLayerLocked(layer.paintLayerId)) return;
     if (editingTextId === layer.id) return;
     const point = getCanvasPoint(event.clientX, event.clientY);
     setSelectedTextId(layer.id);
@@ -2019,6 +2151,7 @@ export default function Home() {
   const handleShapePointerDown = (event: ReactPointerEvent<SVGSVGElement>, shape: ShapeLayer) => {
     event.stopPropagation();
     event.preventDefault();
+    if (isPaintLayerLocked(shape.paintLayerId)) return;
     if ((event.target as Element).classList.contains("shape-resize-handle")) return;
     event.currentTarget.setPointerCapture(event.pointerId);
     const point = getCanvasPoint(event.clientX, event.clientY);
@@ -2038,6 +2171,7 @@ export default function Home() {
   const handleShapeDoubleClick = (event: ReactMouseEvent<SVGSVGElement>, shape: ShapeLayer) => {
     event.stopPropagation();
     event.preventDefault();
+    if (isPaintLayerLocked(shape.paintLayerId)) return;
     setSelectedShapeId(shape.id);
     setSelectedTextId(null);
     setSelectedImageId(null);
@@ -2049,6 +2183,7 @@ export default function Home() {
   const handleStrokePointerDown = (event: ReactPointerEvent<SVGSVGElement>, stroke: BrushStroke) => {
     event.stopPropagation();
     event.preventDefault();
+    if (isPaintLayerLocked(stroke.paintLayerId)) return;
     event.currentTarget.setPointerCapture(event.pointerId);
     const point = getCanvasPoint(event.clientX, event.clientY);
     setSelectedStrokeId(stroke.id);
@@ -2064,6 +2199,7 @@ export default function Home() {
   const handleShapeResizePointerDown = (event: ReactPointerEvent<SVGRectElement | HTMLDivElement>, shape: ShapeLayer, axis: ShapeResizeAxis) => {
     event.stopPropagation();
     event.preventDefault();
+    if (isPaintLayerLocked(shape.paintLayerId)) return;
     event.currentTarget.setPointerCapture(event.pointerId);
     const point = getCanvasPoint(event.clientX, event.clientY);
     setSelectedShapeId(shape.id);
@@ -2086,6 +2222,7 @@ export default function Home() {
 
   const handleShapeRotatePointerDown = (event: ReactPointerEvent<SVGCircleElement | HTMLDivElement>, shape: ShapeLayer) => {
     event.stopPropagation();
+    if (isPaintLayerLocked(shape.paintLayerId)) return;
     event.currentTarget.setPointerCapture(event.pointerId);
     const point = getCanvasPoint(event.clientX, event.clientY);
     const centerX = shape.x + shape.width / 2;
@@ -2107,6 +2244,7 @@ export default function Home() {
 
   const handleImagePointerDown = (event: ReactPointerEvent<HTMLDivElement>, image: ImageLayer) => {
     event.stopPropagation();
+    if (isPaintLayerLocked(image.paintLayerId)) return;
     if ((event.target as Element).classList.contains("image-resize-handle") || (event.target as Element).classList.contains("image-rotation-handle")) return;
     event.preventDefault();
     event.currentTarget.setPointerCapture(event.pointerId);
@@ -2115,11 +2253,18 @@ export default function Home() {
     setSelectedImageId(image.id);
     setSelectedTextId(null);
     setSelectedShapeId(null);
+    if (imageEditingId !== image.id) {
+      setImageEditingId(null);
+      setCropDraft(null);
+      return;
+    }
     imageDragRef.current = { id: image.id, offsetX: point.x - image.x, offsetY: point.y - image.y };
   };
 
   const handleImageResizePointerDown = (event: ReactPointerEvent<HTMLDivElement>, image: ImageLayer, axis: ShapeResizeAxis) => {
     event.stopPropagation();
+    if (isPaintLayerLocked(image.paintLayerId)) return;
+    if (imageEditingId !== image.id) return;
     event.currentTarget.setPointerCapture(event.pointerId);
     const point = getCanvasPoint(event.clientX, event.clientY);
     setSelectedImageId(image.id);
@@ -2142,6 +2287,8 @@ export default function Home() {
 
   const handleImageRotatePointerDown = (event: ReactPointerEvent<HTMLDivElement>, image: ImageLayer) => {
     event.stopPropagation();
+    if (isPaintLayerLocked(image.paintLayerId)) return;
+    if (imageEditingId !== image.id) return;
     event.currentTarget.setPointerCapture(event.pointerId);
     const point = getCanvasPoint(event.clientX, event.clientY);
     const centerX = image.x + image.width / 2;
@@ -2845,7 +2992,7 @@ export default function Home() {
                   {images.map((image) => (
                     <div
                       key={image.id}
-                      className={`image-layer ${selectedImageId === image.id ? "is-selected" : ""} ${selectedImageId === image.id && (snapGuides.x !== null || snapGuides.y !== null) ? "is-snapped" : ""}`}
+                      className={`image-layer ${selectedImageId === image.id ? "is-selected" : ""} ${selectedImageId === image.id && (snapGuides.x !== null || snapGuides.y !== null) ? "is-snapped" : ""} ${isPaintLayerLocked(image.paintLayerId) ? "is-locked" : ""} ${imageEditingId === image.id ? "is-editing" : "is-passive"}`}
                       style={{
                         left: `${image.x}px`,
                         top: `${image.y}px`,
@@ -2865,7 +3012,8 @@ export default function Home() {
                       aria-label={`圖片素材：${image.name}`}
                     >
                       <img className="image-layer-content" src={image.src} alt={image.name} draggable={false} />
-                      {selectedImageId === image.id && (
+                      {cropDraft?.imageId === image.id && <div className="image-crop-preview" style={{ left: `${cropDraft.x * 100}%`, top: `${cropDraft.y * 100}%`, width: `${cropDraft.width * 100}%`, height: `${cropDraft.height * 100}%` }} />}
+                      {selectedImageId === image.id && imageEditingId === image.id && !isPaintLayerLocked(image.paintLayerId) && (
                         <>
                           <div className="image-resize-handle image-resize-handle-left" onPointerDown={(event) => handleImageResizePointerDown(event, image, "left")} />
                           <div className="image-resize-handle image-resize-handle-right" onPointerDown={(event) => handleImageResizePointerDown(event, image, "right")} />
@@ -2885,7 +3033,7 @@ export default function Home() {
                   {shapes.map((shape) => (
                     <svg
                       key={shape.id}
-                      className={`shape-layer ${selectedShapeId === shape.id ? "is-selected" : ""}`}
+                      className={`shape-layer ${selectedShapeId === shape.id ? "is-selected" : ""} ${isPaintLayerLocked(shape.paintLayerId) ? "is-locked" : ""}`}
                       viewBox="0 0 100 100"
                       preserveAspectRatio="none"
                       style={{
@@ -2914,7 +3062,7 @@ export default function Home() {
                       {shape.kind === "pentagon" && <polygon points={PENTAGON_POINTS} fill={shape.fill} stroke={shape.outline} strokeWidth={shape.outlineWidth * 0.8} strokeLinejoin="round" />}
                     </svg>
                   ))}
-                  {shapes.filter((shape) => shape.id === selectedShapeId).map((shape) => (
+                  {shapes.filter((shape) => shape.id === selectedShapeId && !isPaintLayerLocked(shape.paintLayerId)).map((shape) => (
                     <div
                       key={`${shape.id}-controls`}
                       className="shape-control-layer"
@@ -2947,7 +3095,7 @@ export default function Home() {
                   {layers.map((layer) => (
                     <div
                       key={layer.id}
-                      className={`text-layer ${selectedTextId === layer.id ? "is-selected" : ""}`}
+                      className={`text-layer ${selectedTextId === layer.id ? "is-selected" : ""} ${isPaintLayerLocked(layer.paintLayerId) ? "is-locked" : ""}`}
                       ref={(element) => {
                         if (element) textLayerElementsRef.current.set(layer.id, element);
                         else textLayerElementsRef.current.delete(layer.id);
@@ -2963,10 +3111,11 @@ export default function Home() {
                         filter: makeAdjustmentFilter(layer.exposure, layer.contrast, layer.saturation),
                       }}
                       onPointerDown={(event) => handleTextPointerDown(event, layer)}
-                      contentEditable={editingTextId === layer.id}
+                      contentEditable={editingTextId === layer.id && !isPaintLayerLocked(layer.paintLayerId)}
                       suppressContentEditableWarning
                       onDoubleClick={(event) => {
                         event.stopPropagation();
+                        if (isPaintLayerLocked(layer.paintLayerId)) return;
                         setSelectedTextId(layer.id);
                         setSelectedShapeId(null);
                         setSelectedImageId(null);
@@ -3097,7 +3246,11 @@ export default function Home() {
               <div className="inspector-section image-inspector-section">
                 <SectionTitle eyebrow="IMAGE LAYER" title="圖片素材" action={<ImagePlus size={15} className="section-icon" />} />
                 <div className="image-layer-meta"><span>檔案</span><strong>{selectedImage.name}</strong></div>
-                <p className="empty-inspector">可在畫布上拖曳圖片移動，使用邊角控制點拉伸，或拖曳旋轉控制點調整角度。</p>
+                {!imageEditingId && <p className="empty-inspector">圖片目前鎖定，點擊下方按鈕後才可移動、縮放、旋轉或裁切。</p>}
+                {imageEditingId === selectedImage.id && !cropDraft && <p className="empty-inspector">可在畫布上拖曳圖片移動，使用邊角控制點縮放，或開啟裁切模式保留所需範圍。</p>}
+                {!imageEditingId && <button type="button" className="secondary-button full-width" onClick={startImageEditing}><ImagePlus size={14} /> 開始編輯圖片</button>}
+                {imageEditingId === selectedImage.id && !cropDraft && <><button type="button" className="secondary-button full-width" onClick={beginImageCrop}><Crop size={14} /> 裁切圖片</button><button type="button" className="secondary-button full-width" onClick={() => setImageEditingId(null)}><Lock size={14} /> 完成編輯並鎖定</button></>}
+                {cropDraft?.imageId === selectedImage.id && <><RangeControl label="裁切左側" value={Math.round(cropDraft.x * 100)} min={0} max={90} suffix="%" onChange={(value) => updateCropDraft({ x: value / 100 })} /><RangeControl label="裁切上方" value={Math.round(cropDraft.y * 100)} min={0} max={90} suffix="%" onChange={(value) => updateCropDraft({ y: value / 100 })} /><RangeControl label="裁切寬度" value={Math.round(cropDraft.width * 100)} min={10} max={Math.max(10, Math.round((1 - cropDraft.x) * 100))} suffix="%" onChange={(value) => updateCropDraft({ width: value / 100 })} /><RangeControl label="裁切高度" value={Math.round(cropDraft.height * 100)} min={10} max={Math.max(10, Math.round((1 - cropDraft.y) * 100))} suffix="%" onChange={(value) => updateCropDraft({ height: value / 100 })} /><button type="button" className="primary-button full-width" onClick={() => void applyImageCrop()}><Check size={14} /> 套用裁切</button><button type="button" className="secondary-button full-width" onClick={cancelImageCrop}>取消裁切</button></>}
                 <button type="button" className="secondary-button full-width" onClick={deleteSelectedImage}><Trash2 size={14} /> 移除圖片</button>
               </div>
             )}
