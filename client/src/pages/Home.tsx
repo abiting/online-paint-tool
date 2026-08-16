@@ -184,7 +184,7 @@ const localeCopy = {
 const developerWorks = [
   { href: "https://coai.abiting.cc/japan-address-generator", zh: "日本地址產生器", en: "Japan Address Generator" },
   { href: "https://coai.abiting.cc/blank-line-generator", zh: "空白符號產生器", en: "Blank Line Generator" },
-  { href: "https://coai.abiting.cc/simplified-to-traditional", zh: "繁簡中文轉換器", en: "Chinese Traditional/Simplified Converter" },
+  { href: "https://coai.abiting.cc/traditional_simplified_converter", zh: "繁簡中文轉換器", en: "Chinese Traditional/Simplified Converter" },
   { href: "https://abitingpokedex.com", zh: "寶可夢能力點數計算器", en: "Pokémon Stat Points Calculator" },
   { href: "https://coai.abiting.cc", zh: "名偵探柯南集數列表", en: "List of Detective Conan episodes" },
 ] as const;
