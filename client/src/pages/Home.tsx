@@ -127,7 +127,7 @@ const localeCopy = {
     languageLabel: "切換至繁體中文",
     creative: "CREATIVE",
     select: "Select",
-    brush: "Brush",
+    brush: "Brushes",
     shape: "Shapes",
     text: "Text",
     settings: "Settings",
@@ -3174,7 +3174,7 @@ export default function Home() {
                       <span>{tr("鉛筆", "Pencil")}</span>
                     </button>
                     <button type="button" className={`brush-choice ${brushKind === "brush" ? "is-active" : ""}`} onClick={() => setBrushKind("brush")}>
-                      <span>{tr("毛筆", "Brush")}</span>
+                      <span>{tr("毛筆", "Ink")}</span>
                     </button>
                   </div>
                   <div className="color-row">
