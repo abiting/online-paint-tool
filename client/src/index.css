@@ -297,7 +297,9 @@ kbd { min-width: 19px; padding: 3px 4px; text-align: center; color: #aab1aa; bac
 .product-footnote { max-width: min(740px, 78%); margin: 0; }
 .product-footnote-label { color: rgba(226,213,187,0.48); font: 9px "IBM Plex Mono", monospace; letter-spacing: 0.12em; }
 .product-footnote p { margin: 4px 0 0; color: #7f8882; font: 9px "IBM Plex Mono", "Noto Sans TC", monospace; line-height: 1.58; }
-.product-copyright { flex: 0 0 auto; margin: 0 0 1px auto; color: #66716d; font: 9px "IBM Plex Mono", monospace; white-space: nowrap; }
+.product-footer-meta { flex: 0 0 auto; display: flex; flex-direction: column; align-items: flex-end; gap: 3px; margin-left: auto; }
+.product-copyright { margin: 0; color: #66716d; font: 9px "IBM Plex Mono", monospace; white-space: nowrap; }
+.product-version { color: rgba(142, 152, 146, 0.5); font: 8px "IBM Plex Mono", monospace; letter-spacing: 0.08em; }
 .product-copyright a { color: #a6aca4; text-decoration: none; border-bottom: 1px solid rgba(228,81,59,0.42); transition: color 160ms var(--ease-out), border-color 160ms var(--ease-out); }
 .product-copyright a:hover { color: #f0e8d8; border-color: #e4513b; }
 
