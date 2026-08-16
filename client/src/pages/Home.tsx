@@ -44,7 +44,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 
-type Tool = "brush" | "eraser" | "fill" | "text" | "shape" | "retouch" | "move";
+type Tool = "brush" | "eraser" | "fill" | "text" | "shape" | "retouch" | "move" | "crop";
 type DesktopCreativeTool = Extract<Tool, "brush" | "shape" | "text">;
 type BrushKind = "oil" | "pencil" | "brush";
 type ShapeKind = "rectangle" | "circle" | "star" | "heart" | "triangle" | "pentagon";
@@ -764,6 +764,7 @@ export default function Home() {
     startAngle: number;
     startRotation: number;
   } | null>(null);
+  const cropDragRef = useRef<{ imageId: string; startX: number; startY: number } | null>(null);
   const strokeDragRef = useRef<{ id: string; offsetX: number; offsetY: number } | null>(null);
   const drawingStrokeRef = useRef<BrushStroke | null>(null);
   const historyRef = useRef<HistoryItem[]>([]);
@@ -1343,6 +1344,11 @@ export default function Home() {
         void pasteSelection();
         return;
       }
+      if (key === "escape" && cropDraft) {
+        event.preventDefault();
+        cancelImageCrop();
+        return;
+      }
       if (key === "b") setTool("brush");
       if (key === "e") setTool("eraser");
       if (key === "f") setTool("fill");
@@ -1351,7 +1357,7 @@ export default function Home() {
     };
     window.addEventListener("keydown", handleShortcut);
     return () => window.removeEventListener("keydown", handleShortcut);
-  }, [captureHistory, isPaintLayerLocked, selectedImageId, selectedShapeId, selectedStrokeId, selectedTextId, syncStrokes]);
+  }, [captureHistory, cropDraft, isPaintLayerLocked, selectedImageId, selectedShapeId, selectedStrokeId, selectedTextId, syncStrokes]);
 
   const drawStroke = (from: CanvasPoint, to: CanvasPoint) => {
     const context = canvasRef.current?.getContext("2d");
@@ -1636,6 +1642,7 @@ export default function Home() {
 
   const cancelImageCrop = () => {
     setCropDraft(null);
+    setTool("move");
   };
 
   const applyImageCrop = async () => {
@@ -1662,7 +1669,8 @@ export default function Home() {
         crop: FULL_IMAGE_CROP,
       } : item));
       setCropDraft(null);
-      setImageEditingId(null);
+      setImageEditingId(image.id);
+      setTool("move");
       captureHistory();
       toast.success(tr("圖片已裁切", "Image cropped"));
     } catch {
@@ -2251,14 +2259,25 @@ export default function Home() {
     if (isPaintLayerLocked(image.paintLayerId)) return;
     if ((event.target as Element).classList.contains("image-resize-handle") || (event.target as Element).classList.contains("image-rotation-handle")) return;
     event.preventDefault();
-    event.currentTarget.setPointerCapture(event.pointerId);
+    try {
+      event.currentTarget.setPointerCapture(event.pointerId);
+    } catch {
+      // 部分觸控與合成指標環境不支援捕捉，裁切仍由全域指標事件持續追蹤。
+    }
     const point = getCanvasPoint(event.clientX, event.clientY);
     setSnapGuides({ x: null, y: null });
     setSelectedImageId(image.id);
     setSelectedTextId(null);
     setSelectedShapeId(null);
+    if (tool === "crop" && cropDraft?.imageId === image.id) {
+      const startX = clamp((point.x - image.x) / Math.max(1, image.width), 0, 1);
+      const startY = clamp((point.y - image.y) / Math.max(1, image.height), 0, 1);
+      cropDragRef.current = { imageId: image.id, startX, startY };
+      setCropDraft({ imageId: image.id, x: startX, y: startY, width: 0.1, height: 0.1 });
+      return;
+    }
     if (imageEditingId !== image.id) {
-      setImageEditingId(null);
+      setImageEditingId(image.id);
       setCropDraft(null);
       return;
     }
@@ -2310,6 +2329,36 @@ export default function Home() {
       startRotation: image.rotation ?? 0,
     };
   };
+
+  useEffect(() => {
+    const handleCropMove = (event: PointerEvent) => {
+      const drag = cropDragRef.current;
+      if (!drag) return;
+      const image = imagesRef.current.find((item) => item.id === drag.imageId);
+      if (!image) return;
+      const point = getCanvasPoint(event.clientX, event.clientY);
+      const currentX = clamp((point.x - image.x) / Math.max(1, image.width), 0, 1);
+      const currentY = clamp((point.y - image.y) / Math.max(1, image.height), 0, 1);
+      const x = Math.min(drag.startX, currentX);
+      const y = Math.min(drag.startY, currentY);
+      setCropDraft({
+        imageId: image.id,
+        x,
+        y,
+        width: clamp(Math.abs(currentX - drag.startX), 0.1, 1 - x),
+        height: clamp(Math.abs(currentY - drag.startY), 0.1, 1 - y),
+      });
+    };
+    const handleCropUp = () => {
+      cropDragRef.current = null;
+    };
+    window.addEventListener("pointermove", handleCropMove);
+    window.addEventListener("pointerup", handleCropUp);
+    return () => {
+      window.removeEventListener("pointermove", handleCropMove);
+      window.removeEventListener("pointerup", handleCropUp);
+    };
+  }, [getCanvasPoint]);
 
   const cancelLongPressPan = () => {
     const pending = longPressPanRef.current;
@@ -2617,6 +2666,17 @@ export default function Home() {
     setSelectedImageId(null);
     setSelectedStrokeId(null);
   };
+  const isCropToolAvailable = Boolean(selectedImage && imageEditingId === selectedImage.id && !isPaintLayerLocked(selectedImage.paintLayerId));
+  const handleCropTool = () => {
+    if (!isCropToolAvailable) return;
+    if (cropDraft?.imageId === selectedImage?.id) {
+      void applyImageCrop();
+      return;
+    }
+    setTool("crop");
+    beginImageCrop();
+    toast.info(tr("在圖片上拖曳框選裁切範圍；再次點擊裁切即可套用，按 Esc 可取消", "Drag on the image to set a crop area. Click Crop again to apply, or press Esc to cancel"));
+  };
   const activeWorkspaceToolLabel = activeDesktopTool === "brush"
     ? copy.brush
     : activeDesktopTool === "shape"
@@ -2726,6 +2786,7 @@ export default function Home() {
             <ToolButton label={copy.brush} active={activeDesktopTool === "brush"} icon={<Pencil size={18} />} onClick={() => handleDesktopToolCreate("brush")} onDoubleActivate={() => handleDesktopToolSettings("brush")} />
             <ToolButton label={copy.shape} active={activeDesktopTool === "shape"} icon={<Shapes size={18} />} onClick={() => handleDesktopToolCreate("shape")} onDoubleActivate={() => handleDesktopToolSettings("shape")} />
             <ToolButton label={copy.text} active={activeDesktopTool === "text"} icon={<Type size={18} />} onClick={() => handleDesktopToolCreate("text")} onDoubleActivate={() => handleDesktopToolSettings("text")} />
+            <ToolButton label={cropDraft ? tr("套用裁切", "Apply crop") : tr("裁切", "Crop")} active={tool === "crop"} icon={<Crop size={18} />} onClick={handleCropTool} disabled={!isCropToolAvailable} />
             <button type="button" className="tool-button tool-settings-entry" onClick={handleSelectedObjectSettings} disabled={!hasSelectedObject} aria-label={copy.openSettings} title={copy.openSettings}><SlidersHorizontal size={18} /><span>{copy.settings}</span></button>
             <button type="button" className={`faq-rail-toggle ${isFaqOpen ? "is-active" : ""}`} onClick={() => setIsFaqOpen((open) => !open)} aria-expanded={isFaqOpen} aria-controls="abipaint-faq-panel">
               <span className="faq-rail-glyph">?</span>
@@ -2996,7 +3057,7 @@ export default function Home() {
                   {images.map((image) => (
                     <div
                       key={image.id}
-                      className={`image-layer ${selectedImageId === image.id ? "is-selected" : ""} ${selectedImageId === image.id && (snapGuides.x !== null || snapGuides.y !== null) ? "is-snapped" : ""} ${isPaintLayerLocked(image.paintLayerId) ? "is-locked" : ""} ${imageEditingId === image.id ? "is-editing" : "is-passive"}`}
+                      className={`image-layer ${selectedImageId === image.id ? "is-selected" : ""} ${selectedImageId === image.id && (snapGuides.x !== null || snapGuides.y !== null) ? "is-snapped" : ""} ${isPaintLayerLocked(image.paintLayerId) ? "is-locked" : ""} ${imageEditingId === image.id ? "is-editing" : "is-passive"} ${cropDraft?.imageId === image.id ? "is-cropping" : ""}`}
                       style={{
                         left: `${image.x}px`,
                         top: `${image.y}px`,
@@ -3016,8 +3077,8 @@ export default function Home() {
                       aria-label={`圖片素材：${image.name}`}
                     >
                       <img className="image-layer-content" src={image.src} alt={image.name} draggable={false} />
-                      {cropDraft?.imageId === image.id && <div className="image-crop-preview" style={{ left: `${cropDraft.x * 100}%`, top: `${cropDraft.y * 100}%`, width: `${cropDraft.width * 100}%`, height: `${cropDraft.height * 100}%` }} />}
-                      {selectedImageId === image.id && imageEditingId === image.id && !isPaintLayerLocked(image.paintLayerId) && (
+                      {cropDraft?.imageId === image.id && <div className="image-crop-preview" style={{ left: `${cropDraft.x * 100}%`, top: `${cropDraft.y * 100}%`, width: `${cropDraft.width * 100}%`, height: `${cropDraft.height * 100}%` }}><span>{tr("裁切範圍", "Crop area")}</span></div>}
+                      {selectedImageId === image.id && imageEditingId === image.id && !isPaintLayerLocked(image.paintLayerId) && !cropDraft && (
                         <>
                           <div className="image-resize-handle image-resize-handle-left" onPointerDown={(event) => handleImageResizePointerDown(event, image, "left")} />
                           <div className="image-resize-handle image-resize-handle-right" onPointerDown={(event) => handleImageResizePointerDown(event, image, "right")} />
@@ -3315,12 +3376,6 @@ export default function Home() {
               <div className="inspector-section image-inspector-section">
                 <SectionTitle eyebrow="IMAGE LAYER" title={tr("圖片素材", "Image layer")} action={<ImagePlus size={15} className="section-icon" />} />
                 <div className="image-layer-meta"><span>{tr("檔案", "File")}</span><strong>{selectedImage.name}</strong></div>
-                {!imageEditingId && <p className="empty-inspector">{tr("圖片目前鎖定，點擊下方按鈕後才可移動、縮放、旋轉或裁切。", "This image is locked. Start editing to move, resize, rotate, or crop it.")}</p>}
-                {imageEditingId === selectedImage.id && !cropDraft && <p className="empty-inspector">{tr("可在畫布上拖曳圖片移動，使用邊角控制點縮放，或開啟裁切模式保留所需範圍。", "Drag on the canvas to move it, use the corner handles to resize it, or crop it to keep the area you need.")}</p>}
-                {!imageEditingId && <button type="button" className="secondary-button full-width" onClick={startImageEditing}><ImagePlus size={14} /> {tr("開始編輯圖片", "Edit image")}</button>}
-                {imageEditingId === selectedImage.id && !cropDraft && <><button type="button" className="secondary-button full-width" onClick={beginImageCrop}><Crop size={14} /> {tr("裁切圖片", "Crop image")}</button><button type="button" className="secondary-button full-width" onClick={() => setImageEditingId(null)}><Lock size={14} /> {tr("完成編輯並鎖定", "Finish editing & lock")}</button></>}
-                {cropDraft?.imageId === selectedImage.id && <><RangeControl label={tr("裁切左側", "Crop left")} value={Math.round(cropDraft.x * 100)} min={0} max={90} suffix="%" onChange={(value) => updateCropDraft({ x: value / 100 })} /><RangeControl label={tr("裁切上方", "Crop top")} value={Math.round(cropDraft.y * 100)} min={0} max={90} suffix="%" onChange={(value) => updateCropDraft({ y: value / 100 })} /><RangeControl label={tr("裁切寬度", "Crop width")} value={Math.round(cropDraft.width * 100)} min={10} max={Math.max(10, Math.round((1 - cropDraft.x) * 100))} suffix="%" onChange={(value) => updateCropDraft({ width: value / 100 })} /><RangeControl label={tr("裁切高度", "Crop height")} value={Math.round(cropDraft.height * 100)} min={10} max={Math.max(10, Math.round((1 - cropDraft.y) * 100))} suffix="%" onChange={(value) => updateCropDraft({ height: value / 100 })} /><button type="button" className="primary-button full-width" onClick={() => void applyImageCrop()}><Check size={14} /> {tr("套用裁切", "Apply crop")}</button><button type="button" className="secondary-button full-width" onClick={cancelImageCrop}>{tr("取消裁切", "Cancel crop")}</button></>}
-                <button type="button" className="secondary-button full-width" onClick={deleteSelectedImage}><Trash2 size={14} /> {tr("移除圖片", "Remove image")}</button>
               </div>
             )}
 

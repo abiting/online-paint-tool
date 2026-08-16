@@ -430,6 +430,7 @@ input[type="range"]::-moz-range-thumb { width: 11px; height: 11px; border: 2px s
 .shape-control-rotation-label { position: absolute; z-index: 3; left: 50%; top: var(--shape-rotation-label-offset, 40px); transform: translateX(-50%) scale(var(--shape-control-scale, 1)); transform-origin: center; padding: 2px 4px; color: #1f2528; background: #fff8ec; border: 1px solid rgba(228,81,59,0.7); font: 700 9px "DM Sans", sans-serif; pointer-events: none; white-space: nowrap; }
 .image-layer { position: absolute; display: block; overflow: visible; transform-origin: center; cursor: default; user-select: none; touch-action: none; }
 .image-layer.is-editing { cursor: grab; }
+.image-layer.is-cropping { cursor: crosshair; }
 .image-layer:active { cursor: grabbing; }
 .image-layer.is-selected { outline: 1px dashed #e4513b; outline-offset: 7px; }
 .image-layer.is-snapped { outline-color: rgba(255, 243, 220, 0.96); box-shadow: 0 0 0 2px rgba(228,81,59,0.84), 0 0 24px rgba(228,81,59,0.68); }
@@ -437,7 +438,8 @@ input[type="range"]::-moz-range-thumb { width: 11px; height: 11px; border: 2px s
 .snap-guide-vertical { top: 0; bottom: 0; width: 1px; transform: translateX(-0.5px); }
 .snap-guide-horizontal { right: 0; left: 0; height: 1px; transform: translateY(-0.5px); }
 .image-layer-content { display: block; width: 100%; height: 100%; object-fit: fill; pointer-events: none; user-select: none; }
-.image-crop-preview { position: absolute; z-index: 4; box-sizing: border-box; border: 2px solid #e4513b; box-shadow: 0 0 0 9999px rgba(25, 31, 30, 0.42); pointer-events: none; }
+.image-crop-preview { position: absolute; z-index: 4; box-sizing: border-box; display: flex; align-items: flex-start; justify-content: flex-start; border: 2px solid #e4513b; box-shadow: 0 0 0 9999px rgba(25, 31, 30, 0.42); pointer-events: none; }
+.image-crop-preview span { margin: 5px; padding: 2px 4px; color: #1f2528; background: #fff8ec; border: 1px solid rgba(228,81,59,0.7); font: 700 9px "DM Sans", "Noto Sans TC", sans-serif; white-space: nowrap; }
 .image-resize-handle { position: absolute; z-index: 2; width: 12px; height: 12px; margin: -6px; border: 1.5px solid #e4513b; background: #fff8ec; box-sizing: border-box; transform: scale(var(--image-control-scale, 1)); transform-origin: center; }
 .image-resize-handle-left, .image-resize-handle-right { top: 50%; cursor: ew-resize; }
 .image-resize-handle-left { left: 0; }
