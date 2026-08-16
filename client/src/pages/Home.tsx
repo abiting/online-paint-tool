@@ -333,7 +333,7 @@ type AdjustmentPatch = Partial<Adjustments>;
 
 type AbiPaintProject = {
   format: "abipaint-project";
-  version: 1;
+  version: 1 | 2;
   savedAt: string;
   hasArtwork: boolean;
   canvas: {
@@ -402,6 +402,11 @@ const MATERIAL_STACK_BASE: Record<MaterialType, number> = {
 const clamp = (value: number, min: number, max: number) =>
   Math.min(max, Math.max(min, value));
 
+const normalizeProjectSaturation = (value: unknown, version: 1 | 2) => {
+  const rawValue = typeof value === "number" ? value : version === 1 ? 100 : 0;
+  return clamp(version === 1 ? rawValue - 100 : rawValue, -100, 100);
+};
+
 const openProjectDatabase = () => new Promise<IDBDatabase>((resolve, reject) => {
   const request = window.indexedDB.open(AUTOSAVE_DB_NAME, 1);
   request.onupgradeneeded = () => {
@@ -453,7 +458,7 @@ const isAbiPaintProject = (value: unknown): value is AbiPaintProject => {
   if (!value || typeof value !== "object") return false;
   const project = value as Partial<AbiPaintProject>;
   return project.format === "abipaint-project"
-    && project.version === 1
+    && (project.version === 1 || project.version === 2)
     && Boolean(project.canvas)
     && Boolean(project.document)
     && Boolean(project.materials)
@@ -517,7 +522,7 @@ const TEXT_FONT_OPTIONS: Array<{ value: TextLayer["fontFamily"]; label: string; 
   { value: "Zen Kaku Gothic New", label: "Zen Kaku Gothic New" },
 ];
 const makeAdjustmentFilter = (exposure: number, contrast: number, saturation: number) =>
-  `brightness(${100 + exposure}%) contrast(${100 + contrast}%) saturate(${saturation}%)`;
+  `brightness(${100 + exposure}%) contrast(${100 + contrast}%) saturate(${100 + saturation}%)`;
 
 const hexToRgba = (hex: string, opacity: number) => {
   const { r, g, b } = hexToRgb(hex);
@@ -1084,7 +1089,7 @@ export default function Home() {
   const [adjustments, setAdjustments] = useState<Adjustments>({
     exposure: 0,
     contrast: 0,
-    saturation: 100,
+    saturation: 0,
     opacity: 100,
   });
   const [fileMeta, setFileMeta] = useState<{ name: string; size: string }>({ name: copy.documentName, size: "—" });
@@ -1159,11 +1164,11 @@ export default function Home() {
     [paintLayers],
   );
   const activeAdjustmentValues: Adjustments = selectedShape
-    ? { exposure: selectedShape.exposure ?? 0, contrast: selectedShape.contrast ?? 0, saturation: selectedShape.saturation ?? 100, opacity: selectedShape.opacity }
+    ? { exposure: selectedShape.exposure ?? 0, contrast: selectedShape.contrast ?? 0, saturation: selectedShape.saturation ?? 0, opacity: selectedShape.opacity }
     : selectedImage
-      ? { exposure: selectedImage.exposure ?? 0, contrast: selectedImage.contrast ?? 0, saturation: selectedImage.saturation ?? 100, opacity: selectedImage.opacity }
+      ? { exposure: selectedImage.exposure ?? 0, contrast: selectedImage.contrast ?? 0, saturation: selectedImage.saturation ?? 0, opacity: selectedImage.opacity }
       : selectedText
-      ? { exposure: selectedText.exposure ?? 0, contrast: selectedText.contrast ?? 0, saturation: selectedText.saturation ?? 100, opacity: selectedText.opacity }
+      ? { exposure: selectedText.exposure ?? 0, contrast: selectedText.contrast ?? 0, saturation: selectedText.saturation ?? 0, opacity: selectedText.opacity }
       : adjustments;
   const activeAdjustmentTarget = selectedShape ? "目前圖形" : selectedImage ? "目前圖片" : selectedText ? "目前文字卡" : "整個畫布";
 
@@ -1178,7 +1183,7 @@ export default function Home() {
       paintLayerId: layer.paintLayerId ?? BASE_PAINT_LAYER_ID,
       exposure: layer.exposure ?? 0,
       contrast: layer.contrast ?? 0,
-      saturation: layer.saturation ?? 100,
+      saturation: layer.saturation ?? 0,
     }));
     layersRef.current = normalizedLayers;
     setLayers(normalizedLayers);
@@ -1190,7 +1195,7 @@ export default function Home() {
       paintLayerId: shape.paintLayerId ?? BASE_PAINT_LAYER_ID,
       exposure: shape.exposure ?? 0,
       contrast: shape.contrast ?? 0,
-      saturation: shape.saturation ?? 100,
+      saturation: shape.saturation ?? 0,
       rotation: shape.rotation ?? 0,
     }));
     shapesRef.current = normalizedShapes;
@@ -1203,7 +1208,7 @@ export default function Home() {
       paintLayerId: image.paintLayerId ?? BASE_PAINT_LAYER_ID,
       exposure: image.exposure ?? 0,
       contrast: image.contrast ?? 0,
-      saturation: image.saturation ?? 100,
+      saturation: image.saturation ?? 0,
       rotation: image.rotation ?? 0,
       crop: image.crop ?? FULL_IMAGE_CROP,
     }));
@@ -1447,7 +1452,7 @@ export default function Home() {
     try {
       return {
         format: "abipaint-project",
-        version: 1,
+        version: 2,
         savedAt: new Date().toISOString(),
         hasArtwork,
         canvas: {
@@ -1500,7 +1505,7 @@ export default function Home() {
     const name = isEnglish ? `Untitled canvas ${fileNumber}` : `未命名畫布 ${fileNumber}`;
     return {
       format: "abipaint-project",
-      version: 1,
+      version: 2,
       savedAt: new Date().toISOString(),
       hasArtwork: false,
       canvas: {
@@ -1508,7 +1513,7 @@ export default function Home() {
         height,
         baseImage: surface.toDataURL("image/png"),
         bleedGuide: null,
-        adjustments: { exposure: 0, contrast: 0, saturation: 100, opacity: 100 },
+        adjustments: { exposure: 0, contrast: 0, saturation: 0, opacity: 100 },
       },
       document: {
         name,
@@ -1575,17 +1580,17 @@ export default function Home() {
     setAdjustments({
       exposure: typeof project.canvas.adjustments?.exposure === "number" ? project.canvas.adjustments.exposure : 0,
       contrast: typeof project.canvas.adjustments?.contrast === "number" ? project.canvas.adjustments.contrast : 0,
-      saturation: typeof project.canvas.adjustments?.saturation === "number" ? project.canvas.adjustments.saturation : 100,
-      opacity: typeof project.canvas.adjustments?.opacity === "number" ? project.canvas.adjustments.opacity : 100,
+      saturation: normalizeProjectSaturation(project.canvas.adjustments?.saturation, project.version),
+      opacity: clamp(typeof project.canvas.adjustments?.opacity === "number" ? project.canvas.adjustments.opacity : 100, 1, 100),
     });
     setScaleImagesWithCanvas(Boolean(project.document.scaleImagesWithCanvas));
     setDocumentNameDraft(project.document.name?.trim() || copy.documentName);
     setFileMeta(project.document.fileMeta ?? { name: project.document.name?.trim() || copy.documentName, size: `${width} × ${height}` });
     setPaintLayers(resolvedPaintLayers);
     setActivePaintLayerId(resolvedActivePaintLayerId);
-    syncLayers(project.materials.layers.map((layer) => ({ ...layer })));
-    syncShapes(project.materials.shapes.map((shape) => ({ ...shape })));
-    syncImages(project.materials.images.map((image) => ({ ...image, crop: image.crop ? { ...image.crop } : undefined })));
+    syncLayers(project.materials.layers.map((layer) => ({ ...layer, saturation: normalizeProjectSaturation(layer.saturation, project.version) })));
+    syncShapes(project.materials.shapes.map((shape) => ({ ...shape, saturation: normalizeProjectSaturation(shape.saturation, project.version) })));
+    syncImages(project.materials.images.map((image) => ({ ...image, saturation: normalizeProjectSaturation(image.saturation, project.version), crop: image.crop ? { ...image.crop } : undefined })));
     syncStrokes(project.materials.strokes.map((stroke) => ({ ...stroke, points: stroke.points.map((point) => ({ ...point })) })));
     setBrushKind(project.tools?.brushKind ?? "oil");
     setBrushColor(project.tools?.brushColor ?? BRAND_RED);
@@ -2185,7 +2190,7 @@ export default function Home() {
       opacity: 100,
       exposure: 0,
       contrast: 0,
-      saturation: 100,
+      saturation: 0,
       outline: shapeOutline,
       outlineWidth: shapeOutlineWidth,
       shadow: shapeShadow,
@@ -2223,7 +2228,7 @@ export default function Home() {
       opacity: 100,
       exposure: 0,
       contrast: 0,
-      saturation: 100,
+      saturation: 0,
       fontFamily: "Noto Sans TC",
     };
     const dimensions = getTextLayerDimensions(draftLayer);
@@ -2416,7 +2421,7 @@ export default function Home() {
       opacity: 100,
       exposure: 0,
       contrast: 0,
-      saturation: 100,
+      saturation: 0,
       fontFamily: "DM Sans",
       anchorShapeId: anchorShape?.id,
     };
@@ -2468,7 +2473,7 @@ export default function Home() {
         opacity: 100,
         exposure: 0,
         contrast: 0,
-        saturation: 100,
+        saturation: 0,
         fontFamily: "Noto Sans TC" as TextLayer["fontFamily"],
       }),
       id: makeId("text"),
@@ -2654,7 +2659,7 @@ export default function Home() {
       opacity: 100,
       exposure: 0,
       contrast: 0,
-      saturation: 100,
+      saturation: 0,
     }));
     syncLayers(templateTexts);
     syncShapes([]);
@@ -2728,7 +2733,7 @@ export default function Home() {
     setAdjustments({
       exposure: 0,
       contrast: 0,
-      saturation: 100,
+      saturation: 0,
       opacity: 100,
     });
     toast.info("影像調整已重設");
@@ -2751,7 +2756,7 @@ export default function Home() {
   };
 
   const resetActiveAdjustment = () => {
-    updateActiveAdjustment({ exposure: 0, contrast: 0, saturation: 100, opacity: 100 });
+    updateActiveAdjustment({ exposure: 0, contrast: 0, saturation: 0, opacity: 100 });
     toast.info(`${activeAdjustmentTarget}的影像調整已重設`);
   };
 
@@ -2812,7 +2817,7 @@ export default function Home() {
         opacity: 100,
         exposure: 0,
         contrast: 0,
-        saturation: 100,
+        saturation: 0,
       };
       syncImages([...imagesRef.current, nextImage]);
       setSelectedImageId(nextImage.id);
@@ -4185,7 +4190,7 @@ export default function Home() {
               <span className="product-footnote-label">{isEnglish ? "A NOTE FROM THE DEVELOPER" : "開發者的話"}</span>
               <p>{isEnglish
                 ? "Abiting has run a Detective Conan fan site for years, often needing to resize images, add text, and fine-tune colors. Rather than pay for Adobe or deal with bloated, sign-up-required Canva, the answer was AbiPaint. No fees, no sign-up, no install. Just resize, color, design, and export, right in the browser."
-                : "阿比丁經營《名偵探柯南》相關網站多年，常需調整圖片尺寸、加註文字、微調色彩。不想被昂貴的 Adobe 綁架，也嫌 Canva 臃腫又要註冊，於是自行開發了 AbiPaint。免付費、免註冊、免安裝，直接在瀏覽器完成縮放、調色、設計與輸出。"}</p>
+                : "阿比丁經營《名偵探柯南》相關網站多年，常需調整圖片尺寸、加註文字、微調色彩。不想被昂貴的 Adobe 綁架，也嫌 Canva 臃腫又要註冊，於是自行開發了 AbiPaint。免付費、免註冊、免安裝，直接在瀏覽器完成縮放、調色、設計與匯出。"}</p>
             </div>
             <p className="product-copyright">Copyright © 2026 <a href={isEnglish ? "/en" : "/"}>AbiPaint</a></p>
           </footer>
@@ -4382,9 +4387,9 @@ export default function Home() {
 
             <div className="inspector-section">
               <SectionTitle eyebrow={copy.imageAdjustments} emphasis action={<SlidersHorizontal size={15} className="section-icon" />} />
-              <RangeControl label={copy.exposure} value={activeAdjustmentValues.exposure} min={-60} max={60} suffix="%" onChange={(value) => updateActiveAdjustment({ exposure: value })} />
-              <RangeControl label={copy.contrast} value={activeAdjustmentValues.contrast} min={-60} max={60} suffix="%" onChange={(value) => updateActiveAdjustment({ contrast: value })} />
-              <RangeControl label={copy.saturation} value={activeAdjustmentValues.saturation} min={0} max={200} suffix="%" onChange={(value) => updateActiveAdjustment({ saturation: value })} />
+              <RangeControl label={copy.exposure} value={activeAdjustmentValues.exposure} min={-100} max={100} suffix="%" onChange={(value) => updateActiveAdjustment({ exposure: value })} />
+              <RangeControl label={copy.contrast} value={activeAdjustmentValues.contrast} min={-100} max={100} suffix="%" onChange={(value) => updateActiveAdjustment({ contrast: value })} />
+              <RangeControl label={copy.saturation} value={activeAdjustmentValues.saturation} min={-100} max={100} suffix="%" onChange={(value) => updateActiveAdjustment({ saturation: value })} />
               <RangeControl label={copy.opacity} value={activeAdjustmentValues.opacity} min={1} max={100} suffix="%" onChange={(value) => updateActiveAdjustment({ opacity: value })} />
               <button type="button" className="link-button" onClick={resetActiveAdjustment}><RotateCcw size={13} /> {isEnglish ? "Reset adjustments" : "重設目前調整"}</button>
             </div>
