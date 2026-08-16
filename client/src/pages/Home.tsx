@@ -3126,7 +3126,11 @@ export default function Home() {
                   <span className="faq-eyebrow">{copy.developerEyebrow}</span>
                   <h2>{copy.developerTitle}</h2>
                 </div>
-                <button type="button" className="faq-close" onClick={() => setIsDeveloperOpen(false)} aria-label={copy.developerClose}><ChevronDown size={16} /></button>
+                <div className="developer-header-actions">
+                  <a className="developer-social-link developer-social-facebook" href="https://www.facebook.com/shimokitazawa.news/" target="_blank" rel="noopener noreferrer" aria-label="Facebook" title="Facebook">f</a>
+                  <a className="developer-social-link developer-social-linkedin" href="https://www.linkedin.com/in/abiting1998/" target="_blank" rel="noopener noreferrer" aria-label="LinkedIn" title="LinkedIn">in</a>
+                  <button type="button" className="faq-close" onClick={() => setIsDeveloperOpen(false)} aria-label={copy.developerClose}><ChevronDown size={16} /></button>
+                </div>
               </header>
               <div className="developer-content">
                 <p className="developer-bio">{copy.developerBio}</p>

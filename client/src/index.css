@@ -198,6 +198,10 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 .developer-rail-toggle { margin-top: 0; }
 .faq-rail-glyph svg { display: block; }
 .developer-panel { height: min(570px, calc(100vh - 120px)); }
+.developer-header-actions { display: flex; align-items: center; gap: 7px; }
+.developer-social-link { display: grid; place-items: center; width: 28px; height: 28px; color: #b5bdb5; border: 1px solid rgba(227,213,187,0.15); border-radius: 5px; background: rgba(245,240,229,0.04); font: 700 13px "DM Sans", sans-serif; line-height: 1; text-decoration: none; transition: color 160ms var(--ease-out), border-color 160ms var(--ease-out), background 160ms var(--ease-out), transform 160ms var(--ease-out); }
+.developer-social-linkedin { font-size: 10px; letter-spacing: -0.04em; }
+.developer-social-link:hover { color: #fff8ec; border-color: rgba(228,81,59,0.5); background: rgba(228,81,59,0.12); transform: translateY(-1px); }
 .developer-content { padding: 18px; }
 .developer-bio { margin: 0; padding: 14px; color: #b4bbb2; border: 1px solid rgba(227,213,187,0.12); border-left: 2px solid rgba(228,81,59,0.72); background: rgba(245,240,229,0.035); font-size: 12px; line-height: 1.8; }
 .developer-projects { margin-top: 20px; }
