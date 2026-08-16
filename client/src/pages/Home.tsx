@@ -9,6 +9,8 @@ import type { CSSProperties, MouseEvent as ReactMouseEvent, PointerEvent as Reac
 import {
   AlignCenter,
   AlignVerticalJustifyCenter,
+  ArrowDown,
+  ArrowUp,
   Check,
   ChevronDown,
   Circle,
@@ -53,6 +55,8 @@ type ShapeKind = "rectangle" | "circle" | "star" | "heart" | "triangle" | "penta
 type ShapeResizeAxis = "left" | "right" | "top" | "bottom" | "top-left" | "top-right" | "bottom-left" | "bottom-right";
 type CropHandleAxis = ShapeResizeAxis | "move";
 type Locale = "zh-Hant" | "en";
+type MaterialType = "stroke" | "image" | "shape" | "text";
+type DesktopToolPanel = DesktopCreativeTool | "object";
 
 const localeCopy = {
   "zh-Hant": {
@@ -86,6 +90,10 @@ const localeCopy = {
     height: "高度",
     applyResolution: "套用解析度",
     scaleImages: "等比例縮放圖片",
+    businessCardTemplates: "名片模板",
+    asiaBusinessCard: "亞洲名片標準",
+    westernBusinessCard: "歐美名片標準",
+    businessCardBleed: "3 mm 出血線",
     imageAdjustments: "影像調色",
     exposure: "曝光度",
     contrast: "對比",
@@ -134,6 +142,10 @@ const localeCopy = {
     height: "Height",
     applyResolution: "Apply resolution",
     scaleImages: "Scale images proportionally",
+    businessCardTemplates: "Business card templates",
+    asiaBusinessCard: "Asia Business Card",
+    westernBusinessCard: "Western Business Card",
+    businessCardBleed: "3 mm bleed guide",
     imageAdjustments: "Image adjustments",
     exposure: "Exposure",
     contrast: "Contrast",
@@ -161,6 +173,7 @@ type CanvasPoint = {
 type TextLayer = {
   id: string;
   paintLayerId: string;
+  stackOrder?: number;
   text: string;
   x: number;
   y: number;
@@ -178,6 +191,7 @@ type TextLayer = {
 type ShapeLayer = {
   id: string;
   paintLayerId: string;
+  stackOrder?: number;
   kind: ShapeKind;
   x: number;
   y: number;
@@ -203,6 +217,7 @@ type ShapeLayer = {
 type ImageLayer = {
   id: string;
   paintLayerId: string;
+  stackOrder?: number;
   name: string;
   src: string;
   x: number;
@@ -227,6 +242,7 @@ type ImageCrop = {
 type BrushStroke = {
   id: string;
   paintLayerId: string;
+  stackOrder?: number;
   points: CanvasPoint[];
   x: number;
   y: number;
@@ -242,6 +258,17 @@ type PaintLayer = {
   locked: boolean;
 };
 
+type MaterialStackEntry = {
+  type: MaterialType;
+  id: string;
+  paintLayerId: string;
+  stackOrder: number;
+};
+
+type BleedGuide = {
+  inset: number;
+};
+
 type SnapGuides = {
   x: number | null;
   y: number | null;
@@ -251,6 +278,8 @@ type HistoryItem = {
   width: number;
   height: number;
   imageData: ImageData;
+  backgroundColor?: string;
+  bleedGuide?: BleedGuide | null;
   layers: TextLayer[];
   shapes: ShapeLayer[];
   images: ImageLayer[];
@@ -270,6 +299,12 @@ const PAPER = "#FFFDF8";
 const GRAPHITE = "#1F2528";
 const MAX_PAINT_LAYERS = 5;
 const BASE_PAINT_LAYER_ID = "paint-layer-base";
+const MATERIAL_STACK_BASE: Record<MaterialType, number> = {
+  stroke: 0,
+  image: 1000,
+  shape: 2000,
+  text: 3000,
+};
 
 const clamp = (value: number, min: number, max: number) =>
   Math.min(max, Math.max(min, value));
@@ -321,6 +356,12 @@ const hexToRgba = (hex: string, opacity: number) => {
   const { r, g, b } = hexToRgb(hex);
   return `rgba(${r}, ${g}, ${b}, ${opacity})`;
 };
+
+const getMaterialStackOrder = (
+  type: MaterialType,
+  item: { stackOrder?: number },
+  index: number,
+) => item.stackOrder ?? MATERIAL_STACK_BASE[type] + index;
 
 const drawBrushBristles = (
   context: CanvasRenderingContext2D,
@@ -792,13 +833,14 @@ export default function Home() {
   const textLayerElementsRef = useRef(new Map<string, HTMLDivElement>());
 
   const [canvasSize, setCanvasSize] = useState({ width: 960, height: 640 });
+  const [bleedGuide, setBleedGuide] = useState<BleedGuide | null>(null);
   const [scaleImagesWithCanvas, setScaleImagesWithCanvas] = useState(false);
   const [tool, setTool] = useState<Tool>("brush");
   const [brushKind, setBrushKind] = useState<BrushKind>("oil");
   const [brushColor, setBrushColor] = useState(BRAND_RED);
   const [brushSize, setBrushSize] = useState(18);
   const [brushOpacity, setBrushOpacity] = useState(100);
-  const [openDesktopTool, setOpenDesktopTool] = useState<DesktopCreativeTool | null>(null);
+  const [openDesktopTool, setOpenDesktopTool] = useState<DesktopToolPanel | null>(null);
   const [activeDesktopTool, setActiveDesktopTool] = useState<DesktopCreativeTool | null>(null);
   const [zoom, setZoom] = useState(68);
   const [pan, setPan] = useState({ x: 0, y: 0 });
@@ -871,6 +913,26 @@ export default function Home() {
     () => images.find((image) => image.id === selectedImageId) ?? null,
     [images, selectedImageId],
   );
+  const materialStackEntries = useMemo<MaterialStackEntry[]>(() => [
+    ...strokes.map((stroke, index) => ({ type: "stroke" as const, id: stroke.id, paintLayerId: stroke.paintLayerId, stackOrder: getMaterialStackOrder("stroke", stroke, index) })),
+    ...images.map((image, index) => ({ type: "image" as const, id: image.id, paintLayerId: image.paintLayerId, stackOrder: getMaterialStackOrder("image", image, index) })),
+    ...shapes.map((shape, index) => ({ type: "shape" as const, id: shape.id, paintLayerId: shape.paintLayerId, stackOrder: getMaterialStackOrder("shape", shape, index) })),
+    ...layers.map((layer, index) => ({ type: "text" as const, id: layer.id, paintLayerId: layer.paintLayerId, stackOrder: getMaterialStackOrder("text", layer, index) })),
+  ].sort((first, second) => first.stackOrder - second.stackOrder), [images, layers, shapes, strokes]);
+  const selectedMaterialStackEntry = useMemo(() => {
+    const selectedMaterial = selectedTextId
+      ? { type: "text" as const, id: selectedTextId }
+      : selectedShapeId
+        ? { type: "shape" as const, id: selectedShapeId }
+        : selectedImageId
+          ? { type: "image" as const, id: selectedImageId }
+          : selectedStrokeId
+            ? { type: "stroke" as const, id: selectedStrokeId }
+            : null;
+    return selectedMaterial
+      ? materialStackEntries.find((entry) => entry.type === selectedMaterial.type && entry.id === selectedMaterial.id) ?? null
+      : null;
+  }, [materialStackEntries, selectedImageId, selectedShapeId, selectedStrokeId, selectedTextId]);
   const activePaintLayer = useMemo(
     () => paintLayers.find((layer) => layer.id === activePaintLayerId) ?? paintLayers[0] ?? null,
     [activePaintLayerId, paintLayers],
@@ -936,6 +998,59 @@ export default function Home() {
     strokesRef.current = nextStrokes;
     setStrokes(nextStrokes);
   }, []);
+
+  const getNextMaterialStackOrder = () => {
+    const currentStackOrders = [
+      ...strokesRef.current.map((stroke, index) => getMaterialStackOrder("stroke", stroke, index)),
+      ...imagesRef.current.map((image, index) => getMaterialStackOrder("image", image, index)),
+      ...shapesRef.current.map((shape, index) => getMaterialStackOrder("shape", shape, index)),
+      ...layersRef.current.map((layer, index) => getMaterialStackOrder("text", layer, index)),
+    ];
+    return currentStackOrders.length ? Math.max(...currentStackOrders) + 1 : 1;
+  };
+
+  const selectedLayerStackEntries = selectedMaterialStackEntry
+    ? materialStackEntries.filter((entry) => entry.paintLayerId === selectedMaterialStackEntry.paintLayerId)
+    : [];
+  const selectedMaterialStackIndex = selectedMaterialStackEntry
+    ? selectedLayerStackEntries.findIndex((entry) => entry.type === selectedMaterialStackEntry.type && entry.id === selectedMaterialStackEntry.id)
+    : -1;
+  const selectedMaterialIsLocked = selectedMaterialStackEntry ? isPaintLayerLocked(selectedMaterialStackEntry.paintLayerId) : true;
+  const canBringSelectedMaterialForward = selectedMaterialStackIndex >= 0 && selectedMaterialStackIndex < selectedLayerStackEntries.length - 1 && !selectedMaterialIsLocked;
+  const canSendSelectedMaterialBackward = selectedMaterialStackIndex > 0 && !selectedMaterialIsLocked;
+
+  const moveSelectedMaterialInStack = (direction: "forward" | "backward") => {
+    if (!selectedMaterialStackEntry || selectedMaterialIsLocked) return;
+    const targetIndex = selectedMaterialStackIndex + (direction === "forward" ? 1 : -1);
+    const targetEntry = selectedLayerStackEntries[targetIndex];
+    if (!targetEntry) return;
+    const currentEntry = selectedMaterialStackEntry;
+    const resolveSwappedOrder = (type: MaterialType, id: string, currentOrder: number) => {
+      if (type === currentEntry.type && id === currentEntry.id) return targetEntry.stackOrder;
+      if (type === targetEntry.type && id === targetEntry.id) return currentEntry.stackOrder;
+      return currentOrder;
+    };
+    syncStrokes(strokesRef.current.map((stroke, index) => ({
+      ...stroke,
+      stackOrder: resolveSwappedOrder("stroke", stroke.id, getMaterialStackOrder("stroke", stroke, index)),
+    })));
+    syncImages(imagesRef.current.map((image, index) => ({
+      ...image,
+      stackOrder: resolveSwappedOrder("image", image.id, getMaterialStackOrder("image", image, index)),
+    })));
+    syncShapes(shapesRef.current.map((shape, index) => ({
+      ...shape,
+      stackOrder: resolveSwappedOrder("shape", shape.id, getMaterialStackOrder("shape", shape, index)),
+    })));
+    syncLayers(layersRef.current.map((layer, index) => ({
+      ...layer,
+      stackOrder: resolveSwappedOrder("text", layer.id, getMaterialStackOrder("text", layer, index)),
+    })));
+    captureHistory();
+    toast.success(direction === "forward"
+      ? tr("素材已向前一層", "Material brought forward")
+      : tr("素材已向後一層", "Material sent backward"));
+  };
 
   const addPaintLayer = () => {
     if (paintLayers.length >= MAX_PAINT_LAYERS) {
@@ -1028,7 +1143,7 @@ export default function Home() {
     return { width, height: Math.ceil(layer.fontSize * 1.12) + 4 };
   }, []);
 
-  const captureHistory = useCallback(() => {
+  const captureHistory = useCallback((guide = bleedGuide) => {
     const canvas = canvasRef.current;
     if (!canvas) return;
     const context = canvas.getContext("2d");
@@ -1037,6 +1152,7 @@ export default function Home() {
       width: canvas.width,
       height: canvas.height,
       imageData: context.getImageData(0, 0, canvas.width, canvas.height),
+      bleedGuide: guide,
       layers: layersRef.current.map((layer) => ({ ...layer })),
       shapes: shapesRef.current.map((shape) => ({ ...shape })),
       images: imagesRef.current.map((image) => ({ ...image })),
@@ -1046,7 +1162,7 @@ export default function Home() {
     const next = [...current, item].slice(-24);
     historyRef.current = next;
     historyIndexRef.current = next.length - 1;
-  }, []);
+  }, [bleedGuide]);
 
   const restoreHistory = useCallback(
     (index: number) => {
@@ -1057,6 +1173,7 @@ export default function Home() {
       canvas.height = item.height;
       canvas.getContext("2d")?.putImageData(item.imageData, 0, 0);
       setCanvasSize({ width: item.width, height: item.height });
+      setBleedGuide(item.bleedGuide ?? null);
       syncLayers(item.layers.map((layer) => ({ ...layer })));
       syncShapes(item.shapes?.map((shape) => ({ ...shape })) ?? []);
       syncImages(item.images?.map((image) => ({ ...image })) ?? []);
@@ -1494,6 +1611,7 @@ export default function Home() {
     const nextShape: ShapeLayer = {
       id: makeId("shape"),
       paintLayerId: activePaintLayer?.id ?? BASE_PAINT_LAYER_ID,
+      stackOrder: getNextMaterialStackOrder(),
       kind,
       x: (canvasSize.width - width) / 2,
       y: (canvasSize.height - height) / 2,
@@ -1533,6 +1651,7 @@ export default function Home() {
     const draftLayer: TextLayer = {
       id: makeId(),
       paintLayerId: activePaintLayer?.id ?? BASE_PAINT_LAYER_ID,
+      stackOrder: getNextMaterialStackOrder(),
       text: tr("在這裡輸入文字", "Type here"),
       x: 0,
       y: 0,
@@ -1583,7 +1702,7 @@ export default function Home() {
     if (tool === "retouch") {
       healSpot(point);
     } else {
-      const nextStroke: BrushStroke = { id: makeId("stroke"), paintLayerId: activePaintLayer?.id ?? BASE_PAINT_LAYER_ID, points: [point], x: 0, y: 0, color: brushColor, size: brushSize, opacity: brushOpacity, kind: brushKind };
+      const nextStroke: BrushStroke = { id: makeId("stroke"), paintLayerId: activePaintLayer?.id ?? BASE_PAINT_LAYER_ID, stackOrder: getNextMaterialStackOrder(), points: [point], x: 0, y: 0, color: brushColor, size: brushSize, opacity: brushOpacity, kind: brushKind };
       drawingStrokeRef.current = nextStroke;
       setDrawingStroke(nextStroke);
     }
@@ -1725,6 +1844,7 @@ export default function Home() {
     const nextLayer: TextLayer = {
       id: makeId("text"),
       paintLayerId: activePaintLayer?.id ?? BASE_PAINT_LAYER_ID,
+      stackOrder: getNextMaterialStackOrder(),
       text: "標題文字",
       x: anchorShape ? anchorShape.x + anchorShape.width / 2 - 90 : canvasSize.width * 0.16,
       y: anchorShape ? anchorShape.y + anchorShape.height / 2 - 32 : canvasSize.height * 0.18,
@@ -1791,6 +1911,7 @@ export default function Home() {
       }),
       id: makeId("text"),
       paintLayerId: activePaintLayer?.id ?? BASE_PAINT_LAYER_ID,
+      stackOrder: getNextMaterialStackOrder(),
       text: clipboardText || source?.text || "貼上的文字",
       x: (source?.x ?? canvasSize.width * 0.2) + 24,
       y: (source?.y ?? canvasSize.height * 0.2) + 24,
@@ -1934,6 +2055,70 @@ export default function Home() {
     resizeCanvas();
   };
 
+  const applyBusinessCardTemplate = (format: "asia" | "western") => {
+    const canvas = canvasRef.current;
+    const context = canvas?.getContext("2d");
+    if (!canvas || !context) return;
+    const width = format === "asia" ? 1063 : 1050;
+    const height = format === "asia" ? 638 : 600;
+    const bleedInset = 36;
+    const templateName = format === "asia" ? copy.asiaBusinessCard : copy.westernBusinessCard;
+    const content = format === "asia"
+      ? [
+        { text: "公司名稱 / COMPANY", x: 90, y: 88, fontSize: 31, fontWeight: 700, color: BRAND_RED, fontFamily: "DM Sans" as TextLayer["fontFamily"] },
+        { text: "姓名 Name", x: 90, y: 188, fontSize: 64, fontWeight: 700, color: GRAPHITE, fontFamily: "Noto Sans TC" as TextLayer["fontFamily"] },
+        { text: "職稱｜部門", x: 94, y: 273, fontSize: 27, fontWeight: 500, color: "#555B5D", fontFamily: "Noto Sans TC" as TextLayer["fontFamily"] },
+        { text: "電話  02 1234 5678", x: 90, y: 425, fontSize: 25, fontWeight: 400, color: GRAPHITE, fontFamily: "Noto Sans TC" as TextLayer["fontFamily"] },
+        { text: "Email  hello@company.com", x: 90, y: 468, fontSize: 25, fontWeight: 400, color: GRAPHITE, fontFamily: "Noto Sans TC" as TextLayer["fontFamily"] },
+        { text: "地址  台北市○○區○○路 123 號", x: 90, y: 511, fontSize: 23, fontWeight: 400, color: "#555B5D", fontFamily: "Noto Sans TC" as TextLayer["fontFamily"] },
+      ]
+      : [
+        { text: "COMPANY NAME", x: 82, y: 84, fontSize: 31, fontWeight: 700, color: BRAND_RED, fontFamily: "DM Sans" as TextLayer["fontFamily"] },
+        { text: "YOUR NAME", x: 82, y: 182, fontSize: 63, fontWeight: 700, color: GRAPHITE, fontFamily: "DM Sans" as TextLayer["fontFamily"] },
+        { text: "TITLE / DEPARTMENT", x: 85, y: 264, fontSize: 25, fontWeight: 500, color: "#555B5D", fontFamily: "DM Sans" as TextLayer["fontFamily"] },
+        { text: "+1 234 567 890", x: 82, y: 404, fontSize: 24, fontWeight: 400, color: GRAPHITE, fontFamily: "DM Sans" as TextLayer["fontFamily"] },
+        { text: "hello@company.com", x: 82, y: 445, fontSize: 24, fontWeight: 400, color: GRAPHITE, fontFamily: "DM Sans" as TextLayer["fontFamily"] },
+        { text: "123 Main Street, City, Country", x: 82, y: 486, fontSize: 21, fontWeight: 400, color: "#555B5D", fontFamily: "DM Sans" as TextLayer["fontFamily"] },
+      ];
+    canvas.width = width;
+    canvas.height = height;
+    context.fillStyle = "#FFFFFF";
+    context.fillRect(0, 0, width, height);
+    const templateTexts: TextLayer[] = content.map((item, index) => ({
+      id: makeId("template-text"),
+      paintLayerId: BASE_PAINT_LAYER_ID,
+      stackOrder: index + 1,
+      ...item,
+      opacity: 100,
+      exposure: 0,
+      contrast: 0,
+      saturation: 100,
+    }));
+    syncLayers(templateTexts);
+    syncShapes([]);
+    syncImages([]);
+    syncStrokes([]);
+    setCanvasSize({ width, height });
+    setBleedGuide({ inset: bleedInset });
+    setPaintLayers((current) => current.map((layer) => layer.id === BASE_PAINT_LAYER_ID ? { ...layer, locked: false } : layer));
+    setActivePaintLayerId(BASE_PAINT_LAYER_ID);
+    setSelectedTextId(templateTexts[1]?.id ?? templateTexts[0]?.id ?? null);
+    setSelectedShapeId(null);
+    setSelectedImageId(null);
+    setSelectedStrokeId(null);
+    setImageEditingId(null);
+    setCropDraft(null);
+    setTool("move");
+    setActiveDesktopTool(null);
+    setOpenDesktopTool(null);
+    setHasArtwork(true);
+    setFileMeta({ name: templateName, size: `${width} × ${height}` });
+    setDocumentNameDraft(templateName);
+    captureHistory({ inset: bleedInset });
+    window.requestAnimationFrame(fitCanvasToViewport);
+    toast.success(tr(`${templateName} 已套用`, `${templateName} applied`));
+  };
+
   const removeBackground = () => {
     const canvas = canvasRef.current;
     const context = canvas?.getContext("2d");
@@ -2054,6 +2239,7 @@ export default function Home() {
       const nextImage: ImageLayer = {
         id: makeId("image"),
         paintLayerId: activePaintLayer?.id ?? BASE_PAINT_LAYER_ID,
+        stackOrder: getNextMaterialStackOrder(),
         name: file.name,
         src: image.src,
         x: (targetCanvasWidth - width) / 2,
@@ -2092,7 +2278,6 @@ export default function Home() {
     context.globalAlpha = adjustments.opacity / 100;
     context.drawImage(source, 0, 0);
     context.filter = "none";
-    strokesRef.current.forEach((stroke) => renderBrushStroke(context, stroke));
     const loadedImages = await Promise.all(imagesRef.current.map(async (image) => {
       try {
         return await loadImageElement(image.src);
@@ -2100,18 +2285,42 @@ export default function Home() {
         return null;
       }
     }));
-    imagesRef.current.forEach((image, index) => {
-      const imageElement = loadedImages[index];
-      if (!imageElement) return;
-      context.save();
-      context.globalAlpha = (adjustments.opacity / 100) * (image.opacity / 100);
-      context.filter = makeAdjustmentFilter(image.exposure, image.contrast, image.saturation);
-      context.translate(image.x + image.width / 2, image.y + image.height / 2);
-      context.rotate((image.rotation * Math.PI) / 180);
-      context.drawImage(imageElement, -image.width / 2, -image.height / 2, image.width, image.height);
-      context.restore();
-    });
-    shapesRef.current.forEach((shape) => {
+    const imageElements = new Map(imagesRef.current.map((image, index) => [image.id, loadedImages[index]]));
+    const renderQueue = [
+      ...strokesRef.current.map((stroke, index) => ({ type: "stroke" as const, item: stroke, stackOrder: getMaterialStackOrder("stroke", stroke, index) })),
+      ...imagesRef.current.map((image, index) => ({ type: "image" as const, item: image, stackOrder: getMaterialStackOrder("image", image, index) })),
+      ...shapesRef.current.map((shape, index) => ({ type: "shape" as const, item: shape, stackOrder: getMaterialStackOrder("shape", shape, index) })),
+      ...layersRef.current.map((layer, index) => ({ type: "text" as const, item: layer, stackOrder: getMaterialStackOrder("text", layer, index) })),
+    ].sort((first, second) => first.stackOrder - second.stackOrder);
+    renderQueue.forEach((entry) => {
+      if (entry.type === "stroke") {
+        renderBrushStroke(context, entry.item);
+        return;
+      }
+      if (entry.type === "image") {
+        const imageElement = imageElements.get(entry.item.id);
+        if (!imageElement) return;
+        context.save();
+        context.globalAlpha = (adjustments.opacity / 100) * (entry.item.opacity / 100);
+        context.filter = makeAdjustmentFilter(entry.item.exposure, entry.item.contrast, entry.item.saturation);
+        context.translate(entry.item.x + entry.item.width / 2, entry.item.y + entry.item.height / 2);
+        context.rotate((entry.item.rotation * Math.PI) / 180);
+        context.drawImage(imageElement, -entry.item.width / 2, -entry.item.height / 2, entry.item.width, entry.item.height);
+        context.restore();
+        return;
+      }
+      if (entry.type === "text") {
+        context.save();
+        context.globalAlpha = (adjustments.opacity / 100) * (entry.item.opacity / 100);
+        context.filter = makeAdjustmentFilter(entry.item.exposure, entry.item.contrast, entry.item.saturation);
+        context.fillStyle = entry.item.color;
+        context.font = `${entry.item.fontWeight} ${entry.item.fontSize}px "${entry.item.fontFamily}", sans-serif`;
+        context.textBaseline = "top";
+        context.fillText(entry.item.text, entry.item.x, entry.item.y);
+        context.restore();
+        return;
+      }
+      const shape = entry.item;
       context.save();
       context.globalAlpha = (adjustments.opacity / 100) * (shape.opacity / 100);
       context.filter = makeAdjustmentFilter(shape.exposure, shape.contrast, shape.saturation);
@@ -2131,39 +2340,27 @@ export default function Home() {
         context.roundRect(-shape.width / 2, -shape.height / 2, shape.width, shape.height, Math.min(shape.cornerRadius, Math.min(shape.width, shape.height) / 2));
       } else if (shape.kind === "circle") {
         context.ellipse(0, 0, shape.width / 2, shape.height / 2, 0, 0, Math.PI * 2);
+      } else if (shape.kind === "heart") {
+        const w = shape.width; const h = shape.height; const x = -w / 2; const y = -h / 2;
+        context.moveTo(0, y + h * 0.9);
+        context.bezierCurveTo(x + w * 0.06, y + h * 0.62, x + w * 0.12, y + h * 0.16, x + w * 0.34, y + h * 0.2);
+        context.bezierCurveTo(x + w * 0.45, y + h * 0.22, x + w * 0.49, y + h * 0.34, 0, y + h * 0.42);
+        context.bezierCurveTo(x + w * 0.51, y + h * 0.34, x + w * 0.55, y + h * 0.22, x + w * 0.66, y + h * 0.2);
+        context.bezierCurveTo(x + w * 0.88, y + h * 0.16, x + w * 0.94, y + h * 0.62, 0, y + h * 0.9);
+        context.closePath();
       } else {
-        if (shape.kind === "heart") {
-          const w = shape.width; const h = shape.height; const x = -w / 2; const y = -h / 2;
-          context.moveTo(0, y + h * 0.9);
-          context.bezierCurveTo(x + w * 0.06, y + h * 0.62, x + w * 0.12, y + h * 0.16, x + w * 0.34, y + h * 0.2);
-          context.bezierCurveTo(x + w * 0.45, y + h * 0.22, x + w * 0.49, y + h * 0.34, 0, y + h * 0.42);
-          context.bezierCurveTo(x + w * 0.51, y + h * 0.34, x + w * 0.55, y + h * 0.22, x + w * 0.66, y + h * 0.2);
-          context.bezierCurveTo(x + w * 0.88, y + h * 0.16, x + w * 0.94, y + h * 0.62, 0, y + h * 0.9);
-          context.closePath();
-        } else {
-          const sides = shape.kind === "triangle" ? 3 : shape.kind === "pentagon" ? 5 : 10;
-          for (let index = 0; index < sides; index += 1) {
-            const angle = -Math.PI / 2 + (index * Math.PI * 2) / sides;
-            const radius = shape.kind === "star" ? (index % 2 === 0 ? 0.48 : 0.22) : 0.46;
-            const x = Math.cos(angle) * shape.width * radius;
-            const y = Math.sin(angle) * shape.height * radius;
-            if (index === 0) context.moveTo(x, y); else context.lineTo(x, y);
-          }
-          context.closePath();
+        const sides = shape.kind === "triangle" ? 3 : shape.kind === "pentagon" ? 5 : 10;
+        for (let index = 0; index < sides; index += 1) {
+          const angle = -Math.PI / 2 + (index * Math.PI * 2) / sides;
+          const radius = shape.kind === "star" ? (index % 2 === 0 ? 0.48 : 0.22) : 0.46;
+          const x = Math.cos(angle) * shape.width * radius;
+          const y = Math.sin(angle) * shape.height * radius;
+          if (index === 0) context.moveTo(x, y); else context.lineTo(x, y);
         }
+        context.closePath();
       }
       context.fill();
       if (shape.outlineWidth > 0) context.stroke();
-      context.restore();
-    });
-    layersRef.current.forEach((layer) => {
-      context.save();
-      context.globalAlpha = (adjustments.opacity / 100) * (layer.opacity / 100);
-      context.filter = makeAdjustmentFilter(layer.exposure, layer.contrast, layer.saturation);
-      context.fillStyle = layer.color;
-      context.font = `${layer.fontWeight} ${layer.fontSize}px "${layer.fontFamily}", sans-serif`;
-      context.textBaseline = "top";
-      context.fillText(layer.text, layer.x, layer.y);
       context.restore();
     });
     const baseName = fileMeta.name.replace(/\.[^.]+$/, "") || "abipaint";
@@ -2755,14 +2952,15 @@ export default function Home() {
       return;
     }
     if (selectedStrokeId) {
-      setTool("brush");
-      setActiveDesktopTool("brush");
-      setOpenDesktopTool("brush");
+      setTool("move");
+      setActiveDesktopTool(null);
+      setOpenDesktopTool("object");
       return;
     }
     if (selectedImageId) {
-      inspectorRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
-      toast("圖片設定位於右側調整欄");
+      setTool("move");
+      setActiveDesktopTool(null);
+      setOpenDesktopTool("object");
     }
   };
   const toolPanelTitle = selectedImage
@@ -2784,6 +2982,9 @@ export default function Home() {
                   : tool === "retouch"
                     ? "瑕疵移除工具"
                     : "移動工具";
+  const desktopToolPanelTitle = openDesktopTool === "object"
+    ? tr("素材設定", "Object settings")
+    : activeWorkspaceToolLabel;
 
   return (
     <main className="studio-app" style={mobileDrawerStyle}>
@@ -2940,14 +3141,28 @@ export default function Home() {
           </aside>
 
           {openDesktopTool && (
-            <section ref={desktopToolPanelRef} className={`desktop-tool-popover ${isDesktopToolDragging ? "is-dragging" : ""}`} style={desktopToolPopoverStyle} aria-label={activeWorkspaceToolLabel}>
+            <section ref={desktopToolPanelRef} className={`desktop-tool-popover ${isDesktopToolDragging ? "is-dragging" : ""}`} style={desktopToolPopoverStyle} aria-label={desktopToolPanelTitle}>
               <div className="desktop-tool-popover-heading" onPointerDown={handleDesktopToolPanelPointerDown}>
                 <div>
                   <span className="eyebrow">CREATIVE TOOL</span>
-                  <h2>{activeWorkspaceToolLabel}</h2>
+                  <h2>{desktopToolPanelTitle}</h2>
                 </div>
                 <button type="button" className="icon-button subtle" onClick={() => setOpenDesktopTool(null)} title={tr("完成設定", "Done")} aria-label={tr("完成設定", "Done")}><Check size={16} /></button>
               </div>
+
+              {selectedMaterialStackEntry && (
+                <div className="material-stack-controls" aria-label={tr("素材位置", "Stack order")}>
+                  <span className="field-label">{tr("素材位置", "Stack order")}</span>
+                  <div className="material-stack-actions">
+                    <button type="button" className="secondary-button" onClick={() => moveSelectedMaterialInStack("forward")} disabled={!canBringSelectedMaterialForward} title={tr("向前一層", "Bring forward")}>
+                      <ArrowUp size={14} /> {tr("向前", "Forward")}
+                    </button>
+                    <button type="button" className="secondary-button" onClick={() => moveSelectedMaterialInStack("backward")} disabled={!canSendSelectedMaterialBackward} title={tr("向後一層", "Send backward")}>
+                      <ArrowDown size={14} /> {tr("向後", "Backward")}
+                    </button>
+                  </div>
+                </div>
+              )}
 
               {openDesktopTool === "brush" && (
                 <div className="desktop-tool-popover-content">
@@ -3079,9 +3294,18 @@ export default function Home() {
                     onPointerLeave={finishStroke}
                     aria-label="繪圖畫布"
                   />
+                  {bleedGuide && (
+                    <div
+                      className="bleed-guide"
+                      style={{ left: `${bleedGuide.inset}px`, top: `${bleedGuide.inset}px`, right: `${bleedGuide.inset}px`, bottom: `${bleedGuide.inset}px` }}
+                      aria-label={copy.businessCardBleed}
+                    >
+                      <span>{copy.businessCardBleed}</span>
+                    </div>
+                  )}
                   {snapGuides.x !== null && <div className="snap-guide snap-guide-vertical" style={{ left: `${snapGuides.x}px` }} />}
                   {snapGuides.y !== null && <div className="snap-guide snap-guide-horizontal" style={{ top: `${snapGuides.y}px` }} />}
-                  {[...strokes, ...(drawingStroke ? [drawingStroke] : [])].map((stroke) => {
+                  {[...strokes, ...(drawingStroke ? [drawingStroke] : [])].map((stroke, index) => {
                     const isDraftStroke = drawingStroke?.id === stroke.id;
                     const isStrokeLayerLocked = paintLayers.find((layer) => layer.id === stroke.paintLayerId)?.locked ?? false;
                     const isStrokeSelectable = !isDraftStroke && tool === "move" && !isStrokeLayerLocked;
@@ -3095,7 +3319,7 @@ export default function Home() {
                         key={stroke.id}
                         className={`stroke-layer ${selectedStrokeId === stroke.id ? "is-selected" : ""} ${isDraftStroke ? "is-draft" : ""} ${isStrokeLayerLocked ? "is-locked" : ""}`}
                         viewBox={`0 0 ${canvasSize.width} ${canvasSize.height}`}
-                        style={{ width: `${canvasSize.width}px`, height: `${canvasSize.height}px`, pointerEvents: isStrokeSelectable ? "auto" : "none" }}
+                        style={{ width: `${canvasSize.width}px`, height: `${canvasSize.height}px`, zIndex: getMaterialStackOrder("stroke", stroke, index), pointerEvents: isStrokeSelectable ? "auto" : "none" }}
                         onPointerDown={isStrokeSelectable ? (event) => handleStrokePointerDown(event, stroke) : undefined}
                         role={isStrokeSelectable ? "button" : undefined}
                         tabIndex={isStrokeSelectable ? 0 : -1}
@@ -3119,7 +3343,7 @@ export default function Home() {
                       </svg>
                     );
                   })}
-                  {images.map((image) => (
+                  {images.map((image, index) => (
                     <div
                       key={image.id}
                       className={`image-layer ${selectedImageId === image.id ? "is-selected" : ""} ${selectedImageId === image.id && (snapGuides.x !== null || snapGuides.y !== null) ? "is-snapped" : ""} ${isPaintLayerLocked(image.paintLayerId) ? "is-locked" : ""} ${imageEditingId === image.id ? "is-editing" : "is-passive"} ${cropDraft?.imageId === image.id ? "is-cropping" : ""}`}
@@ -3133,6 +3357,7 @@ export default function Home() {
                         "--image-rotation-stem-length": `${18 * (100 / zoom)}px`,
                         "--image-rotation-handle-offset": `${24 * (100 / zoom)}px`,
                         "--image-rotation-label-offset": `${40 * (100 / zoom)}px`,
+                        zIndex: getMaterialStackOrder("image", image, index),
                         opacity: image.opacity / 100,
                         filter: makeAdjustmentFilter(image.exposure, image.contrast, image.saturation),
                       } as CSSProperties}
@@ -3176,7 +3401,7 @@ export default function Home() {
                       )}
                     </div>
                   ))}
-                  {shapes.map((shape) => (
+                  {shapes.map((shape, index) => (
                     <svg
                       key={shape.id}
                       className={`shape-layer ${selectedShapeId === shape.id ? "is-selected" : ""} ${isPaintLayerLocked(shape.paintLayerId) ? "is-locked" : ""}`}
@@ -3187,6 +3412,7 @@ export default function Home() {
                         top: `${shape.y}px`,
                         width: `${shape.width}px`,
                         height: `${shape.height}px`,
+                        zIndex: getMaterialStackOrder("shape", shape, index),
                         transform: `rotate(${shape.rotation}deg)`,
                         opacity: shape.opacity / 100,
                         filter: [
@@ -3217,6 +3443,7 @@ export default function Home() {
                         top: `${shape.y}px`,
                         width: `${shape.width}px`,
                         height: `${shape.height}px`,
+                        zIndex: getMaterialStackOrder("shape", shape, shapes.findIndex((item) => item.id === shape.id)) + 10000,
                         transform: `rotate(${shape.rotation}deg)`,
                         "--shape-control-scale": 100 / zoom,
                         "--shape-rotation-stem-length": `${18 * (100 / zoom)}px`,
@@ -3238,7 +3465,7 @@ export default function Home() {
                       <div className="shape-control-rotation-label">{Math.round(shape.rotation)}°</div>
                     </div>
                   ))}
-                  {layers.map((layer) => (
+                  {layers.map((layer, index) => (
                     <div
                       key={layer.id}
                       className={`text-layer ${selectedTextId === layer.id ? "is-selected" : ""} ${isPaintLayerLocked(layer.paintLayerId) ? "is-locked" : ""}`}
@@ -3249,6 +3476,7 @@ export default function Home() {
                       style={{
                         left: `${layer.x}px`,
                         top: `${layer.y}px`,
+                        zIndex: getMaterialStackOrder("text", layer, index),
                         color: layer.color,
                         fontSize: `${layer.fontSize}px`,
                         fontWeight: layer.fontWeight,
@@ -3471,6 +3699,19 @@ export default function Home() {
                 <button type="button" className="resolution-preset" onClick={() => applyResolutionPreset(800, 800)}>800 × 800</button>
                 <button type="button" className="resolution-preset" onClick={() => applyResolutionPreset(1200, 800)}>1200 × 800</button>
                 <button type="button" className="resolution-preset" onClick={() => applyResolutionPreset(1280, 720)}>1280 × 720</button>
+              </div>
+              <div className="business-card-template-block">
+                <div className="business-card-template-heading"><span>{copy.businessCardTemplates}</span><small>{copy.businessCardBleed}</small></div>
+                <div className="business-card-template-grid">
+                  <button type="button" onClick={() => applyBusinessCardTemplate("asia")}>
+                    <strong>{copy.asiaBusinessCard}</strong>
+                    <span>90 × 54 mm</span>
+                  </button>
+                  <button type="button" onClick={() => applyBusinessCardTemplate("western")}>
+                    <strong>{copy.westernBusinessCard}</strong>
+                    <span>3.5 × 2 in</span>
+                  </button>
+                </div>
               </div>
               <div className="canvas-meta"><span>{isEnglish ? "Ratio" : "比例"}</span><span className="mono-value">{(canvasSize.width / canvasSize.height).toFixed(2)} : 1</span></div>
             </div>
