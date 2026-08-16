@@ -189,6 +189,7 @@
 - [x] 將名片模板的通用區塊標題改為「設計模板」，預留三折頁等版型擴充
 - [x] 將英文毛筆選項改為 Ink，避免與 Brush 工具總稱重複
 - [x] 將英文筆刷面板總標題改為 Brushes，對應多種筆刷選項
+- [x] 將頁尾版權改為 Copyright © 2026 AbiPaint 並連至官網，作者介紹文字同樣連至 https://abiting.cc
 - [x] 建立英文 `/en` 路由與英文介面字串
 - [x] 移除動態 SEO 覆寫，讓繁中與英文入口 HTML 的 title 與 description 保持生效
 - [x] 新增中英文動態 title、description 與 lang 設定
