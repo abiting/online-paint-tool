@@ -157,6 +157,8 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 .tool-rail { position: relative; display: flex; flex-direction: column; align-items: center; padding: 22px 10px 18px; background: rgba(34, 33, 29, 0.86); border-right: 1px solid rgba(227,213,187,0.15); }
 .rail-label { margin-bottom: 16px; writing-mode: vertical-rl; transform: rotate(180deg); color: #707b77; }
 .tool-group { display: grid; gap: 7px; width: 100%; }
+.rail-support-group { display: grid; gap: 7px; width: 100%; margin-top: 30px; padding-top: 17px; border-top: 1px solid rgba(227,213,187,0.14); }
+.rail-support-group .faq-rail-toggle { margin-top: 0; }
 .tool-button { position: relative; display: grid; justify-items: center; gap: 6px; width: 100%; padding: 10px 3px 8px; color: #899490; background: transparent; border-radius: 6px; font-size: 9px; }
 .tool-button:hover { color: #f3ede0; background: rgba(245,240,229,0.06); }
 .tool-button.is-active { color: #f4eee2; background: rgba(228,81,59,0.13); }
@@ -205,6 +207,8 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 .developer-work:hover { color: #fff8ec; border-color: rgba(228,81,59,0.52); background: rgba(228,81,59,0.09); transform: translateY(-1px); }
 .developer-work-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font: 600 11px "Noto Sans TC", "DM Sans", sans-serif; }
 .developer-work svg { position: absolute; top: 50%; right: 13px; color: #b98b75; transform: translateY(-50%); }
+.developer-showcase { margin-top: 16px; }
+.developer-showcase img { display: block; width: 100%; height: auto; border: 1px solid rgba(227,213,187,0.2); border-radius: 5px; box-shadow: 0 8px 18px rgba(8,12,13,0.24); }
 .mobile-mini-tools { display: none; }
 .rail-rule { width: 32px; height: 1px; margin: 20px 0; background: rgba(227,213,187,0.16); }
 .rail-secondary .tool-button { color: #6f7c77; }

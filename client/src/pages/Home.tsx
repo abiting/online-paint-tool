@@ -168,7 +168,7 @@ const localeCopy = {
     developerClose: "Close developer profile",
     developerAria: "AbiPaint developer profile",
     developerEyebrow: "DEVELOPER / ABOUT",
-    developerBio: "A Taiwanese engineer and creator who graduated from National Yang Ming Chiao Tung University. He has independently built several free online tools, with the aim of using technology to help more people.",
+    developerBio: "Taiwanese engineer and creator, graduate of National Yang Ming Chiao Tung University. Several free online tools have been independently developed with the aim of using technology to help more people.",
     developerWorks: "Other featured projects",
     faq: [
       ["What is AbiPaint?", "AbiPaint is a free online image resizer. Resize photos, adjust pixels and resolution right in your browser—no Adobe installation or Canva account required."],
@@ -2650,6 +2650,7 @@ export default function Home() {
   const handleViewportPointerDown = (event: ReactPointerEvent<HTMLDivElement>) => {
     event.preventDefault();
     const target = event.target as HTMLElement;
+    if (target.closest("canvas, .canvas-content, .canvas-shell, .canvas-shell-outer, .image-layer, .shape-layer, .text-layer, .stroke-layer")) return;
     if (event.pointerType === "touch") {
       touchPointsRef.current.set(event.pointerId, { x: event.clientX, y: event.clientY });
       event.currentTarget.setPointerCapture(event.pointerId);
@@ -3079,6 +3080,8 @@ export default function Home() {
             <ToolButton label={copy.text} active={activeDesktopTool === "text"} icon={<Type size={18} />} onClick={() => handleDesktopToolCreate("text")} onDoubleActivate={() => handleDesktopToolSettings("text")} />
             <ToolButton label={cropDraft ? tr("套用裁切", "Apply crop") : tr("裁切", "Crop")} active={tool === "crop"} icon={<Crop size={18} />} onClick={handleCropTool} disabled={!isCropToolAvailable} />
             <button type="button" className="tool-button tool-settings-entry" onClick={handleSelectedObjectSettings} disabled={!hasSelectedObject} aria-label={copy.openSettings} title={copy.openSettings}><SlidersHorizontal size={18} /><span>{copy.settings}</span></button>
+          </div>
+          <div className="rail-support-group" aria-label={tr("輔助資訊", "Help and information")}>
             <button type="button" className={`faq-rail-toggle ${isFaqOpen ? "is-active" : ""}`} onClick={() => { setIsFaqOpen((open) => !open); setIsDeveloperOpen(false); }} aria-expanded={isFaqOpen} aria-controls="abipaint-faq-panel">
               <span className="faq-rail-glyph">?</span>
               <span>FAQ</span>
@@ -3139,6 +3142,9 @@ export default function Home() {
                         </a>
                       );
                     })}
+                  </div>
+                  <div className="developer-showcase">
+                    <img src="https://coai.abiting.cc/wp-content/uploads/2026/01/watercolor_style.webp" alt="AbiPaint 免費修圖" loading="lazy" decoding="async" />
                   </div>
                 </section>
               </div>
