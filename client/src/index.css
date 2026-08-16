@@ -208,6 +208,9 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 .faq-banner { margin: 18px 0 2px; padding-top: 2px; }
 .faq-banner img { display: block; width: 100%; height: auto; border: 1px solid rgba(227,213,187,0.2); border-radius: 5px; box-shadow: 0 8px 18px rgba(8,12,13,0.24); }
 .developer-rail-toggle { margin-top: 0; }
+.easter-egg-rail-toggle { grid-template-columns: 1fr; padding: 6px 3px; }
+.easter-egg-rail-toggle .faq-rail-glyph { color: #c7ad73; border-color: rgba(199,173,115,0.48); font-size: 13px; }
+.easter-egg-rail-toggle > svg { display: none; }
 .faq-rail-glyph svg { display: block; }
 .developer-panel { height: min(570px, calc(100vh - 120px)); }
 .developer-header-actions { display: flex; align-items: center; gap: 7px; }
@@ -225,6 +228,10 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 .developer-work svg { position: absolute; top: 50%; right: 13px; color: #b98b75; transform: translateY(-50%); }
 .developer-showcase { margin-top: 16px; }
 .developer-showcase img { display: block; width: 100%; height: auto; border: 1px solid rgba(227,213,187,0.2); border-radius: 5px; box-shadow: 0 8px 18px rgba(8,12,13,0.24); }
+.easter-egg-panel { height: min(680px, calc(100vh - 120px)); }
+.easter-egg-content { padding: 18px; }
+.easter-egg-content img { display: block; width: 100%; max-height: min(470px, calc(100vh - 260px)); object-fit: contain; border: 1px solid rgba(227,213,187,0.2); border-radius: 5px; background: rgba(8,12,13,0.32); box-shadow: 0 8px 18px rgba(8,12,13,0.24); }
+.easter-egg-content p { margin: 13px 2px 0; color: #cbc4b8; font: 12px/1.7 "Noto Sans TC", "DM Sans", sans-serif; }
 .mobile-mini-tools { display: none; }
 .rail-rule { width: 32px; height: 1px; margin: 20px 0; background: rgba(227,213,187,0.16); }
 .rail-secondary .tool-button { color: #6f7c77; }

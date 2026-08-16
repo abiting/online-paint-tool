@@ -125,7 +125,6 @@ const localeCopy = {
     developerTitle: "阿比丁",
     developerClose: "關閉開發者介紹",
     developerAria: "AbiPaint 開發者介紹",
-    developerEyebrow: "DEVELOPER / ABOUT",
     developerBio: "台灣工程師兼創作者，畢業於國立陽明交通大學。曾獨立開發多款免費線上工具，希望能透過技術造福更多人類。",
     developerWorks: "其他代表作",
     faq: [
@@ -193,7 +192,6 @@ const localeCopy = {
     developerTitle: "Abiting",
     developerClose: "Close developer profile",
     developerAria: "AbiPaint developer profile",
-    developerEyebrow: "DEVELOPER / ABOUT",
     developerBio: "Taiwanese engineer and creator, graduate of National Yang Ming Chiao Tung University. Several free online tools have been independently developed with the aim of using technology to help more people.",
     developerWorks: "Other featured projects",
     faq: [
@@ -1138,6 +1136,7 @@ export default function Home() {
   const [isDesktopToolDragging, setIsDesktopToolDragging] = useState(false);
   const [isFaqOpen, setIsFaqOpen] = useState(false);
   const [isDeveloperOpen, setIsDeveloperOpen] = useState(false);
+  const [isEasterEggOpen, setIsEasterEggOpen] = useState(false);
   const [mobileMiniToolPosition, setMobileMiniToolPosition] = useState({ x: 14, y: 14 });
   const [isMobileMiniToolDragging, setIsMobileMiniToolDragging] = useState(false);
   const clipboardTextRef = useRef<TextLayer | null>(null);
@@ -3735,22 +3734,24 @@ export default function Home() {
             <button type="button" className="tool-button tool-settings-entry" onClick={handleSelectedObjectSettings} disabled={!hasSelectedObject} aria-label={copy.openSettings} title={copy.openSettings}><SlidersHorizontal size={18} /><span>{copy.settings}</span></button>
           </div>
           <div className="rail-support-group" aria-label={tr("輔助資訊", "Help and information")}>
-            <button type="button" className={`faq-rail-toggle ${isFaqOpen ? "is-active" : ""}`} onClick={() => { setIsFaqOpen((open) => !open); setIsDeveloperOpen(false); }} aria-expanded={isFaqOpen} aria-controls="abipaint-faq-panel">
+            <button type="button" className={`faq-rail-toggle ${isFaqOpen ? "is-active" : ""}`} onClick={() => { setIsFaqOpen((open) => !open); setIsDeveloperOpen(false); setIsEasterEggOpen(false); }} aria-expanded={isFaqOpen} aria-controls="abipaint-faq-panel">
               <span className="faq-rail-glyph">?</span>
               <span>FAQ</span>
               <ChevronDown size={11} aria-hidden="true" />
             </button>
-            <button type="button" className={`faq-rail-toggle developer-rail-toggle ${isDeveloperOpen ? "is-active" : ""}`} onClick={() => { setIsDeveloperOpen((open) => !open); setIsFaqOpen(false); }} aria-expanded={isDeveloperOpen} aria-controls="abipaint-developer-panel">
+            <button type="button" className={`faq-rail-toggle developer-rail-toggle ${isDeveloperOpen ? "is-active" : ""}`} onClick={() => { setIsDeveloperOpen((open) => !open); setIsFaqOpen(false); setIsEasterEggOpen(false); }} aria-expanded={isDeveloperOpen} aria-controls="abipaint-developer-panel">
               <span className="faq-rail-glyph"><UserRound size={11} aria-hidden="true" /></span>
               <span>{copy.developer}</span>
               <ChevronDown size={11} aria-hidden="true" />
+            </button>
+            <button type="button" className={`faq-rail-toggle easter-egg-rail-toggle ${isEasterEggOpen ? "is-active" : ""}`} onClick={() => { setIsEasterEggOpen((open) => !open); setIsFaqOpen(false); setIsDeveloperOpen(false); }} aria-expanded={isEasterEggOpen} aria-controls="abipaint-easter-egg-panel" aria-label={tr("開啟彩蛋", "Open surprise")} title={tr("開啟彩蛋", "Open surprise")}>
+              <span className="faq-rail-glyph">✦</span>
             </button>
           </div>
           {isFaqOpen && (
             <section id="abipaint-faq-panel" className="faq-panel" aria-label={copy.faqAria}>
               <header className="faq-panel-header">
                 <div>
-                  <span className="faq-eyebrow">FAQ / FIELD NOTES</span>
                   <h2>{copy.faqTitle}</h2>
                 </div>
                 <button type="button" className="faq-close" onClick={() => setIsFaqOpen(false)} aria-label={copy.faqClose}><ChevronDown size={16} /></button>
@@ -3776,7 +3777,6 @@ export default function Home() {
             <section id="abipaint-developer-panel" className="faq-panel developer-panel" aria-label={copy.developerAria}>
               <header className="faq-panel-header">
                 <div>
-                  <span className="faq-eyebrow">{copy.developerEyebrow}</span>
                   <h2>{copy.developerTitle}</h2>
                 </div>
                 <div className="developer-header-actions">
@@ -3804,6 +3804,20 @@ export default function Home() {
                     <img src="https://coai.abiting.cc/wp-content/uploads/2026/01/watercolor_style.webp" alt="AbiPaint 免費修圖" loading="lazy" decoding="async" />
                   </div>
                 </section>
+              </div>
+            </section>
+          )}
+          {isEasterEggOpen && (
+            <section id="abipaint-easter-egg-panel" className="faq-panel easter-egg-panel" aria-label={tr("AbiPaint 彩蛋", "AbiPaint surprise")}>
+              <header className="faq-panel-header">
+                <div>
+                  <h2>{tr("彩蛋", "Surprise")}</h2>
+                </div>
+                <button type="button" className="faq-close" onClick={() => setIsEasterEggOpen(false)} aria-label={tr("關閉彩蛋", "Close surprise")}><ChevronDown size={16} /></button>
+              </header>
+              <div className="easter-egg-content">
+                <img src="https://coai.abiting.cc/wp-content/uploads/2026/08/IMG_5516-scaled.jpeg" alt="線上圖片尺寸修改" loading="lazy" decoding="async" />
+                <p>{isEnglish ? "August 16, 2026. Abi, a nine-year-old white-and-tabby cat. 😼" : "2026 年 8 月 16 日，白底虎斑貓 Abi 今年九歲 😼"}</p>
               </div>
             </section>
           )}
