@@ -13,6 +13,8 @@ import {
   ArrowUp,
   Check,
   ChevronDown,
+  ChevronLeft,
+  ChevronRight,
   Circle,
   Crop,
   Download,
@@ -212,6 +214,28 @@ const developerWorks = [
   { href: "https://abitingpokedex.com", zh: "寶可夢能力點數計算器", en: "Pokémon Stat Points Calculator" },
   { href: "https://coai.abiting.cc", zh: "名偵探柯南集數列表", en: "List of Detective Conan episodes" },
 ] as const;
+
+type EasterEggEntry = {
+  id: string;
+  dateTime: string;
+  dateLabel: string;
+  src: string;
+  alt: string;
+  zhCaption: string;
+  enCaption: string;
+};
+
+const easterEggArchive: readonly EasterEggEntry[] = [
+  {
+    id: "abi-2026-08-16",
+    dateTime: "2026-08-16",
+    dateLabel: "2026.08.16",
+    src: "https://coai.abiting.cc/wp-content/uploads/2026/08/Bazaart_FBDC2594-967A-4E63-B52D-0B174FF3D65A.jpeg",
+    alt: "線上圖片尺寸修改",
+    zhCaption: "白底虎斑貓 Abi 今年九歲 😼",
+    enCaption: "Abi, a nine-year-old white-and-tabby cat 😼",
+  },
+];
 
 type CanvasPoint = {
   x: number;
@@ -966,6 +990,8 @@ export default function Home() {
   const copy = localeCopy[locale];
   const isEnglish = locale === "en";
   const tr = useCallback((zh: string, en: string) => (isEnglish ? en : zh), [isEnglish]);
+  const [easterEggIndex, setEasterEggIndex] = useState(0);
+  const activeEasterEgg = easterEggArchive[easterEggIndex] ?? easterEggArchive[0];
 
   useEffect(() => {
     const desktopQuery = window.matchMedia("(min-width: 768px)");
@@ -3813,11 +3839,23 @@ export default function Home() {
                 <div>
                   <h2>{tr("彩蛋", "Surprise")}</h2>
                 </div>
-                <button type="button" className="faq-close" onClick={() => setIsEasterEggOpen(false)} aria-label={tr("關閉彩蛋", "Close surprise")}><ChevronDown size={16} /></button>
+                <div className="easter-egg-header-actions">
+                  {easterEggArchive.length > 1 && (
+                    <div className="easter-egg-pagination" aria-label={tr("瀏覽歷次彩蛋", "Browse past surprises")}>
+                      <button type="button" onClick={() => setEasterEggIndex((index) => (index - 1 + easterEggArchive.length) % easterEggArchive.length)} aria-label={tr("上一則彩蛋", "Previous surprise")}><ChevronLeft size={14} /></button>
+                      <span>{easterEggIndex + 1} / {easterEggArchive.length}</span>
+                      <button type="button" onClick={() => setEasterEggIndex((index) => (index + 1) % easterEggArchive.length)} aria-label={tr("下一則彩蛋", "Next surprise")}><ChevronRight size={14} /></button>
+                    </div>
+                  )}
+                  <button type="button" className="faq-close" onClick={() => setIsEasterEggOpen(false)} aria-label={tr("關閉彩蛋", "Close surprise")}><ChevronDown size={16} /></button>
+                </div>
               </header>
               <div className="easter-egg-content">
-                <img src="https://coai.abiting.cc/wp-content/uploads/2026/08/Bazaart_FBDC2594-967A-4E63-B52D-0B174FF3D65A.jpeg" alt="線上圖片尺寸修改" loading="lazy" decoding="async" />
-                <p>{isEnglish ? "Abi, a nine-year-old white-and-tabby cat 😼" : "白底虎斑貓 Abi 今年九歲 😼"}</p>
+                <img src={activeEasterEgg.src} alt={activeEasterEgg.alt} loading="lazy" decoding="async" />
+                <div className="easter-egg-caption">
+                  <p>{isEnglish ? activeEasterEgg.enCaption : activeEasterEgg.zhCaption}</p>
+                  <time dateTime={activeEasterEgg.dateTime}>{activeEasterEgg.dateLabel}</time>
+                </div>
               </div>
             </section>
           )}
