@@ -204,7 +204,6 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 .developer-work { position: relative; display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 3px 12px; padding: 11px 38px 11px 12px; color: #d9d5ca; border: 1px solid rgba(227,213,187,0.13); border-radius: 5px; background: rgba(245,240,229,0.025); text-decoration: none; transition: color 160ms var(--ease-out), border-color 160ms var(--ease-out), background 160ms var(--ease-out), transform 160ms var(--ease-out); }
 .developer-work:hover { color: #fff8ec; border-color: rgba(228,81,59,0.52); background: rgba(228,81,59,0.09); transform: translateY(-1px); }
 .developer-work-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font: 600 11px "Noto Sans TC", "DM Sans", sans-serif; }
-.developer-work-subtitle { overflow: hidden; color: #8f9a93; text-overflow: ellipsis; white-space: nowrap; font: 9px "IBM Plex Mono", "Noto Sans TC", monospace; letter-spacing: 0.02em; }
 .developer-work svg { position: absolute; top: 50%; right: 13px; color: #b98b75; transform: translateY(-50%); }
 .mobile-mini-tools { display: none; }
 .rail-rule { width: 32px; height: 1px; margin: 20px 0; background: rgba(227,213,187,0.16); }

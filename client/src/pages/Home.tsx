@@ -3131,12 +3131,10 @@ export default function Home() {
                   <h3 id="developer-projects-title">{copy.developerWorks}</h3>
                   <div className="developer-work-list">
                     {developerWorks.map((work) => {
-                      const primaryTitle = isEnglish ? work.en : work.zh;
-                      const secondaryTitle = isEnglish ? work.zh : work.en;
+                      const workTitle = isEnglish ? work.en : work.zh;
                       return (
                         <a key={work.href} className="developer-work" href={work.href} target="_blank" rel="noopener noreferrer">
-                          <span className="developer-work-title">{primaryTitle}</span>
-                          <span className="developer-work-subtitle">{secondaryTitle}</span>
+                          <span className="developer-work-title">{workTitle}</span>
                           <ExternalLink size={13} aria-hidden="true" />
                         </a>
                       );
