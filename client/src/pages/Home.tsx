@@ -43,12 +43,15 @@ import {
   WandSparkles,
 } from "lucide-react";
 import { toast } from "sonner";
+import { jsPDF } from "jspdf";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 
 type Tool = "brush" | "eraser" | "fill" | "text" | "shape" | "retouch" | "move" | "crop";
 type DesktopCreativeTool = Extract<Tool, "brush" | "shape" | "text">;
 type BrushKind = "oil" | "pencil" | "brush";
 type ShapeKind = "rectangle" | "circle" | "star" | "heart" | "triangle" | "pentagon";
 type ShapeResizeAxis = "left" | "right" | "top" | "bottom" | "top-left" | "top-right" | "bottom-left" | "bottom-right";
+type CropHandleAxis = ShapeResizeAxis | "move";
 type Locale = "zh-Hant" | "en";
 
 const localeCopy = {
@@ -58,8 +61,10 @@ const localeCopy = {
     canonical: "https://abipaint.abiting.cc/",
     documentName: "未命名畫布",
     importImage: "匯入影像",
+    exportImage: "匯出影像",
     exportPng: "匯出 PNG",
     exportJpg: "匯出 JPG",
+    exportPdf: "匯出 PDF",
     undo: "復原",
     redo: "重做",
     language: "EN",
@@ -104,8 +109,10 @@ const localeCopy = {
     canonical: "https://abipaint.abiting.cc/en",
     documentName: "Untitled canvas",
     importImage: "Import image",
+    exportImage: "Export image",
     exportPng: "Export PNG",
     exportJpg: "Export JPG",
+    exportPdf: "Export PDF",
     undo: "Undo",
     redo: "Redo",
     language: "繁中",
@@ -764,7 +771,16 @@ export default function Home() {
     startAngle: number;
     startRotation: number;
   } | null>(null);
-  const cropDragRef = useRef<{ imageId: string; startX: number; startY: number } | null>(null);
+  const cropDragRef = useRef<{
+    imageId: string;
+    axis: CropHandleAxis;
+    startPointerX: number;
+    startPointerY: number;
+    startX: number;
+    startY: number;
+    startWidth: number;
+    startHeight: number;
+  } | null>(null);
   const strokeDragRef = useRef<{ id: string; offsetX: number; offsetY: number } | null>(null);
   const drawingStrokeRef = useRef<BrushStroke | null>(null);
   const historyRef = useRef<HistoryItem[]>([]);
@@ -1640,6 +1656,28 @@ export default function Home() {
     });
   };
 
+  const handleCropHandlePointerDown = (event: ReactPointerEvent<HTMLDivElement>, image: ImageLayer, axis: CropHandleAxis) => {
+    event.stopPropagation();
+    event.preventDefault();
+    if (!cropDraft || cropDraft.imageId !== image.id) return;
+    try {
+      event.currentTarget.setPointerCapture(event.pointerId);
+    } catch {
+      // 部分觸控與合成指標環境不支援捕捉，仍由全域指標事件持續追蹤。
+    }
+    const point = getCanvasPoint(event.clientX, event.clientY);
+    cropDragRef.current = {
+      imageId: image.id,
+      axis,
+      startPointerX: point.x,
+      startPointerY: point.y,
+      startX: cropDraft.x,
+      startY: cropDraft.y,
+      startWidth: cropDraft.width,
+      startHeight: cropDraft.height,
+    };
+  };
+
   const cancelImageCrop = () => {
     setCropDraft(null);
     setTool("move");
@@ -2042,7 +2080,7 @@ export default function Home() {
     event.target.value = "";
   };
 
-  const exportImage = async (format: "png" | "jpeg" = "png") => {
+  const exportImage = async (format: "png" | "jpeg" | "pdf" = "png") => {
     const source = canvasRef.current;
     if (!source) return;
     const output = document.createElement("canvas");
@@ -2128,12 +2166,25 @@ export default function Home() {
       context.fillText(layer.text, layer.x, layer.y);
       context.restore();
     });
+    const baseName = fileMeta.name.replace(/\.[^.]+$/, "") || "abipaint";
+    if (format === "pdf") {
+      const pdf = new jsPDF({
+        orientation: output.width >= output.height ? "landscape" : "portrait",
+        unit: "px",
+        format: [output.width, output.height],
+        compress: true,
+      });
+      pdf.addImage(output.toDataURL("image/jpeg", 0.94), "JPEG", 0, 0, output.width, output.height, undefined, "FAST");
+      pdf.save(`${baseName}.pdf`);
+      toast.success(tr("PDF 已匯出", "PDF exported"));
+      return;
+    }
     const link = document.createElement("a");
     const extension = format === "jpeg" ? "jpg" : "png";
-    link.download = `${fileMeta.name.replace(/\.[^.]+$/, "") || "coai"}.${extension}`;
+    link.download = `${baseName}.${extension}`;
     link.href = output.toDataURL(format === "jpeg" ? "image/jpeg" : "image/png", format === "jpeg" ? 0.92 : undefined);
     link.click();
-    toast.success(`${extension.toUpperCase()} 已匯出`);
+    toast.success(tr(`${extension.toUpperCase()} 已匯出`, `${extension.toUpperCase()} exported`));
   };
 
   const saveDocumentName = (value: string) => {
@@ -2269,13 +2320,7 @@ export default function Home() {
     setSelectedImageId(image.id);
     setSelectedTextId(null);
     setSelectedShapeId(null);
-    if (tool === "crop" && cropDraft?.imageId === image.id) {
-      const startX = clamp((point.x - image.x) / Math.max(1, image.width), 0, 1);
-      const startY = clamp((point.y - image.y) / Math.max(1, image.height), 0, 1);
-      cropDragRef.current = { imageId: image.id, startX, startY };
-      setCropDraft({ imageId: image.id, x: startX, y: startY, width: 0.1, height: 0.1 });
-      return;
-    }
+    if (tool === "crop" && cropDraft?.imageId === image.id) return;
     if (imageEditingId !== image.id) {
       setImageEditingId(image.id);
       setCropDraft(null);
@@ -2337,16 +2382,30 @@ export default function Home() {
       const image = imagesRef.current.find((item) => item.id === drag.imageId);
       if (!image) return;
       const point = getCanvasPoint(event.clientX, event.clientY);
-      const currentX = clamp((point.x - image.x) / Math.max(1, image.width), 0, 1);
-      const currentY = clamp((point.y - image.y) / Math.max(1, image.height), 0, 1);
-      const x = Math.min(drag.startX, currentX);
-      const y = Math.min(drag.startY, currentY);
+      const deltaX = (point.x - drag.startPointerX) / Math.max(1, image.width);
+      const deltaY = (point.y - drag.startPointerY) / Math.max(1, image.height);
+      const minimum = 0.1;
+      let left = drag.startX;
+      let top = drag.startY;
+      let right = drag.startX + drag.startWidth;
+      let bottom = drag.startY + drag.startHeight;
+      if (drag.axis === "move") {
+        left = clamp(drag.startX + deltaX, 0, 1 - drag.startWidth);
+        top = clamp(drag.startY + deltaY, 0, 1 - drag.startHeight);
+        right = left + drag.startWidth;
+        bottom = top + drag.startHeight;
+      } else {
+        if (drag.axis.includes("left")) left = clamp(drag.startX + deltaX, 0, right - minimum);
+        if (drag.axis.includes("right")) right = clamp(drag.startX + drag.startWidth + deltaX, left + minimum, 1);
+        if (drag.axis.includes("top")) top = clamp(drag.startY + deltaY, 0, bottom - minimum);
+        if (drag.axis.includes("bottom")) bottom = clamp(drag.startY + drag.startHeight + deltaY, top + minimum, 1);
+      }
       setCropDraft({
         imageId: image.id,
-        x,
-        y,
-        width: clamp(Math.abs(currentX - drag.startX), 0.1, 1 - x),
-        height: clamp(Math.abs(currentY - drag.startY), 0.1, 1 - y),
+        x: left,
+        y: top,
+        width: right - left,
+        height: bottom - top,
       });
     };
     const handleCropUp = () => {
@@ -2675,7 +2734,7 @@ export default function Home() {
     }
     setTool("crop");
     beginImageCrop();
-    toast.info(tr("在圖片上拖曳框選裁切範圍；再次點擊裁切即可套用，按 Esc 可取消", "Drag on the image to set a crop area. Click Crop again to apply, or press Esc to cancel"));
+    toast.info(tr("拖曳裁切框或控制點調整範圍；再次點擊裁切即可套用，按 Esc 可取消", "Drag the crop frame or its handles to adjust the area. Click Crop again to apply, or press Esc to cancel"));
   };
   const activeWorkspaceToolLabel = activeDesktopTool === "brush"
     ? copy.brush
@@ -2769,12 +2828,18 @@ export default function Home() {
           <button type="button" className="secondary-button" onClick={() => fileInputRef.current?.click()} title={copy.importImage} aria-label={copy.importImage}>
             <Upload size={15} /> <span className="top-action-label">{copy.importImage}</span>
           </button>
-          <button type="button" className="primary-button" onClick={() => exportImage("png")} title={copy.exportPng} aria-label={copy.exportPng}>
-            <Download size={15} /> <span className="top-action-label">{copy.exportPng}</span>
-          </button>
-          <button type="button" className="primary-button" onClick={() => exportImage("jpeg")} title={copy.exportJpg} aria-label={copy.exportJpg}>
-            <Download size={15} /> <span className="top-action-label">{copy.exportJpg}</span>
-          </button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button type="button" className="primary-button export-menu-trigger" title={copy.exportImage} aria-label={copy.exportImage}>
+                <Download size={15} /> <span className="top-action-label">{copy.exportImage}</span><ChevronDown size={14} aria-hidden="true" />
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="export-menu-content">
+              <DropdownMenuItem onSelect={() => void exportImage("png")}><Download size={15} /><span>PNG</span></DropdownMenuItem>
+              <DropdownMenuItem onSelect={() => void exportImage("jpeg")}><Download size={15} /><span>JPG</span></DropdownMenuItem>
+              <DropdownMenuItem onSelect={() => void exportImage("pdf")}><Download size={15} /><span>PDF</span></DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
         <input ref={fileInputRef} type="file" accept="image/*" onChange={handleImport} hidden />
       </header>
@@ -3077,7 +3142,23 @@ export default function Home() {
                       aria-label={`圖片素材：${image.name}`}
                     >
                       <img className="image-layer-content" src={image.src} alt={image.name} draggable={false} />
-                      {cropDraft?.imageId === image.id && <div className="image-crop-preview" style={{ left: `${cropDraft.x * 100}%`, top: `${cropDraft.y * 100}%`, width: `${cropDraft.width * 100}%`, height: `${cropDraft.height * 100}%` }}><span>{tr("裁切範圍", "Crop area")}</span></div>}
+                      {cropDraft?.imageId === image.id && (
+                        <div
+                          className="image-crop-preview"
+                          style={{ left: `${cropDraft.x * 100}%`, top: `${cropDraft.y * 100}%`, width: `${cropDraft.width * 100}%`, height: `${cropDraft.height * 100}%` }}
+                          onPointerDown={(event) => handleCropHandlePointerDown(event, image, "move")}
+                        >
+                          <span>{tr("拖曳控制點調整裁切範圍", "Drag handles to adjust crop")}</span>
+                          <div className="crop-handle crop-handle-left" onPointerDown={(event) => handleCropHandlePointerDown(event, image, "left")} />
+                          <div className="crop-handle crop-handle-right" onPointerDown={(event) => handleCropHandlePointerDown(event, image, "right")} />
+                          <div className="crop-handle crop-handle-top" onPointerDown={(event) => handleCropHandlePointerDown(event, image, "top")} />
+                          <div className="crop-handle crop-handle-bottom" onPointerDown={(event) => handleCropHandlePointerDown(event, image, "bottom")} />
+                          <div className="crop-handle crop-handle-top-left" onPointerDown={(event) => handleCropHandlePointerDown(event, image, "top-left")} />
+                          <div className="crop-handle crop-handle-top-right" onPointerDown={(event) => handleCropHandlePointerDown(event, image, "top-right")} />
+                          <div className="crop-handle crop-handle-bottom-left" onPointerDown={(event) => handleCropHandlePointerDown(event, image, "bottom-left")} />
+                          <div className="crop-handle crop-handle-bottom-right" onPointerDown={(event) => handleCropHandlePointerDown(event, image, "bottom-right")} />
+                        </div>
+                      )}
                       {selectedImageId === image.id && imageEditingId === image.id && !isPaintLayerLocked(image.paintLayerId) && !cropDraft && (
                         <>
                           <div className="image-resize-handle image-resize-handle-left" onPointerDown={(event) => handleImageResizePointerDown(event, image, "left")} />
@@ -3371,13 +3452,6 @@ export default function Home() {
               </div>
             )}
             */}
-
-            {selectedImage && (
-              <div className="inspector-section image-inspector-section">
-                <SectionTitle eyebrow="IMAGE LAYER" title={tr("圖片素材", "Image layer")} action={<ImagePlus size={15} className="section-icon" />} />
-                <div className="image-layer-meta"><span>{tr("檔案", "File")}</span><strong>{selectedImage.name}</strong></div>
-              </div>
-            )}
 
             <div className="inspector-divider" />
 
