@@ -277,7 +277,7 @@ kbd { min-width: 19px; padding: 3px 4px; text-align: center; color: #aab1aa; bac
 .stroke-layer { position: absolute; left: 0; top: 0; overflow: visible; user-select: none; -webkit-user-select: none; touch-action: none; cursor: move; }
 .stroke-layer.is-draft { pointer-events: none; }
 .stroke-layer.is-locked { cursor: not-allowed; }
-.stroke-layer .stroke-hit-area { stroke: transparent; fill: transparent; pointer-events: stroke; }
+.stroke-layer .stroke-hit-area { stroke: transparent; fill: transparent; pointer-events: stroke; cursor: move; }
 .stroke-layer.is-selected .stroke-visible { filter: drop-shadow(0 0 3px rgba(228,81,59,0.9)); }
 .text-layer.is-selected { outline: 1px dashed #e4513b; outline-offset: 6px; }
 .text-layer[contenteditable="true"] { min-width: 120px; cursor: text; user-select: text; outline: 1px solid rgba(228,81,59,0.82); outline-offset: 6px; background: rgba(255,253,248,0.1); }

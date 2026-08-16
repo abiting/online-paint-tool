@@ -3045,8 +3045,8 @@ export default function Home() {
     setSelectedTextId(null);
     setSelectedShapeId(null);
     setSelectedImageId(null);
-    setTool("brush");
-    setActiveDesktopTool("brush");
+    setTool("move");
+    setActiveDesktopTool(null);
     setOpenDesktopTool(null);
     strokeDragRef.current = { id: stroke.id, offsetX: point.x - stroke.x, offsetY: point.y - stroke.y };
   };
@@ -4007,7 +4007,7 @@ export default function Home() {
                         key={stroke.id}
                         className={`stroke-layer ${selectedStrokeId === stroke.id ? "is-selected" : ""} ${isDraftStroke ? "is-draft" : ""} ${isStrokeLayerLocked ? "is-locked" : ""}`}
                         viewBox={`0 0 ${canvasSize.width} ${canvasSize.height}`}
-                        style={{ width: `${canvasSize.width}px`, height: `${canvasSize.height}px`, zIndex: getMaterialStackOrder("stroke", stroke, index), pointerEvents: isStrokeSelectable ? "auto" : "none" }}
+                        style={{ width: `${canvasSize.width}px`, height: `${canvasSize.height}px`, zIndex: getMaterialStackOrder("stroke", stroke, index), pointerEvents: "none" }}
                         onPointerDown={isStrokeSelectable ? (event) => handleStrokePointerDown(event, stroke) : undefined}
                         role={isStrokeSelectable ? "button" : undefined}
                         tabIndex={isStrokeSelectable ? 0 : -1}
