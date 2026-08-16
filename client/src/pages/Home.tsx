@@ -1634,6 +1634,10 @@ export default function Home() {
     });
   };
 
+  const cancelImageCrop = () => {
+    setCropDraft(null);
+  };
+
   const applyImageCrop = async () => {
     if (!cropDraft) return;
     const image = imagesRef.current.find((item) => item.id === cropDraft.imageId);
@@ -3244,14 +3248,14 @@ export default function Home() {
 
             {selectedImage && (
               <div className="inspector-section image-inspector-section">
-                <SectionTitle eyebrow="IMAGE LAYER" title="圖片素材" action={<ImagePlus size={15} className="section-icon" />} />
-                <div className="image-layer-meta"><span>檔案</span><strong>{selectedImage.name}</strong></div>
-                {!imageEditingId && <p className="empty-inspector">圖片目前鎖定，點擊下方按鈕後才可移動、縮放、旋轉或裁切。</p>}
-                {imageEditingId === selectedImage.id && !cropDraft && <p className="empty-inspector">可在畫布上拖曳圖片移動，使用邊角控制點縮放，或開啟裁切模式保留所需範圍。</p>}
-                {!imageEditingId && <button type="button" className="secondary-button full-width" onClick={startImageEditing}><ImagePlus size={14} /> 開始編輯圖片</button>}
-                {imageEditingId === selectedImage.id && !cropDraft && <><button type="button" className="secondary-button full-width" onClick={beginImageCrop}><Crop size={14} /> 裁切圖片</button><button type="button" className="secondary-button full-width" onClick={() => setImageEditingId(null)}><Lock size={14} /> 完成編輯並鎖定</button></>}
-                {cropDraft?.imageId === selectedImage.id && <><RangeControl label="裁切左側" value={Math.round(cropDraft.x * 100)} min={0} max={90} suffix="%" onChange={(value) => updateCropDraft({ x: value / 100 })} /><RangeControl label="裁切上方" value={Math.round(cropDraft.y * 100)} min={0} max={90} suffix="%" onChange={(value) => updateCropDraft({ y: value / 100 })} /><RangeControl label="裁切寬度" value={Math.round(cropDraft.width * 100)} min={10} max={Math.max(10, Math.round((1 - cropDraft.x) * 100))} suffix="%" onChange={(value) => updateCropDraft({ width: value / 100 })} /><RangeControl label="裁切高度" value={Math.round(cropDraft.height * 100)} min={10} max={Math.max(10, Math.round((1 - cropDraft.y) * 100))} suffix="%" onChange={(value) => updateCropDraft({ height: value / 100 })} /><button type="button" className="primary-button full-width" onClick={() => void applyImageCrop()}><Check size={14} /> 套用裁切</button><button type="button" className="secondary-button full-width" onClick={cancelImageCrop}>取消裁切</button></>}
-                <button type="button" className="secondary-button full-width" onClick={deleteSelectedImage}><Trash2 size={14} /> 移除圖片</button>
+                <SectionTitle eyebrow="IMAGE LAYER" title={tr("圖片素材", "Image layer")} action={<ImagePlus size={15} className="section-icon" />} />
+                <div className="image-layer-meta"><span>{tr("檔案", "File")}</span><strong>{selectedImage.name}</strong></div>
+                {!imageEditingId && <p className="empty-inspector">{tr("圖片目前鎖定，點擊下方按鈕後才可移動、縮放、旋轉或裁切。", "This image is locked. Start editing to move, resize, rotate, or crop it.")}</p>}
+                {imageEditingId === selectedImage.id && !cropDraft && <p className="empty-inspector">{tr("可在畫布上拖曳圖片移動，使用邊角控制點縮放，或開啟裁切模式保留所需範圍。", "Drag on the canvas to move it, use the corner handles to resize it, or crop it to keep the area you need.")}</p>}
+                {!imageEditingId && <button type="button" className="secondary-button full-width" onClick={startImageEditing}><ImagePlus size={14} /> {tr("開始編輯圖片", "Edit image")}</button>}
+                {imageEditingId === selectedImage.id && !cropDraft && <><button type="button" className="secondary-button full-width" onClick={beginImageCrop}><Crop size={14} /> {tr("裁切圖片", "Crop image")}</button><button type="button" className="secondary-button full-width" onClick={() => setImageEditingId(null)}><Lock size={14} /> {tr("完成編輯並鎖定", "Finish editing & lock")}</button></>}
+                {cropDraft?.imageId === selectedImage.id && <><RangeControl label={tr("裁切左側", "Crop left")} value={Math.round(cropDraft.x * 100)} min={0} max={90} suffix="%" onChange={(value) => updateCropDraft({ x: value / 100 })} /><RangeControl label={tr("裁切上方", "Crop top")} value={Math.round(cropDraft.y * 100)} min={0} max={90} suffix="%" onChange={(value) => updateCropDraft({ y: value / 100 })} /><RangeControl label={tr("裁切寬度", "Crop width")} value={Math.round(cropDraft.width * 100)} min={10} max={Math.max(10, Math.round((1 - cropDraft.x) * 100))} suffix="%" onChange={(value) => updateCropDraft({ width: value / 100 })} /><RangeControl label={tr("裁切高度", "Crop height")} value={Math.round(cropDraft.height * 100)} min={10} max={Math.max(10, Math.round((1 - cropDraft.y) * 100))} suffix="%" onChange={(value) => updateCropDraft({ height: value / 100 })} /><button type="button" className="primary-button full-width" onClick={() => void applyImageCrop()}><Check size={14} /> {tr("套用裁切", "Apply crop")}</button><button type="button" className="secondary-button full-width" onClick={cancelImageCrop}>{tr("取消裁切", "Cancel crop")}</button></>}
+                <button type="button" className="secondary-button full-width" onClick={deleteSelectedImage}><Trash2 size={14} /> {tr("移除圖片", "Remove image")}</button>
               </div>
             )}
 
@@ -3306,6 +3310,19 @@ export default function Home() {
               </div>
             )}
             */}
+
+            {selectedImage && (
+              <div className="inspector-section image-inspector-section">
+                <SectionTitle eyebrow="IMAGE LAYER" title={tr("圖片素材", "Image layer")} action={<ImagePlus size={15} className="section-icon" />} />
+                <div className="image-layer-meta"><span>{tr("檔案", "File")}</span><strong>{selectedImage.name}</strong></div>
+                {!imageEditingId && <p className="empty-inspector">{tr("圖片目前鎖定，點擊下方按鈕後才可移動、縮放、旋轉或裁切。", "This image is locked. Start editing to move, resize, rotate, or crop it.")}</p>}
+                {imageEditingId === selectedImage.id && !cropDraft && <p className="empty-inspector">{tr("可在畫布上拖曳圖片移動，使用邊角控制點縮放，或開啟裁切模式保留所需範圍。", "Drag on the canvas to move it, use the corner handles to resize it, or crop it to keep the area you need.")}</p>}
+                {!imageEditingId && <button type="button" className="secondary-button full-width" onClick={startImageEditing}><ImagePlus size={14} /> {tr("開始編輯圖片", "Edit image")}</button>}
+                {imageEditingId === selectedImage.id && !cropDraft && <><button type="button" className="secondary-button full-width" onClick={beginImageCrop}><Crop size={14} /> {tr("裁切圖片", "Crop image")}</button><button type="button" className="secondary-button full-width" onClick={() => setImageEditingId(null)}><Lock size={14} /> {tr("完成編輯並鎖定", "Finish editing & lock")}</button></>}
+                {cropDraft?.imageId === selectedImage.id && <><RangeControl label={tr("裁切左側", "Crop left")} value={Math.round(cropDraft.x * 100)} min={0} max={90} suffix="%" onChange={(value) => updateCropDraft({ x: value / 100 })} /><RangeControl label={tr("裁切上方", "Crop top")} value={Math.round(cropDraft.y * 100)} min={0} max={90} suffix="%" onChange={(value) => updateCropDraft({ y: value / 100 })} /><RangeControl label={tr("裁切寬度", "Crop width")} value={Math.round(cropDraft.width * 100)} min={10} max={Math.max(10, Math.round((1 - cropDraft.x) * 100))} suffix="%" onChange={(value) => updateCropDraft({ width: value / 100 })} /><RangeControl label={tr("裁切高度", "Crop height")} value={Math.round(cropDraft.height * 100)} min={10} max={Math.max(10, Math.round((1 - cropDraft.y) * 100))} suffix="%" onChange={(value) => updateCropDraft({ height: value / 100 })} /><button type="button" className="primary-button full-width" onClick={() => void applyImageCrop()}><Check size={14} /> {tr("套用裁切", "Apply crop")}</button><button type="button" className="secondary-button full-width" onClick={cancelImageCrop}>{tr("取消裁切", "Cancel crop")}</button></>}
+                <button type="button" className="secondary-button full-width" onClick={deleteSelectedImage}><Trash2 size={14} /> {tr("移除圖片", "Remove image")}</button>
+              </div>
+            )}
 
             <div className="inspector-divider" />
 
