@@ -80,8 +80,8 @@ const localeCopy = {
     exportProject: "匯出專案",
     importProject: "匯入專案",
     resetWorkingFile: "全部重置",
-    resetWorkingFileTitle: "確定要清空目前工作檔嗎？",
-    resetWorkingFileDescription: "請注意！這會移除當前 Working File 的圖片、文字、圖形、筆觸與圖層，並還原為空白畫布。",
+    resetWorkingFileTitle: "確定要重置當前畫布嗎？",
+    resetWorkingFileDescription: "",
     cancel: "取消",
     confirmResetWorkingFile: "確定",
     workingFileReset: "目前工作檔已重置",
@@ -4462,11 +4462,11 @@ export default function Home() {
         <AlertDialogContent className="border-[rgba(228,81,59,0.56)] bg-[#24221d] text-[#f5f0e5]">
           <AlertDialogHeader>
             <AlertDialogTitle>{copy.resetWorkingFileTitle}</AlertDialogTitle>
-            <AlertDialogDescription className="text-[#b8b8af]">{copy.resetWorkingFileDescription}</AlertDialogDescription>
+            {copy.resetWorkingFileDescription && <AlertDialogDescription className="text-[#b8b8af]">{copy.resetWorkingFileDescription}</AlertDialogDescription>}
           </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>{copy.cancel}</AlertDialogCancel>
-            <AlertDialogAction className="bg-[#b72f34] text-white hover:bg-[#d54045]" onClick={() => void resetCurrentWorkingFile()}>{copy.confirmResetWorkingFile}</AlertDialogAction>
+          <AlertDialogFooter className="gap-3">
+            <AlertDialogCancel className="w-[108px] justify-center">{copy.cancel}</AlertDialogCancel>
+            <AlertDialogAction className="w-[108px] justify-center bg-[#b72f34] text-white hover:bg-[#d54045]" onClick={() => void resetCurrentWorkingFile()}>{copy.confirmResetWorkingFile}</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
