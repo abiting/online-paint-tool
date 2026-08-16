@@ -75,6 +75,9 @@ const localeCopy = {
     documentName: "未命名畫布",
     importImage: "匯入影像",
     exportImage: "匯出影像",
+    project: "專案",
+    exportProject: "匯出專案",
+    importProject: "匯入專案",
     exportPng: "匯出 PNG",
     exportJpg: "匯出 JPG",
     exportPdf: "匯出 PDF",
@@ -134,6 +137,9 @@ const localeCopy = {
     documentName: "Untitled canvas",
     importImage: "Import image",
     exportImage: "Export image",
+    project: "Project",
+    exportProject: "Export project",
+    importProject: "Import project",
     exportPng: "Export PNG",
     exportJpg: "Export JPG",
     exportPdf: "Export PDF",
@@ -325,11 +331,53 @@ type Adjustments = {
 };
 type AdjustmentPatch = Partial<Adjustments>;
 
+type AbiPaintProject = {
+  format: "abipaint-project";
+  version: 1;
+  savedAt: string;
+  hasArtwork: boolean;
+  canvas: {
+    width: number;
+    height: number;
+    baseImage: string;
+    bleedGuide: BleedGuide | null;
+    adjustments: Adjustments;
+  };
+  document: {
+    name: string;
+    fileMeta: { name: string; size: string };
+    scaleImagesWithCanvas: boolean;
+  };
+  paintLayers: PaintLayer[];
+  activePaintLayerId: string;
+  materials: {
+    layers: TextLayer[];
+    shapes: ShapeLayer[];
+    images: ImageLayer[];
+    strokes: BrushStroke[];
+  };
+  tools: {
+    brushKind: BrushKind;
+    brushColor: string;
+    brushSize: number;
+    brushOpacity: number;
+    shapeKind: ShapeKind;
+    shapeFill: string;
+    shapeOutline: string;
+    shapeOutlineWidth: number;
+    shapeShadow: boolean;
+    shapeCornerRadius: number;
+  };
+};
+
 const BRAND_RED = "#E4513B";
 const PAPER = "#FFFDF8";
 const GRAPHITE = "#1F2528";
 const MAX_PAINT_LAYERS = 5;
 const BASE_PAINT_LAYER_ID = "paint-layer-base";
+const AUTOSAVE_DB_NAME = "abipaint-project-storage";
+const AUTOSAVE_DB_STORE = "projects";
+const AUTOSAVE_PROJECT_KEY = "current-project";
 const MATERIAL_STACK_BASE: Record<MaterialType, number> = {
   stroke: 0,
   image: 1000,
@@ -339,6 +387,50 @@ const MATERIAL_STACK_BASE: Record<MaterialType, number> = {
 
 const clamp = (value: number, min: number, max: number) =>
   Math.min(max, Math.max(min, value));
+
+const openProjectDatabase = () => new Promise<IDBDatabase>((resolve, reject) => {
+  const request = window.indexedDB.open(AUTOSAVE_DB_NAME, 1);
+  request.onupgradeneeded = () => {
+    if (!request.result.objectStoreNames.contains(AUTOSAVE_DB_STORE)) {
+      request.result.createObjectStore(AUTOSAVE_DB_STORE);
+    }
+  };
+  request.onsuccess = () => resolve(request.result);
+  request.onerror = () => reject(request.error);
+});
+
+const readAutoSavedProject = async () => {
+  const database = await openProjectDatabase();
+  return new Promise<unknown>((resolve, reject) => {
+    const request = database.transaction(AUTOSAVE_DB_STORE, "readonly").objectStore(AUTOSAVE_DB_STORE).get(AUTOSAVE_PROJECT_KEY);
+    request.onsuccess = () => resolve(request.result ?? null);
+    request.onerror = () => reject(request.error);
+  }).finally(() => database.close());
+};
+
+const writeAutoSavedProject = async (project: AbiPaintProject) => {
+  const database = await openProjectDatabase();
+  return new Promise<void>((resolve, reject) => {
+    const request = database.transaction(AUTOSAVE_DB_STORE, "readwrite").objectStore(AUTOSAVE_DB_STORE).put(project, AUTOSAVE_PROJECT_KEY);
+    request.onsuccess = () => resolve();
+    request.onerror = () => reject(request.error);
+  }).finally(() => database.close());
+};
+
+const isAbiPaintProject = (value: unknown): value is AbiPaintProject => {
+  if (!value || typeof value !== "object") return false;
+  const project = value as Partial<AbiPaintProject>;
+  return project.format === "abipaint-project"
+    && project.version === 1
+    && Boolean(project.canvas)
+    && Boolean(project.document)
+    && Boolean(project.materials)
+    && Array.isArray(project.paintLayers)
+    && Array.isArray(project.materials?.layers)
+    && Array.isArray(project.materials?.shapes)
+    && Array.isArray(project.materials?.images)
+    && Array.isArray(project.materials?.strokes);
+};
 
 const hexToRgb = (hex: string) => {
   const normalized = hex.replace("#", "");
@@ -792,7 +884,7 @@ export default function Home() {
   const locale: Locale = window.location.pathname.replace(/\/$/, "") === "/en" ? "en" : "zh-Hant";
   const copy = localeCopy[locale];
   const isEnglish = locale === "en";
-  const tr = (zh: string, en: string) => (isEnglish ? en : zh);
+  const tr = useCallback((zh: string, en: string) => (isEnglish ? en : zh), [isEnglish]);
 
   useEffect(() => {
     const desktopQuery = window.matchMedia("(min-width: 768px)");
@@ -900,6 +992,9 @@ export default function Home() {
   const imagesRef = useRef<ImageLayer[]>([]);
   const strokesRef = useRef<BrushStroke[]>([]);
   const textLayerElementsRef = useRef(new Map<string, HTMLDivElement>());
+  const projectImportInputRef = useRef<HTMLInputElement>(null);
+  const isProjectHydratedRef = useRef(false);
+  const autosaveTimerRef = useRef<number | null>(null);
 
   const [canvasSize, setCanvasSize] = useState({ width: 960, height: 640 });
   const [bleedGuide, setBleedGuide] = useState<BleedGuide | null>(null);
@@ -916,6 +1011,7 @@ export default function Home() {
   const [isPanning, setIsPanning] = useState(false);
   const [isDrawing, setIsDrawing] = useState(false);
   const [hasArtwork, setHasArtwork] = useState(false);
+  const [projectRevision, setProjectRevision] = useState(0);
   const [layers, setLayers] = useState<TextLayer[]>([]);
   const [shapes, setShapes] = useState<ShapeLayer[]>([]);
   const [images, setImages] = useState<ImageLayer[]>([]);
@@ -1232,6 +1328,7 @@ export default function Home() {
     const next = [...current, item].slice(-24);
     historyRef.current = next;
     historyIndexRef.current = next.length - 1;
+    setProjectRevision((revision) => revision + 1);
   }, [bleedGuide]);
 
   const restoreHistory = useCallback(
@@ -1286,6 +1383,194 @@ export default function Home() {
     // 初始化只執行一次；尺寸更新由 resizeCanvas 直接保留畫面資料。
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  const createProjectSnapshot = useCallback((): AbiPaintProject | null => {
+    const canvas = canvasRef.current;
+    if (!canvas) return null;
+
+    try {
+      return {
+        format: "abipaint-project",
+        version: 1,
+        savedAt: new Date().toISOString(),
+        hasArtwork,
+        canvas: {
+          width: canvas.width,
+          height: canvas.height,
+          baseImage: canvas.toDataURL("image/png"),
+          bleedGuide: bleedGuide ? { ...bleedGuide } : null,
+          adjustments: { ...adjustments },
+        },
+        document: {
+          name: documentNameDraft,
+          fileMeta: { ...fileMeta },
+          scaleImagesWithCanvas,
+        },
+        paintLayers: paintLayers.map((layer) => ({ ...layer })),
+        activePaintLayerId,
+        materials: {
+          layers: layersRef.current.map((layer) => ({ ...layer })),
+          shapes: shapesRef.current.map((shape) => ({ ...shape })),
+          images: imagesRef.current.map((image) => ({ ...image, crop: image.crop ? { ...image.crop } : undefined })),
+          strokes: strokesRef.current.map((stroke) => ({ ...stroke, points: stroke.points.map((point) => ({ ...point })) })),
+        },
+        tools: {
+          brushKind,
+          brushColor,
+          brushSize,
+          brushOpacity,
+          shapeKind,
+          shapeFill,
+          shapeOutline,
+          shapeOutlineWidth,
+          shapeShadow,
+          shapeCornerRadius,
+        },
+      };
+    } catch {
+      return null;
+    }
+  }, [activePaintLayerId, adjustments, bleedGuide, brushColor, brushKind, brushOpacity, brushSize, documentNameDraft, fileMeta, hasArtwork, paintLayers, scaleImagesWithCanvas, shapeCornerRadius, shapeFill, shapeKind, shapeOutline, shapeOutlineWidth, shapeShadow]);
+
+  const applyProjectSnapshot = useCallback(async (project: AbiPaintProject, showNotice = false) => {
+    const canvas = canvasRef.current;
+    if (!canvas) throw new Error("Canvas unavailable");
+
+    const width = Math.round(Number(project.canvas.width));
+    const height = Math.round(Number(project.canvas.height));
+    if (!Number.isFinite(width) || !Number.isFinite(height) || width < 1 || height < 1 || width * height > 36_000_000) {
+      throw new Error("Invalid project canvas size");
+    }
+
+    canvas.width = width;
+    canvas.height = height;
+    const context = canvas.getContext("2d");
+    if (!context) throw new Error("Canvas context unavailable");
+    context.fillStyle = PAPER;
+    context.fillRect(0, 0, width, height);
+    if (typeof project.canvas.baseImage === "string" && project.canvas.baseImage) {
+      try {
+        const baseImage = await loadImageElement(project.canvas.baseImage);
+        context.drawImage(baseImage, 0, 0, width, height);
+      } catch {
+        // 保留乾淨底圖並繼續復原其他可編輯素材。
+      }
+    }
+
+    const nextPaintLayers = project.paintLayers.slice(0, MAX_PAINT_LAYERS).map((layer, index) => ({
+      id: typeof layer.id === "string" && layer.id ? layer.id : `${BASE_PAINT_LAYER_ID}-${index}`,
+      name: typeof layer.name === "string" && layer.name ? layer.name : (isEnglish ? `Layer ${index + 1}` : `圖層 ${index + 1}`),
+      locked: Boolean(layer.locked),
+    }));
+    const resolvedPaintLayers = nextPaintLayers.length
+      ? nextPaintLayers
+      : [{ id: BASE_PAINT_LAYER_ID, name: isEnglish ? "Layer 1" : "圖層 1", locked: false }];
+    const resolvedActivePaintLayerId = resolvedPaintLayers.some((layer) => layer.id === project.activePaintLayerId)
+      ? project.activePaintLayerId
+      : resolvedPaintLayers[0].id;
+
+    setCanvasSize({ width, height });
+    setBleedGuide(project.canvas.bleedGuide ? { ...project.canvas.bleedGuide } : null);
+    setAdjustments({
+      exposure: typeof project.canvas.adjustments?.exposure === "number" ? project.canvas.adjustments.exposure : 0,
+      contrast: typeof project.canvas.adjustments?.contrast === "number" ? project.canvas.adjustments.contrast : 0,
+      saturation: typeof project.canvas.adjustments?.saturation === "number" ? project.canvas.adjustments.saturation : 100,
+      opacity: typeof project.canvas.adjustments?.opacity === "number" ? project.canvas.adjustments.opacity : 100,
+    });
+    setScaleImagesWithCanvas(Boolean(project.document.scaleImagesWithCanvas));
+    setDocumentNameDraft(project.document.name?.trim() || copy.documentName);
+    setFileMeta(project.document.fileMeta ?? { name: project.document.name?.trim() || copy.documentName, size: `${width} × ${height}` });
+    setPaintLayers(resolvedPaintLayers);
+    setActivePaintLayerId(resolvedActivePaintLayerId);
+    syncLayers(project.materials.layers.map((layer) => ({ ...layer })));
+    syncShapes(project.materials.shapes.map((shape) => ({ ...shape })));
+    syncImages(project.materials.images.map((image) => ({ ...image, crop: image.crop ? { ...image.crop } : undefined })));
+    syncStrokes(project.materials.strokes.map((stroke) => ({ ...stroke, points: stroke.points.map((point) => ({ ...point })) })));
+    setBrushKind(project.tools?.brushKind ?? "oil");
+    setBrushColor(project.tools?.brushColor ?? BRAND_RED);
+    setBrushSize(project.tools?.brushSize ?? 18);
+    setBrushOpacity(project.tools?.brushOpacity ?? 100);
+    setShapeKind(project.tools?.shapeKind ?? "rectangle");
+    setShapeFill(project.tools?.shapeFill ?? BRAND_RED);
+    setShapeOutline(project.tools?.shapeOutline ?? "#FFFDF8");
+    setShapeOutlineWidth(project.tools?.shapeOutlineWidth ?? 2);
+    setShapeShadow(project.tools?.shapeShadow ?? true);
+    setShapeCornerRadius(project.tools?.shapeCornerRadius ?? 12);
+    setHasArtwork(Boolean(project.hasArtwork || project.materials.layers.length || project.materials.shapes.length || project.materials.images.length || project.materials.strokes.length));
+    setSelectedTextId(null);
+    setSelectedShapeId(null);
+    setSelectedImageId(null);
+    setSelectedStrokeId(null);
+    setEditingTextId(null);
+    setImageEditingId(null);
+    setCropDraft(null);
+    setOpenDesktopTool(null);
+    historyRef.current = [];
+    historyIndexRef.current = -1;
+    captureHistory(project.canvas.bleedGuide ?? null);
+    if (showNotice) toast.success(tr("專案已載入", "Project loaded"));
+  }, [copy.documentName, isEnglish, syncImages, syncLayers, syncShapes, syncStrokes]);
+
+  const exportProject = () => {
+    const project = createProjectSnapshot();
+    if (!project) {
+      toast.error(tr("專案暫時無法匯出，請再試一次", "Project export is unavailable. Please try again."));
+      return;
+    }
+    const blob = new Blob([JSON.stringify(project)], { type: "application/json" });
+    const link = document.createElement("a");
+    link.href = URL.createObjectURL(blob);
+    link.download = `${(documentNameDraft || "abipaint").replace(/[\\/:*?\"<>|]/g, "-")}.abipaint`;
+    link.click();
+    URL.revokeObjectURL(link.href);
+    toast.success(tr("專案檔已匯出", "Project file exported"));
+  };
+
+  const handleProjectImport = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    try {
+      const parsed = JSON.parse(await file.text()) as unknown;
+      if (!isAbiPaintProject(parsed)) throw new Error("Invalid project file");
+      await applyProjectSnapshot(parsed, true);
+    } catch {
+      toast.error(tr("無法讀取此專案檔，請確認檔案未損毀", "This project file could not be read. Please check that it is intact."));
+    } finally {
+      event.target.value = "";
+    }
+  };
+
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      try {
+        const savedProject = await readAutoSavedProject();
+        if (!cancelled && isAbiPaintProject(savedProject)) {
+          await applyProjectSnapshot(savedProject, true);
+        }
+      } catch {
+        // 本機暫存不可用時，維持既有的新畫布流程。
+      } finally {
+        if (!cancelled) isProjectHydratedRef.current = true;
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [applyProjectSnapshot]);
+
+  useEffect(() => {
+    if (!isProjectHydratedRef.current) return;
+    if (autosaveTimerRef.current !== null) window.clearTimeout(autosaveTimerRef.current);
+    autosaveTimerRef.current = window.setTimeout(() => {
+      const snapshot = createProjectSnapshot();
+      if (!snapshot) return;
+      void writeAutoSavedProject(snapshot).catch(() => undefined);
+    }, 700);
+    return () => {
+      if (autosaveTimerRef.current !== null) window.clearTimeout(autosaveTimerRef.current);
+    };
+  }, [activePaintLayerId, adjustments, bleedGuide, brushColor, brushKind, brushOpacity, brushSize, canvasSize.height, canvasSize.width, createProjectSnapshot, documentNameDraft, fileMeta, hasArtwork, images, layers, paintLayers, projectRevision, scaleImagesWithCanvas, shapeCornerRadius, shapeFill, shapeKind, shapeOutline, shapeOutlineWidth, shapeShadow, shapes, strokes]);
 
   useEffect(() => {
     const viewport = viewportRef.current;
@@ -2332,7 +2617,12 @@ export default function Home() {
         ? tr(`影像已加入畫布，解析度 ${targetCanvasWidth} × ${targetCanvasHeight}`, `Image added. Canvas set to ${targetCanvasWidth} × ${targetCanvasHeight}`)
         : tr("影像已等比例置入既有畫布", "Image placed proportionally on the existing canvas"));
     };
-    image.src = URL.createObjectURL(file);
+    const reader = new FileReader();
+    reader.onload = () => {
+      if (typeof reader.result === "string") image.src = reader.result;
+    };
+    reader.onerror = () => toast.error(tr("影像讀取失敗，請再試一次", "Image could not be read. Please try again."));
+    reader.readAsDataURL(file);
     event.target.value = "";
   };
 
@@ -3097,6 +3387,17 @@ export default function Home() {
           </button>
           <span className="top-divider" />
           <a className="language-switch" href={isEnglish ? "/" : "/en"} aria-label={copy.languageLabel}>{copy.language}</a>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button type="button" className="secondary-button project-menu-trigger" title={copy.project} aria-label={copy.project}>
+                <MoreHorizontal size={17} /><span className="top-action-label">{copy.project}</span>
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="export-menu-content">
+              <DropdownMenuItem onSelect={exportProject}><Download size={15} /><span>{copy.exportProject}</span></DropdownMenuItem>
+              <DropdownMenuItem onSelect={() => projectImportInputRef.current?.click()}><Upload size={15} /><span>{copy.importProject}</span></DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
           <button type="button" className="secondary-button" onClick={() => fileInputRef.current?.click()} title={copy.importImage} aria-label={copy.importImage}>
             <Upload size={15} /> <span className="top-action-label">{copy.importImage}</span>
           </button>
@@ -3114,6 +3415,7 @@ export default function Home() {
           </DropdownMenu>
         </div>
         <input ref={fileInputRef} type="file" accept="image/*" onChange={handleImport} hidden />
+        <input ref={projectImportInputRef} type="file" accept="application/json,.abipaint" onChange={handleProjectImport} hidden />
       </header>
 
       <div ref={studioLayoutRef} className="studio-layout">
