@@ -3591,7 +3591,9 @@ export default function Home() {
           <footer className="workspace-footer product-footer" aria-label="AbiPaint 工具說明">
             <div className="product-footnote">
               <span className="product-footnote-label">ABOUT ABIPAINT</span>
-              <p>阿比丁身為主攻《名偵探柯南》的網站經營者，時常有「調整照片尺寸」與「提高照片解析度」的需求。在沒安裝 Adobe 且不使用 Canva 的情況下，為了提高工作效率，索性開發了「AbiPaint 線上圖片尺寸修改器」，支援素材圖像的「大小縮放」、「像素校正」與「細節微調」。</p>
+              <p>{isEnglish
+                ? "Abiting has run a Detective Conan fan site for years, often needing to resize images, add text, and fine-tune colors. Rather than pay for Adobe or deal with bloated, sign-up-required Canva, the answer was AbiPaint. No fees, no sign-up, no install. Just resize, color, design, and export, right in the browser."
+                : "阿比丁經營《名偵探柯南》相關網站多年，常需調整圖片尺寸、加註文字、微調色彩。不想被昂貴的 Adobe 綁架，也嫌 Canva 臃腫又要註冊，於是自行開發了 AbiPaint。免付費、免註冊、免安裝，直接在瀏覽器完成縮放、調色、設計與輸出。"}</p>
             </div>
             <p className="product-copyright">Copyright © 2026 <a href={isEnglish ? "/en" : "/"}>AbiPaint</a></p>
           </footer>
