@@ -193,6 +193,8 @@
 - [x] 調整頁尾版權，使只有 AbiPaint 品牌名稱連至官網
 - [x] 將頁尾 AbiPaint 品牌連結改為工具首頁，作者介紹維持連至 https://abiting.cc
 - [x] 確認左上作者介紹連結維持為 https://abiting.cc
+- [x] 在 FAQ 下方新增開發者按鈕與可開啟的阿比丁資訊視窗
+- [x] 在開發者視窗加入中英文代表作名稱與外部連結
 - [x] 建立英文 `/en` 路由與英文介面字串
 - [x] 移除動態 SEO 覆寫，讓繁中與英文入口 HTML 的 title 與 description 保持生效
 - [x] 新增中英文動態 title、description 與 lang 設定

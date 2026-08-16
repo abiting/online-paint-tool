@@ -193,6 +193,19 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 .faq-email:hover { color: #fff4e8; border-color: #e4513b; }
 .faq-banner { margin: 18px 0 2px; padding-top: 2px; }
 .faq-banner img { display: block; width: 100%; height: auto; border: 1px solid rgba(227,213,187,0.2); border-radius: 5px; box-shadow: 0 8px 18px rgba(8,12,13,0.24); }
+.developer-rail-toggle { margin-top: 0; }
+.faq-rail-glyph svg { display: block; }
+.developer-panel { height: min(570px, calc(100vh - 120px)); }
+.developer-content { padding: 18px; }
+.developer-bio { margin: 0; padding: 14px; color: #b4bbb2; border: 1px solid rgba(227,213,187,0.12); border-left: 2px solid rgba(228,81,59,0.72); background: rgba(245,240,229,0.035); font-size: 12px; line-height: 1.8; }
+.developer-projects { margin-top: 20px; }
+.developer-projects h3 { margin: 0 0 10px; color: #e9e2d4; font: 700 12px "DM Sans", "Noto Sans TC", sans-serif; letter-spacing: 0.02em; }
+.developer-work-list { display: grid; gap: 7px; }
+.developer-work { position: relative; display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 3px 12px; padding: 11px 38px 11px 12px; color: #d9d5ca; border: 1px solid rgba(227,213,187,0.13); border-radius: 5px; background: rgba(245,240,229,0.025); text-decoration: none; transition: color 160ms var(--ease-out), border-color 160ms var(--ease-out), background 160ms var(--ease-out), transform 160ms var(--ease-out); }
+.developer-work:hover { color: #fff8ec; border-color: rgba(228,81,59,0.52); background: rgba(228,81,59,0.09); transform: translateY(-1px); }
+.developer-work-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font: 600 11px "Noto Sans TC", "DM Sans", sans-serif; }
+.developer-work-subtitle { overflow: hidden; color: #8f9a93; text-overflow: ellipsis; white-space: nowrap; font: 9px "IBM Plex Mono", "Noto Sans TC", monospace; letter-spacing: 0.02em; }
+.developer-work svg { position: absolute; top: 50%; right: 13px; color: #b98b75; transform: translateY(-50%); }
 .mobile-mini-tools { display: none; }
 .rail-rule { width: 32px; height: 1px; margin: 20px 0; background: rgba(227,213,187,0.16); }
 .rail-secondary .tool-button { color: #6f7c77; }

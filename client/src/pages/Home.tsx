@@ -17,6 +17,7 @@ import {
   Crop,
   Download,
   Eraser,
+  ExternalLink,
   GripVertical,
   Heart,
   ImagePlus,
@@ -42,6 +43,7 @@ import {
   Unlock,
   Undo2,
   Upload,
+  UserRound,
   WandSparkles,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -102,6 +104,13 @@ const localeCopy = {
     faqTitle: "使用說明",
     faqClose: "關閉常見問題",
     faqAria: "AbiPaint 常見問題",
+    developer: "開發者",
+    developerTitle: "阿比丁",
+    developerClose: "關閉開發者介紹",
+    developerAria: "AbiPaint 開發者介紹",
+    developerEyebrow: "DEVELOPER / ABOUT",
+    developerBio: "台灣工程師兼創作者，畢業於國立陽明交通大學。曾獨立開發多款免費線上工具，希望能透過技術造福更多人類。",
+    developerWorks: "其他代表作",
     faq: [
       ["AbiPaint 是什麼？", "AbiPaint 是免費線上圖片尺寸修改器，不用安裝 Adobe 或註冊 Canva，直接在瀏覽器調整照片尺寸、像素與解析度。"],
       ["什麼情況會使用 AbiPaint？", "想修改圖片、照片的解析度，但手邊沒有 Photoshop、Illustrator 或 Canva 時，本工具可快速派上用場："],
@@ -154,6 +163,13 @@ const localeCopy = {
     faqTitle: "How it works",
     faqClose: "Close FAQ",
     faqAria: "AbiPaint frequently asked questions",
+    developer: "Developer",
+    developerTitle: "Abiting",
+    developerClose: "Close developer profile",
+    developerAria: "AbiPaint developer profile",
+    developerEyebrow: "DEVELOPER / ABOUT",
+    developerBio: "A Taiwanese engineer and creator who graduated from National Yang Ming Chiao Tung University. He has independently built several free online tools, with the aim of using technology to help more people.",
+    developerWorks: "Other featured projects",
     faq: [
       ["What is AbiPaint?", "AbiPaint is a free online image resizer. Resize photos, adjust pixels and resolution right in your browser—no Adobe installation or Canva account required."],
       ["When should I use AbiPaint?", "Use AbiPaint when you need to resize or refine an image but do not have Photoshop, Illustrator, or Canva nearby:"],
@@ -164,6 +180,14 @@ const localeCopy = {
     faqList: ["Resize a 1080 × 1080 profile photo to match an online system requirement", "Refine a web banner softened by an AI image tool", "Convert a large PNG illustration into a lighter JPG file"],
   },
 } as const;
+
+const developerWorks = [
+  { href: "https://coai.abiting.cc/japan-address-generator", zh: "日本地址產生器", en: "Japan Address Generator" },
+  { href: "https://coai.abiting.cc/blank-line-generator", zh: "空白符號產生器", en: "Blank Line Generator" },
+  { href: "https://coai.abiting.cc/simplified-to-traditional", zh: "繁簡中文轉換器", en: "Chinese Traditional/Simplified Converter" },
+  { href: "https://abitingpokedex.com", zh: "寶可夢能力點數計算器", en: "Pokémon Stat Points Calculator" },
+  { href: "https://coai.abiting.cc", zh: "名偵探柯南集數列表", en: "List of Detective Conan episodes" },
+] as const;
 
 type CanvasPoint = {
   x: number;
@@ -881,6 +905,7 @@ export default function Home() {
   const [desktopToolPosition, setDesktopToolPosition] = useState<{ x: number; y: number } | null>(null);
   const [isDesktopToolDragging, setIsDesktopToolDragging] = useState(false);
   const [isFaqOpen, setIsFaqOpen] = useState(false);
+  const [isDeveloperOpen, setIsDeveloperOpen] = useState(false);
   const [mobileMiniToolPosition, setMobileMiniToolPosition] = useState({ x: 14, y: 14 });
   const [isMobileMiniToolDragging, setIsMobileMiniToolDragging] = useState(false);
   const clipboardTextRef = useRef<TextLayer | null>(null);
@@ -3054,9 +3079,14 @@ export default function Home() {
             <ToolButton label={copy.text} active={activeDesktopTool === "text"} icon={<Type size={18} />} onClick={() => handleDesktopToolCreate("text")} onDoubleActivate={() => handleDesktopToolSettings("text")} />
             <ToolButton label={cropDraft ? tr("套用裁切", "Apply crop") : tr("裁切", "Crop")} active={tool === "crop"} icon={<Crop size={18} />} onClick={handleCropTool} disabled={!isCropToolAvailable} />
             <button type="button" className="tool-button tool-settings-entry" onClick={handleSelectedObjectSettings} disabled={!hasSelectedObject} aria-label={copy.openSettings} title={copy.openSettings}><SlidersHorizontal size={18} /><span>{copy.settings}</span></button>
-            <button type="button" className={`faq-rail-toggle ${isFaqOpen ? "is-active" : ""}`} onClick={() => setIsFaqOpen((open) => !open)} aria-expanded={isFaqOpen} aria-controls="abipaint-faq-panel">
+            <button type="button" className={`faq-rail-toggle ${isFaqOpen ? "is-active" : ""}`} onClick={() => { setIsFaqOpen((open) => !open); setIsDeveloperOpen(false); }} aria-expanded={isFaqOpen} aria-controls="abipaint-faq-panel">
               <span className="faq-rail-glyph">?</span>
               <span>FAQ</span>
+              <ChevronDown size={11} aria-hidden="true" />
+            </button>
+            <button type="button" className={`faq-rail-toggle developer-rail-toggle ${isDeveloperOpen ? "is-active" : ""}`} onClick={() => { setIsDeveloperOpen((open) => !open); setIsFaqOpen(false); }} aria-expanded={isDeveloperOpen} aria-controls="abipaint-developer-panel">
+              <span className="faq-rail-glyph"><UserRound size={11} aria-hidden="true" /></span>
+              <span>{copy.developer}</span>
               <ChevronDown size={11} aria-hidden="true" />
             </button>
           </div>
@@ -3083,6 +3113,36 @@ export default function Home() {
                 <div className="faq-banner">
                   <img src="/banner.webp" alt={isEnglish ? "Online image size editor" : "線上圖片尺寸修改器"} />
                 </div>
+              </div>
+            </section>
+          )}
+          {isDeveloperOpen && (
+            <section id="abipaint-developer-panel" className="faq-panel developer-panel" aria-label={copy.developerAria}>
+              <header className="faq-panel-header">
+                <div>
+                  <span className="faq-eyebrow">{copy.developerEyebrow}</span>
+                  <h2>{copy.developerTitle}</h2>
+                </div>
+                <button type="button" className="faq-close" onClick={() => setIsDeveloperOpen(false)} aria-label={copy.developerClose}><ChevronDown size={16} /></button>
+              </header>
+              <div className="developer-content">
+                <p className="developer-bio">{copy.developerBio}</p>
+                <section className="developer-projects" aria-labelledby="developer-projects-title">
+                  <h3 id="developer-projects-title">{copy.developerWorks}</h3>
+                  <div className="developer-work-list">
+                    {developerWorks.map((work) => {
+                      const primaryTitle = isEnglish ? work.en : work.zh;
+                      const secondaryTitle = isEnglish ? work.zh : work.en;
+                      return (
+                        <a key={work.href} className="developer-work" href={work.href} target="_blank" rel="noopener noreferrer">
+                          <span className="developer-work-title">{primaryTitle}</span>
+                          <span className="developer-work-subtitle">{secondaryTitle}</span>
+                          <ExternalLink size={13} aria-hidden="true" />
+                        </a>
+                      );
+                    })}
+                  </div>
+                </section>
               </div>
             </section>
           )}
