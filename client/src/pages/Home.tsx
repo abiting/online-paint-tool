@@ -3705,11 +3705,11 @@ export default function Home() {
                 <div className="business-card-template-grid">
                   <button type="button" onClick={() => applyBusinessCardTemplate("asia")}>
                     <strong>{copy.asiaBusinessCard}</strong>
-                    <span>90 × 54 mm</span>
+                    <span>1063 × 638</span>
                   </button>
                   <button type="button" onClick={() => applyBusinessCardTemplate("western")}>
                     <strong>{copy.westernBusinessCard}</strong>
-                    <span>3.5 × 2 in</span>
+                    <span>1050 × 600</span>
                   </button>
                 </div>
               </div>
