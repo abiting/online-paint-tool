@@ -75,7 +75,7 @@ const localeCopy = {
     documentName: "未命名畫布",
     importImage: "匯入影像",
     exportImage: "匯出影像",
-    project: "專案",
+    project: "檔案",
     exportProject: "匯出專案",
     importProject: "匯入專案",
     exportPng: "匯出 PNG",
@@ -137,7 +137,7 @@ const localeCopy = {
     documentName: "Untitled canvas",
     importImage: "Import image",
     exportImage: "Export image",
-    project: "Project",
+    project: "File",
     exportProject: "Export project",
     importProject: "Import project",
     exportPng: "Export PNG",
@@ -999,7 +999,9 @@ export default function Home() {
   const [canvasSize, setCanvasSize] = useState({ width: 960, height: 640 });
   const [bleedGuide, setBleedGuide] = useState<BleedGuide | null>(null);
   const [scaleImagesWithCanvas, setScaleImagesWithCanvas] = useState(false);
-  const [tool, setTool] = useState<Tool>("brush");
+  const [tool, setTool] = useState<Tool>(() =>
+    window.matchMedia("(max-width: 768px)").matches ? "move" : "brush",
+  );
   const [brushKind, setBrushKind] = useState<BrushKind>("oil");
   const [brushColor, setBrushColor] = useState(BRAND_RED);
   const [brushSize, setBrushSize] = useState(18);
@@ -3394,8 +3396,8 @@ export default function Home() {
               </button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="export-menu-content">
-              <DropdownMenuItem onSelect={exportProject}><Download size={15} /><span>{copy.exportProject}</span></DropdownMenuItem>
               <DropdownMenuItem onSelect={() => projectImportInputRef.current?.click()}><Upload size={15} /><span>{copy.importProject}</span></DropdownMenuItem>
+              <DropdownMenuItem onSelect={exportProject}><Download size={15} /><span>{copy.exportProject}</span></DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
           <button type="button" className="secondary-button" onClick={() => fileInputRef.current?.click()} title={copy.importImage} aria-label={copy.importImage}>
