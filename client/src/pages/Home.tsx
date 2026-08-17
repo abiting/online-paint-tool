@@ -4332,7 +4332,7 @@ export default function Home() {
                     <p className="empty-inspector">{tr("點擊畫布上的文字即可開啟內容與樣式設定。", "Click a text object on the canvas to edit its content and style.")}</p>
                   ) : (
                     <>
-                      <label className="field-label" htmlFor="desktop-text-content">{tr("文字內容", "Text content")}</label>
+                      <label className="field-label" htmlFor="desktop-text-content">{tr("內容", "Content")}</label>
                       <textarea id="desktop-text-content" className="text-input" value={selectedText.text} onChange={(event) => updateTextLayer({ text: event.target.value })} rows={3} />
                       <div className="select-row">
                         <label className="select-wrap">
@@ -4344,9 +4344,9 @@ export default function Home() {
                         </label>
                       </div>
                       <div className="text-color-control">
-                        <div className="text-color-heading"><span className="field-label">{tr("文字顏色", "Text color")}</span><label className="color-picker compact-color-picker"><input type="color" value={selectedText.color} onChange={(event) => updateTextLayer({ color: event.target.value })} aria-label={tr("自訂文字顏色", "Custom text color")} /><span style={{ backgroundColor: selectedText.color }} /></label></div>
-                        <div className="text-palette" role="group" aria-label={tr("文字色票", "Text color swatches")}>
-                          {["#000000", "#1F2528", "#555B5D", "#FFFFFF", "#FFFDF8", "#E4513B", "#B72F34", "#F07C41", "#D59B42", "#2F855A", "#426B8A", "#2D5B9B", "#8B5CF6", "#D26A9C"].map((color) => <button key={color} type="button" className={`text-swatch ${selectedText.color.toUpperCase() === color ? "is-selected" : ""}`} style={{ backgroundColor: color }} onClick={() => updateTextLayer({ color })} aria-label={`${tr("文字顏色", "Text color")} ${color}`} />)}
+                        <div className="text-color-heading"><span className="field-label">{tr("顏色", "Color")}</span><label className="color-picker compact-color-picker"><input type="color" value={selectedText.color} onChange={(event) => updateTextLayer({ color: event.target.value })} aria-label={tr("顏色", "Color")} /><span style={{ backgroundColor: selectedText.color }} /></label></div>
+                        <div className="text-palette" role="group" aria-label={tr("色票", "Color swatches")}>
+                          {["#000000", "#1F2528", "#555B5D", "#FFFFFF", "#FFFDF8", "#E4513B", "#B72F34", "#F07C41", "#D59B42", "#2F855A", "#426B8A", "#2D5B9B", "#8B5CF6", "#D26A9C"].map((color) => <button key={color} type="button" className={`text-swatch ${selectedText.color.toUpperCase() === color ? "is-selected" : ""}`} style={{ backgroundColor: color }} onClick={() => updateTextLayer({ color })} aria-label={`${tr("顏色", "Color")} ${color}`} />)}
                         </div>
                       </div>
                       <RangeControl label={tr("字級", "Font size")} value={selectedText.fontSize} min={12} max={180} suffix=" px" onChange={(value) => updateTextLayer({ fontSize: value })} />
@@ -4781,7 +4781,7 @@ export default function Home() {
                 {!selectedText && <p className="empty-inspector">選擇畫布上的文字，或按左側「文字工具」建立文字卡。</p>}
                 {selectedText && (
                   <>
-                    <label className="field-label" htmlFor="text-content">{tr("文字內容", "Text content")}</label>
+                    <label className="field-label" htmlFor="text-content">{tr("內容", "Content")}</label>
                     <textarea id="text-content" className="text-input" value={selectedText.text} onChange={(event) => updateTextLayer({ text: event.target.value })} rows={3} />
                     <div className="select-row">
                       <label className="select-wrap">
@@ -4803,15 +4803,15 @@ export default function Home() {
                     </div>
                     <div className="text-color-control">
                       <div className="text-color-heading">
-                        <span className="field-label">{tr("文字顏色", "Text color")}</span>
+                        <span className="field-label">{tr("顏色", "Color")}</span>
                         <label className="color-picker compact-color-picker">
-                          <input type="color" value={selectedText.color} onChange={(event) => updateTextLayer({ color: event.target.value })} aria-label={tr("自訂文字顏色", "Custom text color")} />
+                          <input type="color" value={selectedText.color} onChange={(event) => updateTextLayer({ color: event.target.value })} aria-label={tr("顏色", "Color")} />
                           <span style={{ backgroundColor: selectedText.color }} />
                         </label>
                       </div>
-                      <div className="text-palette" role="group" aria-label={tr("文字顏色色票", "Text color swatches")}>
+                      <div className="text-palette" role="group" aria-label={tr("色票", "Color swatches")}>
                         {["#000000", "#1F2528", "#555B5D", "#8C9290", "#FFFFFF", "#FFFDF8", "#E4513B", "#B72F34", "#F07C41", "#D59B42", "#F4C95D", "#2F855A", "#82A480", "#426B8A", "#2D5B9B", "#8B5CF6", "#D26A9C", "#F3A6C8"].map((color) => (
-                          <button key={color} type="button" className={`text-swatch ${selectedText.color.toUpperCase() === color ? "is-selected" : ""}`} style={{ backgroundColor: color }} onClick={() => updateTextLayer({ color })} aria-label={`${tr("文字顏色", "Text color")} ${color}`} title={color} />
+                          <button key={color} type="button" className={`text-swatch ${selectedText.color.toUpperCase() === color ? "is-selected" : ""}`} style={{ backgroundColor: color }} onClick={() => updateTextLayer({ color })} aria-label={`${tr("顏色", "Color")} ${color}`} title={color} />
                         ))}
                       </div>
                     </div>
@@ -4873,7 +4873,11 @@ export default function Home() {
               <RangeControl label={copy.saturation} value={activeAdjustmentValues.saturation} min={-100} max={100} suffix="%" editable onChange={(value) => updateActiveAdjustment({ saturation: value })} />
               <RangeControl label={copy.vibrancy} value={activeAdjustmentValues.vibrancy} min={-100} max={100} suffix="%" editable onChange={(value) => updateActiveAdjustment({ vibrancy: value })} />
               <RangeControl label={copy.opacity} value={activeAdjustmentValues.opacity} min={1} max={100} suffix="%" editable onChange={(value) => updateActiveAdjustment({ opacity: value })} />
-              {activeShadowOpacity !== null && <RangeControl label={tr("陰影強度", "Shadow")} value={activeShadowOpacity} min={0} max={100} suffix="%" editable onChange={updateActiveShadowOpacity} />}
+              {activeShadowOpacity !== null ? (
+                <RangeControl label={tr("陰影強度", "Shadow")} value={activeShadowOpacity} min={0} max={100} suffix="%" editable onChange={updateActiveShadowOpacity} />
+              ) : (
+                <div className="range-control shadow-control-hint"><span className="range-heading"><span>{tr("陰影強度", "Shadow")}</span><span className="mono-value">—</span></span><p>{tr("選取圖形或文字後可調整", "Select a shape or text object to adjust")}</p></div>
+              )}
               <button type="button" className="link-button" onClick={resetActiveAdjustment}><RotateCcw size={13} /> {isEnglish ? "Reset adjustments" : "重設目前調整"}</button>
             </div>
 
