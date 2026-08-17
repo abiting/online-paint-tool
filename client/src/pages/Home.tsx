@@ -1446,14 +1446,13 @@ export default function Home() {
     if (pendingImages) syncImages(pendingImages);
   }, [syncImages]);
 
-  const getCanvasPoint = useCallback((clientX: number, clientY: number) => {
+  const getCanvasPoint = useCallback((clientX: number, clientY: number, allowOutside = false) => {
     const canvas = canvasRef.current;
     if (!canvas) return { x: 0, y: 0 };
     const rect = canvas.getBoundingClientRect();
-    return {
-      x: clamp(((clientX - rect.left) / rect.width) * canvas.width, 0, canvas.width),
-      y: clamp(((clientY - rect.top) / rect.height) * canvas.height, 0, canvas.height),
-    };
+    const x = ((clientX - rect.left) / rect.width) * canvas.width;
+    const y = ((clientY - rect.top) / rect.height) * canvas.height;
+    return allowOutside ? { x, y } : { x: clamp(x, 0, canvas.width), y: clamp(y, 0, canvas.height) };
   }, []);
 
   const getSnappedPosition = useCallback((rawX: number, rawY: number, width: number, height: number) => {
@@ -1950,7 +1949,7 @@ export default function Home() {
       const imageDrag = imageDragRef.current;
       const imageResize = imageResizeRef.current;
       const imageRotate = imageRotateRef.current;
-      const point = getCanvasPoint(event.clientX, event.clientY);
+      const point = getCanvasPoint(event.clientX, event.clientY, true);
       if (imageRotate) {
         const currentAngle = Math.atan2(point.y - imageRotate.centerY, point.x - imageRotate.centerX);
         let nextRotation = imageRotate.startRotation + ((currentAngle - imageRotate.startAngle) * 180) / Math.PI;
@@ -2032,18 +2031,17 @@ export default function Home() {
           }
           const centerX = resize.startX + resize.startWidth / 2;
           const centerY = resize.startY + resize.startHeight / 2;
-          const maxCenteredWidth = Math.max(60, Math.min(canvasSize.width, centerX * 2, (canvasSize.width - centerX) * 2));
-          const maxCenteredHeight = Math.max(60, Math.min(canvasSize.height, centerY * 2, (canvasSize.height - centerY) * 2));
-          nextWidth = clamp(nextWidth, 60, event.altKey ? maxCenteredWidth : canvasSize.width);
-          nextHeight = clamp(nextHeight, 60, event.altKey ? maxCenteredHeight : canvasSize.height);
+          const maxMaterialSize = Math.max(6000, canvasSize.width * 4, canvasSize.height * 4);
+          nextWidth = clamp(nextWidth, 60, maxMaterialSize);
+          nextHeight = clamp(nextHeight, 60, maxMaterialSize);
           const nextX = event.altKey ? centerX - nextWidth / 2 : movesLeft ? resize.startX + resize.startWidth - nextWidth : resize.startX;
           const nextY = event.altKey ? centerY - nextHeight / 2 : movesTop ? resize.startY + resize.startHeight - nextHeight : resize.startY;
           return {
             ...shape,
             width: nextWidth,
             height: nextHeight,
-            x: clamp(nextX, 0, canvasSize.width - nextWidth),
-            y: clamp(nextY, 0, canvasSize.height - nextHeight),
+            x: nextX,
+            y: nextY,
             cornerRadius: Math.min(shape.cornerRadius, Math.min(nextWidth, nextHeight) / 2),
           };
         });
@@ -2055,8 +2053,8 @@ export default function Home() {
         const nextLayers = layersRef.current.map((layer) => {
           if (layer.id !== drag.id) return layer;
           const dimensions = getTextLayerDimensions(layer);
-          const rawX = clamp(point.x - drag.offsetX, 0, canvasSize.width - dimensions.width);
-          const rawY = clamp(point.y - drag.offsetY, 0, canvasSize.height - dimensions.height);
+          const rawX = point.x - drag.offsetX;
+          const rawY = point.y - drag.offsetY;
           const snapped = getSnappedPosition(rawX, rawY, dimensions.width, dimensions.height);
           nextGuides = snapped.guides;
           return { ...layer, x: snapped.x, y: snapped.y };
@@ -2068,8 +2066,8 @@ export default function Home() {
         let nextGuides: SnapGuides = { x: null, y: null };
         const nextShapes = shapesRef.current.map((shape) => {
           if (shape.id !== shapeDrag.id) return shape;
-          const rawX = clamp(point.x - shapeDrag.offsetX, 0, canvasSize.width - shape.width);
-          const rawY = clamp(point.y - shapeDrag.offsetY, 0, canvasSize.height - shape.height);
+          const rawX = point.x - shapeDrag.offsetX;
+          const rawY = point.y - shapeDrag.offsetY;
           const snapped = getSnappedPosition(rawX, rawY, shape.width, shape.height);
           nextGuides = snapped.guides;
           return { ...shape, x: snapped.x, y: snapped.y };
