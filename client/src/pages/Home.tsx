@@ -96,7 +96,7 @@ const localeCopy = {
     languageLabel: "Switch to English",
     creative: "創作工具",
     select: "選取",
-    brush: "畫筆",
+    brush: "筆刷",
     shape: "圖形",
     text: "文字",
     settings: "設定",
@@ -164,7 +164,7 @@ const localeCopy = {
     languageLabel: "切換至繁體中文",
     creative: "CREATIVE",
     select: "Select",
-    brush: "Brushes",
+    brush: "Brush",
     shape: "Shapes",
     text: "Text",
     settings: "Settings",
@@ -4161,12 +4161,12 @@ export default function Home() {
                     </button>
                   </div>
                   <div className="color-row">
-                    <div><span className="field-label">{tr("筆刷顏色", "Brush color")}</span><span className="field-help">{tr("從色票或自訂色開始繪製", "Choose a swatch or custom color")}</span></div>
-                    <label className="color-picker"><input type="color" value={brushColor} onChange={(event) => setBrushColor(event.target.value)} aria-label={tr("筆刷顏色", "Brush color")} /><span style={{ backgroundColor: brushColor }} /></label>
+                    <span className="field-label">{tr("顏色", "Color")}</span>
+                    <label className="color-picker"><input type="color" value={brushColor} onChange={(event) => setBrushColor(event.target.value)} aria-label={tr("顏色", "Color")} /><span style={{ backgroundColor: brushColor }} /></label>
                   </div>
-                  <RangeControl label={tr("筆刷大小", "Brush size")} value={brushSize} min={2} max={160} suffix=" px" onChange={setBrushSize} />
-                  <RangeControl label={tr("筆刷不透明度", "Brush opacity")} value={brushOpacity} min={1} max={100} suffix="%" onChange={setBrushOpacity} />
-                  <div className="swatch-row floating-swatch-row" role="group" aria-label={tr("筆刷色票", "Brush colors")}>
+                  <RangeControl label={tr("大小", "Size")} value={brushSize} min={2} max={160} suffix=" px" onChange={setBrushSize} />
+                  <RangeControl label={tr("透明度", "Opacity")} value={brushOpacity} min={1} max={100} suffix="%" onChange={setBrushOpacity} />
+                  <div className="swatch-row floating-swatch-row" role="group" aria-label={tr("色票", "Swatches")}>
                     {["#000000", "#1F2528", "#555B5D", "#FFFFFF", "#FFFDF8", "#E4513B", "#B72F34", "#F07C41", "#D59B42", "#2F855A", "#426B8A", "#2D5B9B", "#8B5CF6", "#D26A9C"].map((color) => (
                       <button key={color} type="button" className={`swatch ${brushColor === color ? "is-selected" : ""}`} style={{ backgroundColor: color }} onClick={() => setBrushColor(color)} aria-label={`${tr("選擇顏色", "Choose color")} ${color}`} />
                     ))}
@@ -4564,12 +4564,12 @@ export default function Home() {
                     <span className="field-help">點擊色票選擇顏色</span>
                   </div>
                   <label className="color-picker">
-                    <input type="color" value={brushColor} onChange={(event) => setBrushColor(event.target.value)} aria-label="筆刷顏色" />
+                    <input type="color" value={brushColor} onChange={(event) => setBrushColor(event.target.value)} aria-label={tr("顏色", "Color")} />
                     <span style={{ backgroundColor: brushColor }} />
                   </label>
                 </div>
-                <RangeControl label="筆刷大小" value={brushSize} min={2} max={160} suffix=" px" onChange={setBrushSize} />
-                <RangeControl label="筆刷不透明度" value={brushOpacity} min={1} max={100} suffix="%" onChange={setBrushOpacity} />
+                <RangeControl label={tr("大小", "Size")} value={brushSize} min={2} max={160} suffix=" px" onChange={setBrushSize} />
+                <RangeControl label={tr("透明度", "Opacity")} value={brushOpacity} min={1} max={100} suffix="%" onChange={setBrushOpacity} />
                 <div className="swatch-row">
                   {["#000000", "#1F2528", "#555B5D", "#FFFFFF", "#FFFDF8", "#E4513B", "#B72F34", "#F07C41", "#D59B42", "#F4C95D", "#2F855A", "#82A480", "#426B8A", "#2D5B9B", "#8B5CF6", "#D26A9C"].map((color) => (
                     <button key={color} type="button" className={`swatch ${brushColor === color ? "is-selected" : ""}`} style={{ backgroundColor: color }} onClick={() => setBrushColor(color)} aria-label={`選擇顏色 ${color}`} />
