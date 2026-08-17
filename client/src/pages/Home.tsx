@@ -1457,7 +1457,7 @@ export default function Home() {
   }, []);
 
   const getSnappedPosition = useCallback((rawX: number, rawY: number, width: number, height: number) => {
-    const threshold = 12 / Math.max(0.25, zoom / 100);
+    const threshold = 20 / Math.max(0.25, zoom / 100);
     const horizontalTargets = [
       { position: 0, guide: 0 },
       { position: canvasSize.width / 2 - width / 2, guide: canvasSize.width / 2 },
@@ -2097,32 +2097,14 @@ export default function Home() {
         syncStrokes(nextStrokes);
       }
       if (imageDrag) {
-        const snapThreshold = 12 / Math.max(0.25, zoom / 100);
         let nextGuides: SnapGuides = { x: null, y: null };
         const nextImages = imagesRef.current.map((image) => {
           if (image.id !== imageDrag.id) return image;
           const rawX = point.x - imageDrag.offsetX;
           const rawY = point.y - imageDrag.offsetY;
-          const horizontalTargets = [
-            { position: 0, guide: 0 },
-            { position: canvasSize.width / 2 - image.width / 2, guide: canvasSize.width / 2 },
-            { position: canvasSize.width - image.width, guide: canvasSize.width },
-          ];
-          const verticalTargets = [
-            { position: 0, guide: 0 },
-            { position: canvasSize.height / 2 - image.height / 2, guide: canvasSize.height / 2 },
-            { position: canvasSize.height - image.height, guide: canvasSize.height },
-          ];
-          const snapX = horizontalTargets.reduce((closest, target) =>
-            Math.abs(rawX - target.position) < Math.abs(rawX - closest.position) ? target : closest,
-          );
-          const snapY = verticalTargets.reduce((closest, target) =>
-            Math.abs(rawY - target.position) < Math.abs(rawY - closest.position) ? target : closest,
-          );
-          const xIsSnapped = Math.abs(rawX - snapX.position) <= snapThreshold;
-          const yIsSnapped = Math.abs(rawY - snapY.position) <= snapThreshold;
-          nextGuides = { x: xIsSnapped ? snapX.guide : null, y: yIsSnapped ? snapY.guide : null };
-          return { ...image, x: xIsSnapped ? snapX.position : rawX, y: yIsSnapped ? snapY.position : rawY };
+          const snapped = getSnappedPosition(rawX, rawY, image.width, image.height);
+          nextGuides = snapped.guides;
+          return { ...image, x: snapped.x, y: snapped.y };
         });
         setSnapGuides((current) => current.x === nextGuides.x && current.y === nextGuides.y ? current : nextGuides);
         scheduleImages(nextImages);
@@ -4268,7 +4250,19 @@ export default function Home() {
                       tabIndex={0}
                       aria-label={`${SHAPE_LABELS[shape.kind]}圖形`}
                     >
-                      {shape.kind === "rectangle" && <rect x="3" y="3" width="94" height="94" rx={Math.min(50, (shape.cornerRadius / Math.min(shape.width, shape.height)) * 100)} fill={shape.fill} stroke={shape.outline} strokeWidth={shape.outlineWidth * 0.8} />}
+                      {shape.kind === "rectangle" && (
+                        <rect
+                          x="3"
+                          y="3"
+                          width="94"
+                          height="94"
+                          rx={Math.min(50, (shape.cornerRadius / Math.max(1, shape.width)) * 100)}
+                          ry={Math.min(50, (shape.cornerRadius / Math.max(1, shape.height)) * 100)}
+                          fill={shape.fill}
+                          stroke={shape.outline}
+                          strokeWidth={shape.outlineWidth * 0.8}
+                        />
+                      )}
                       {shape.kind === "circle" && <circle cx="50" cy="50" r="46" fill={shape.fill} stroke={shape.outline} strokeWidth={shape.outlineWidth * 0.8} />}
                       {shape.kind === "star" && <polygon points={STAR_POINTS} fill={shape.fill} stroke={shape.outline} strokeWidth={shape.outlineWidth * 0.8} strokeLinejoin="round" />}
                       {shape.kind === "heart" && <path d="M50 88 C44 82 15 65 15 38 C15 18 39 14 50 33 C61 14 85 18 85 38 C85 65 56 82 50 88Z" fill={shape.fill} stroke={shape.outline} strokeWidth={shape.outlineWidth * 0.8} strokeLinejoin="round" />}
