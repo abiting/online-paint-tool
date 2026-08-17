@@ -1095,6 +1095,17 @@ export default function Home() {
     offsetX: number;
     offsetY: number;
   } | null>(null);
+  const textResizeRef = useRef<{
+    id: string;
+    axis: "top-left" | "top-right" | "bottom-left" | "bottom-right";
+    startPointX: number;
+    startPointY: number;
+    startFontSize: number;
+    startWidth: number;
+    startHeight: number;
+    startX: number;
+    startY: number;
+  } | null>(null);
   const shapeDragRef = useRef<{
     id: string;
     offsetX: number;
@@ -1455,18 +1466,34 @@ export default function Home() {
     return allowOutside ? { x, y } : { x: clamp(x, 0, canvas.width), y: clamp(y, 0, canvas.height) };
   }, []);
 
-  const getSnappedPosition = useCallback((rawX: number, rawY: number, width: number, height: number) => {
+  const getSnappedPosition = useCallback((rawX: number, rawY: number, width: number, height: number, excludedShapeId?: string) => {
     const threshold = 20 / Math.max(0.25, zoom / 100);
-    const horizontalTargets = [
+    const canvasHorizontalTargets = [
       { position: 0, guide: 0 },
       { position: canvasSize.width / 2 - width / 2, guide: canvasSize.width / 2 },
       { position: canvasSize.width - width, guide: canvasSize.width },
     ];
-    const verticalTargets = [
+    const canvasVerticalTargets = [
       { position: 0, guide: 0 },
       { position: canvasSize.height / 2 - height / 2, guide: canvasSize.height / 2 },
       { position: canvasSize.height - height, guide: canvasSize.height },
     ];
+    const frameHorizontalTargets = shapesRef.current
+      .filter((shape) => shape.id !== excludedShapeId)
+      .flatMap((shape) => [
+        { position: shape.x, guide: shape.x },
+        { position: shape.x + shape.width / 2 - width / 2, guide: shape.x + shape.width / 2 },
+        { position: shape.x + shape.width - width, guide: shape.x + shape.width },
+      ]);
+    const frameVerticalTargets = shapesRef.current
+      .filter((shape) => shape.id !== excludedShapeId)
+      .flatMap((shape) => [
+        { position: shape.y, guide: shape.y },
+        { position: shape.y + shape.height / 2 - height / 2, guide: shape.y + shape.height / 2 },
+        { position: shape.y + shape.height - height, guide: shape.y + shape.height },
+      ]);
+    const horizontalTargets = [...canvasHorizontalTargets, ...frameHorizontalTargets];
+    const verticalTargets = [...canvasVerticalTargets, ...frameVerticalTargets];
     const closestX = horizontalTargets.reduce((nearest, target) => Math.abs(rawX - target.position) < Math.abs(rawX - nearest.position) ? target : nearest);
     const closestY = verticalTargets.reduce((nearest, target) => Math.abs(rawY - target.position) < Math.abs(rawY - nearest.position) ? target : nearest);
     const xIsSnapped = Math.abs(rawX - closestX.position) <= threshold;
@@ -1949,7 +1976,28 @@ export default function Home() {
       const imageDrag = imageDragRef.current;
       const imageResize = imageResizeRef.current;
       const imageRotate = imageRotateRef.current;
+      const textResize = textResizeRef.current;
       const point = getCanvasPoint(event.clientX, event.clientY, true);
+      if (textResize) {
+        const nextLayers = layersRef.current.map((layer) => {
+          if (layer.id !== textResize.id) return layer;
+          const deltaX = point.x - textResize.startPointX;
+          const deltaY = point.y - textResize.startPointY;
+          const widthScale = (textResize.startWidth + (textResize.axis.includes("left") ? -deltaX : deltaX)) / Math.max(1, textResize.startWidth);
+          const heightScale = (textResize.startHeight + (textResize.axis.includes("top") ? -deltaY : deltaY)) / Math.max(1, textResize.startHeight);
+          const dominantScale = Math.abs(deltaX / Math.max(1, textResize.startWidth)) >= Math.abs(deltaY / Math.max(1, textResize.startHeight)) ? widthScale : heightScale;
+          const nextFontSize = clamp(Math.round(textResize.startFontSize * Math.max(0.2, dominantScale)), 12, 360);
+          const nextDimensions = getTextLayerDimensions({ ...layer, id: "", fontSize: nextFontSize });
+          return {
+            ...layer,
+            fontSize: nextFontSize,
+            x: textResize.axis.includes("left") ? textResize.startX + textResize.startWidth - nextDimensions.width : textResize.startX,
+            y: textResize.axis.includes("top") ? textResize.startY + textResize.startHeight - nextDimensions.height : textResize.startY,
+          };
+        });
+        syncLayers(nextLayers);
+        return;
+      }
       if (imageRotate) {
         const currentAngle = Math.atan2(point.y - imageRotate.centerY, point.x - imageRotate.centerX);
         let nextRotation = imageRotate.startRotation + ((currentAngle - imageRotate.startAngle) * 180) / Math.PI;
@@ -2068,12 +2116,21 @@ export default function Home() {
           if (shape.id !== shapeDrag.id) return shape;
           const rawX = point.x - shapeDrag.offsetX;
           const rawY = point.y - shapeDrag.offsetY;
-          const snapped = getSnappedPosition(rawX, rawY, shape.width, shape.height);
+          const snapped = getSnappedPosition(rawX, rawY, shape.width, shape.height, shape.id);
           nextGuides = snapped.guides;
           return { ...shape, x: snapped.x, y: snapped.y };
         });
         setSnapGuides(nextGuides);
         syncShapes(nextShapes);
+        const originalShape = shapesRef.current.find((shape) => shape.id === shapeDrag.id);
+        const movedShape = nextShapes.find((shape) => shape.id === shapeDrag.id);
+        if (originalShape && movedShape) {
+          const deltaX = movedShape.x - originalShape.x;
+          const deltaY = movedShape.y - originalShape.y;
+          syncLayers(layersRef.current.map((layer) => layer.anchorShapeId === shapeDrag.id
+            ? { ...layer, x: layer.x + deltaX, y: layer.y + deltaY }
+            : layer));
+        }
       }
       if (strokeDrag) {
         let nextGuides: SnapGuides = { x: null, y: null };
@@ -2109,8 +2166,9 @@ export default function Home() {
       }
     };
     const handleUp = () => {
-      if (!textDragRef.current && !shapeDragRef.current && !strokeDragRef.current && !shapeResizeRef.current && !shapeRotateRef.current && !imageDragRef.current && !imageResizeRef.current && !imageRotateRef.current) return;
+      if (!textDragRef.current && !textResizeRef.current && !shapeDragRef.current && !strokeDragRef.current && !shapeResizeRef.current && !shapeRotateRef.current && !imageDragRef.current && !imageResizeRef.current && !imageRotateRef.current) return;
       textDragRef.current = null;
+      textResizeRef.current = null;
       shapeDragRef.current = null;
       strokeDragRef.current = null;
       shapeResizeRef.current = null;
@@ -2128,7 +2186,7 @@ export default function Home() {
       window.removeEventListener("pointermove", handleMove);
       window.removeEventListener("pointerup", handleUp);
     };
-  }, [canvasSize.height, canvasSize.width, captureHistory, flushImageUpdates, getCanvasPoint, getSnappedPosition, scheduleImages, syncLayers, syncShapes, syncStrokes, zoom]);
+  }, [canvasSize.height, canvasSize.width, captureHistory, flushImageUpdates, getCanvasPoint, getSnappedPosition, getTextLayerDimensions, scheduleImages, syncLayers, syncShapes, syncStrokes, zoom]);
 
   useEffect(() => {
     const handleShortcut = (event: KeyboardEvent) => {
@@ -2532,13 +2590,13 @@ export default function Home() {
       return;
     }
     const anchorShape = selectedShapeId ? shapesRef.current.find((shape) => shape.id === selectedShapeId) : undefined;
-    const nextLayer: TextLayer = {
+    const draftLayer: TextLayer = {
       id: makeId("text"),
       paintLayerId: activePaintLayer?.id ?? BASE_PAINT_LAYER_ID,
       stackOrder: getNextMaterialStackOrder(),
       text: "標題文字",
-      x: anchorShape ? anchorShape.x + anchorShape.width / 2 - 90 : canvasSize.width * 0.16,
-      y: anchorShape ? anchorShape.y + anchorShape.height / 2 - 32 : canvasSize.height * 0.18,
+      x: canvasSize.width * 0.16,
+      y: canvasSize.height * 0.18,
       fontSize: 64,
       fontWeight: 700,
       color: BRAND_RED,
@@ -2550,6 +2608,14 @@ export default function Home() {
       fontFamily: "DM Sans",
       anchorShapeId: anchorShape?.id,
     };
+    const dimensions = getTextLayerDimensions(draftLayer);
+    const nextLayer: TextLayer = anchorShape
+      ? {
+        ...draftLayer,
+        x: anchorShape.x + (anchorShape.width - dimensions.width) / 2,
+        y: anchorShape.y + (anchorShape.height - dimensions.height) / 2,
+      }
+      : draftLayer;
     const nextLayers = [...layersRef.current, nextLayer];
     syncLayers(nextLayers);
     setSelectedTextId(nextLayer.id);
@@ -3106,6 +3172,30 @@ export default function Home() {
       id: layer.id,
       offsetX: point.x - layer.x,
       offsetY: point.y - layer.y,
+    };
+  };
+
+  const handleTextResizePointerDown = (event: ReactPointerEvent<HTMLSpanElement>, layer: TextLayer, axis: "top-left" | "top-right" | "bottom-left" | "bottom-right") => {
+    event.stopPropagation();
+    event.preventDefault();
+    if (isPaintLayerLocked(layer.paintLayerId) || editingTextId === layer.id) return;
+    event.currentTarget.setPointerCapture(event.pointerId);
+    const point = getCanvasPoint(event.clientX, event.clientY, true);
+    const dimensions = getTextLayerDimensions(layer);
+    setSelectedTextId(layer.id);
+    setSelectedShapeId(null);
+    setSelectedImageId(null);
+    textDragRef.current = null;
+    textResizeRef.current = {
+      id: layer.id,
+      axis,
+      startPointX: point.x,
+      startPointY: point.y,
+      startFontSize: layer.fontSize,
+      startWidth: dimensions.width,
+      startHeight: dimensions.height,
+      startX: layer.x,
+      startY: layer.y,
     };
   };
 
@@ -4315,10 +4405,11 @@ export default function Home() {
                         color: layer.color,
                         fontSize: `${layer.fontSize}px`,
                         fontWeight: layer.fontWeight,
-                      fontFamily: `"${layer.fontFamily}", "Noto Sans TC", sans-serif`,
+                        fontFamily: `"${layer.fontFamily}", "Noto Sans TC", sans-serif`,
                         opacity: layer.opacity / 100,
                         filter: makeAdjustmentFilter(layer.exposure, layer.contrast, layer.saturation, layer.vibrancy),
-                      }}
+                        "--text-control-scale": 100 / zoom,
+                      } as CSSProperties}
                       onPointerDown={(event) => handleTextPointerDown(event, layer)}
                       contentEditable={editingTextId === layer.id && !isPaintLayerLocked(layer.paintLayerId)}
                       suppressContentEditableWarning
@@ -4348,6 +4439,14 @@ export default function Home() {
                     >
                       {layer.text}
                       {selectedTextId === layer.id && <span className="text-layer-tag" contentEditable={false}>TEXT</span>}
+                      {selectedTextId === layer.id && editingTextId !== layer.id && !isPaintLayerLocked(layer.paintLayerId) && (
+                        <>
+                          <span className="text-resize-handle text-resize-handle-top-left" contentEditable={false} onPointerDown={(event) => handleTextResizePointerDown(event, layer, "top-left")} />
+                          <span className="text-resize-handle text-resize-handle-top-right" contentEditable={false} onPointerDown={(event) => handleTextResizePointerDown(event, layer, "top-right")} />
+                          <span className="text-resize-handle text-resize-handle-bottom-left" contentEditable={false} onPointerDown={(event) => handleTextResizePointerDown(event, layer, "bottom-left")} />
+                          <span className="text-resize-handle text-resize-handle-bottom-right" contentEditable={false} onPointerDown={(event) => handleTextResizePointerDown(event, layer, "bottom-right")} />
+                        </>
+                      )}
                     </div>
                   ))}
                 </div>
