@@ -37,6 +37,7 @@ import {
   SlidersHorizontal,
   Shapes,
   Square,
+  SquareDashed,
   Star,
   Triangle,
   Pentagon,
@@ -54,7 +55,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 
 type Tool = "brush" | "eraser" | "fill" | "text" | "shape" | "retouch" | "move" | "crop";
-type DesktopCreativeTool = Extract<Tool, "brush" | "shape" | "text">;
+type DesktopCreativeTool = Extract<Tool, "brush" | "shape" | "text"> | "outline";
 type BrushKind = "oil" | "pencil" | "brush";
 type ShapeKind = "rectangle" | "circle" | "star" | "heart" | "triangle" | "pentagon";
 type ShapeResizeAxis = "left" | "right" | "top" | "bottom" | "top-left" | "top-right" | "bottom-left" | "bottom-right";
@@ -244,7 +245,16 @@ type CanvasPoint = {
   y: number;
 };
 
-type TextLayer = {
+type OutlineAdjustments = {
+  outlineWidth?: number;
+  outlineExposure?: number;
+  outlineContrast?: number;
+  outlineSaturation?: number;
+  outlineVibrancy?: number;
+  outlineOpacity?: number;
+};
+
+type TextLayer = OutlineAdjustments & {
   id: string;
   paintLayerId: string;
   stackOrder?: number;
@@ -260,11 +270,12 @@ type TextLayer = {
   saturation: number;
   vibrancy: number;
   shadowOpacity: number;
+  outlineColor?: string;
   fontFamily: "Noto Sans TC" | "Noto Serif TC" | "LXGW WenKai TC" | "PMingLiU" | "Arial" | "DM Sans" | "IBM Plex Mono" | "Kaisei Decol" | "Klee One" | "Kosugi Maru" | "M PLUS Rounded 1c" | "Shippori Mincho" | "Times New Roman" | "Yomogi" | "Zen Kaku Gothic New";
   anchorShapeId?: string;
 };
 
-type ShapeLayer = {
+type ShapeLayer = OutlineAdjustments & {
   id: string;
   paintLayerId: string;
   stackOrder?: number;
@@ -291,7 +302,7 @@ type ShapeLayer = {
   shadowY: number;
 };
 
-type ImageLayer = {
+type ImageLayer = OutlineAdjustments & {
   id: string;
   paintLayerId: string;
   stackOrder?: number;
@@ -307,6 +318,7 @@ type ImageLayer = {
   contrast: number;
   saturation: number;
   vibrancy: number;
+  outlineColor?: string;
   crop?: ImageCrop;
 };
 
@@ -408,6 +420,8 @@ type AbiPaintProject = {
     shapeOutline: string;
     shapeOutlineWidth: number;
     shapeShadow: boolean;
+    shapeOpacity: number;
+    shapeShadowOpacity: number;
     shapeCornerRadius: number;
   };
 };
@@ -595,6 +609,21 @@ const makeAdjustmentFilter = (exposure: number, contrast: number, saturation: nu
 const hexToRgba = (hex: string, opacity: number) => {
   const { r, g, b } = hexToRgb(hex);
   return `rgba(${r}, ${g}, ${b}, ${opacity})`;
+};
+
+const makeOutlineColor = (hex: string, exposure = 0, contrast = 0, saturation = 0, vibrancy = 0, opacity = 100) => {
+  const source = hexToRgb(hex);
+  const applyExposureAndContrast = (channel: number) => clamp(((channel + exposure * 2.55 - 128) * (1 + contrast / 100)) + 128, 0, 255);
+  const exposed = {
+    r: applyExposureAndContrast(source.r),
+    g: applyExposureAndContrast(source.g),
+    b: applyExposureAndContrast(source.b),
+  };
+  const luma = exposed.r * 0.2126 + exposed.g * 0.7152 + exposed.b * 0.0722;
+  const colorfulness = (Math.max(exposed.r, exposed.g, exposed.b) - Math.min(exposed.r, exposed.g, exposed.b)) / 255;
+  const saturationFactor = Math.max(0, 1 + saturation / 100 + (vibrancy / 100) * 0.35 * (1 - colorfulness));
+  const adjusted = (channel: number) => Math.round(clamp(luma + (channel - luma) * saturationFactor, 0, 255));
+  return `rgba(${adjusted(exposed.r)}, ${adjusted(exposed.g)}, ${adjusted(exposed.b)}, ${clamp(opacity, 0, 100) / 100})`;
 };
 
 const getMaterialStackOrder = (
@@ -1213,6 +1242,8 @@ export default function Home() {
   const [shapeOutline, setShapeOutline] = useState("#FFFDF8");
   const [shapeOutlineWidth, setShapeOutlineWidth] = useState(2);
   const [shapeShadow, setShapeShadow] = useState(true);
+  const [shapeOpacity, setShapeOpacity] = useState(100);
+  const [shapeShadowOpacity, setShapeShadowOpacity] = useState(20);
   const [shapeCornerRadius, setShapeCornerRadius] = useState(12);
   const [adjustments, setAdjustments] = useState<Adjustments>({
     exposure: 0,
@@ -1305,6 +1336,13 @@ export default function Home() {
       ? { exposure: selectedText.exposure ?? 0, contrast: selectedText.contrast ?? 0, saturation: selectedText.saturation ?? 0, vibrancy: selectedText.vibrancy ?? 0, opacity: selectedText.opacity }
       : adjustments;
   const activeShadowOpacity = selectedShape ? selectedShape.shadowOpacity : selectedText ? selectedText.shadowOpacity : null;
+  const activeOutlineSettings = selectedShape
+    ? { color: selectedShape.outline, width: selectedShape.outlineWidth ?? 0, exposure: selectedShape.outlineExposure ?? 0, contrast: selectedShape.outlineContrast ?? 0, saturation: selectedShape.outlineSaturation ?? 0, vibrancy: selectedShape.outlineVibrancy ?? 0, opacity: selectedShape.outlineOpacity ?? 100 }
+    : selectedText
+      ? { color: selectedText.outlineColor ?? "#FFFDF8", width: selectedText.outlineWidth ?? 0, exposure: selectedText.outlineExposure ?? 0, contrast: selectedText.outlineContrast ?? 0, saturation: selectedText.outlineSaturation ?? 0, vibrancy: selectedText.outlineVibrancy ?? 0, opacity: selectedText.outlineOpacity ?? 100 }
+      : selectedImage
+        ? { color: selectedImage.outlineColor ?? "#FFFDF8", width: selectedImage.outlineWidth ?? 0, exposure: selectedImage.outlineExposure ?? 0, contrast: selectedImage.outlineContrast ?? 0, saturation: selectedImage.outlineSaturation ?? 0, vibrancy: selectedImage.outlineVibrancy ?? 0, opacity: selectedImage.outlineOpacity ?? 100 }
+        : null;
   const activeAdjustmentTarget = selectedShape ? tr("目前圖形", "Current shape") : selectedImage ? tr("目前圖片", "Current image") : selectedText ? tr("目前文字卡", "Current text") : tr("整個畫布", "Entire canvas");
 
   const canvasFilter = useMemo(
@@ -1321,6 +1359,13 @@ export default function Home() {
       saturation: layer.saturation ?? 0,
       vibrancy: layer.vibrancy ?? 0,
       shadowOpacity: layer.shadowOpacity ?? 0,
+      outlineColor: layer.outlineColor ?? "#FFFDF8",
+      outlineWidth: layer.outlineWidth ?? 0,
+      outlineExposure: layer.outlineExposure ?? 0,
+      outlineContrast: layer.outlineContrast ?? 0,
+      outlineSaturation: layer.outlineSaturation ?? 0,
+      outlineVibrancy: layer.outlineVibrancy ?? 0,
+      outlineOpacity: layer.outlineOpacity ?? 100,
     }));
     layersRef.current = normalizedLayers;
     setLayers(normalizedLayers);
@@ -1335,6 +1380,12 @@ export default function Home() {
       saturation: shape.saturation ?? 0,
       vibrancy: shape.vibrancy ?? 0,
       rotation: shape.rotation ?? 0,
+      outlineWidth: shape.outlineWidth ?? 0,
+      outlineExposure: shape.outlineExposure ?? 0,
+      outlineContrast: shape.outlineContrast ?? 0,
+      outlineSaturation: shape.outlineSaturation ?? 0,
+      outlineVibrancy: shape.outlineVibrancy ?? 0,
+      outlineOpacity: shape.outlineOpacity ?? 100,
     }));
     shapesRef.current = normalizedShapes;
     setShapes(normalizedShapes);
@@ -1350,6 +1401,13 @@ export default function Home() {
       vibrancy: image.vibrancy ?? 0,
       rotation: image.rotation ?? 0,
       crop: image.crop ?? FULL_IMAGE_CROP,
+      outlineColor: image.outlineColor ?? "#FFFDF8",
+      outlineWidth: image.outlineWidth ?? 0,
+      outlineExposure: image.outlineExposure ?? 0,
+      outlineContrast: image.outlineContrast ?? 0,
+      outlineSaturation: image.outlineSaturation ?? 0,
+      outlineVibrancy: image.outlineVibrancy ?? 0,
+      outlineOpacity: image.outlineOpacity ?? 100,
     }));
     imagesRef.current = normalizedImages;
     setImages(normalizedImages);
@@ -1683,13 +1741,15 @@ export default function Home() {
           shapeOutline,
           shapeOutlineWidth,
           shapeShadow,
+          shapeOpacity,
+          shapeShadowOpacity,
           shapeCornerRadius,
         },
       };
     } catch {
       return null;
     }
-  }, [activePaintLayerId, adjustments, bleedGuide, brushColor, brushKind, brushOpacity, brushSize, documentNameDraft, fileMeta, hasArtwork, paintLayers, scaleImagesWithCanvas, shapeCornerRadius, shapeFill, shapeKind, shapeOutline, shapeOutlineWidth, shapeShadow]);
+  }, [activePaintLayerId, adjustments, bleedGuide, brushColor, brushKind, brushOpacity, brushSize, documentNameDraft, fileMeta, hasArtwork, paintLayers, scaleImagesWithCanvas, shapeCornerRadius, shapeFill, shapeKind, shapeOpacity, shapeOutline, shapeOutlineWidth, shapeShadow, shapeShadowOpacity]);
 
   const createBlankProject = useCallback((fileNumber: number): AbiPaintProject => {
     const width = 960;
@@ -1731,6 +1791,8 @@ export default function Home() {
         shapeOutline: "#FFFDF8",
         shapeOutlineWidth: 2,
         shapeShadow: true,
+        shapeOpacity: 100,
+        shapeShadowOpacity: 20,
         shapeCornerRadius: 12,
       },
     };
@@ -1800,6 +1862,8 @@ export default function Home() {
     setShapeOutline(project.tools?.shapeOutline ?? "#FFFDF8");
     setShapeOutlineWidth(project.tools?.shapeOutlineWidth ?? 2);
     setShapeShadow(project.tools?.shapeShadow ?? true);
+    setShapeOpacity(project.tools?.shapeOpacity ?? 100);
+    setShapeShadowOpacity(project.tools?.shapeShadowOpacity ?? 20);
     setShapeCornerRadius(project.tools?.shapeCornerRadius ?? 12);
     setHasArtwork(Boolean(project.hasArtwork || project.materials.layers.length || project.materials.shapes.length || project.materials.images.length || project.materials.strokes.length));
     setSelectedTextId(null);
@@ -2420,16 +2484,16 @@ export default function Home() {
       cornerRadius: kind === "rectangle" ? shapeCornerRadius : 0,
       rotation: 0,
       fill: shapeFill,
-      opacity: 100,
-        exposure: 0,
-        contrast: 0,
-        saturation: 0,
-        vibrancy: 0,
-        outline: shapeOutline,
+      opacity: shapeOpacity,
+      exposure: 0,
+      contrast: 0,
+      saturation: 0,
+      vibrancy: 0,
+      outline: shapeOutline,
       outlineWidth: shapeOutlineWidth,
       shadow: shapeShadow,
       shadowColor: "#000000",
-      shadowOpacity: 20,
+      shadowOpacity: shapeShadowOpacity,
       shadowBlur: 14,
       shadowX: 0,
       shadowY: 0,
@@ -3014,6 +3078,45 @@ export default function Home() {
     if (selectedText) updateTextLayer({ shadowOpacity: value });
   };
 
+  const updateActiveOutline = (patch: { color?: string; width?: number; exposure?: number; contrast?: number; saturation?: number; vibrancy?: number; opacity?: number }) => {
+    if (selectedShape) {
+      updateShape({
+        ...(patch.color !== undefined ? { outline: patch.color } : {}),
+        ...(patch.width !== undefined ? { outlineWidth: patch.width } : {}),
+        ...(patch.exposure !== undefined ? { outlineExposure: patch.exposure } : {}),
+        ...(patch.contrast !== undefined ? { outlineContrast: patch.contrast } : {}),
+        ...(patch.saturation !== undefined ? { outlineSaturation: patch.saturation } : {}),
+        ...(patch.vibrancy !== undefined ? { outlineVibrancy: patch.vibrancy } : {}),
+        ...(patch.opacity !== undefined ? { outlineOpacity: patch.opacity } : {}),
+      });
+      return;
+    }
+    if (selectedText) {
+      updateTextLayer({
+        ...(patch.color !== undefined ? { outlineColor: patch.color } : {}),
+        ...(patch.width !== undefined ? { outlineWidth: patch.width } : {}),
+        ...(patch.exposure !== undefined ? { outlineExposure: patch.exposure } : {}),
+        ...(patch.contrast !== undefined ? { outlineContrast: patch.contrast } : {}),
+        ...(patch.saturation !== undefined ? { outlineSaturation: patch.saturation } : {}),
+        ...(patch.vibrancy !== undefined ? { outlineVibrancy: patch.vibrancy } : {}),
+        ...(patch.opacity !== undefined ? { outlineOpacity: patch.opacity } : {}),
+      });
+      return;
+    }
+    if (selectedImage) {
+      syncImages(imagesRef.current.map((image) => image.id === selectedImage.id ? {
+        ...image,
+        ...(patch.color !== undefined ? { outlineColor: patch.color } : {}),
+        ...(patch.width !== undefined ? { outlineWidth: patch.width } : {}),
+        ...(patch.exposure !== undefined ? { outlineExposure: patch.exposure } : {}),
+        ...(patch.contrast !== undefined ? { outlineContrast: patch.contrast } : {}),
+        ...(patch.saturation !== undefined ? { outlineSaturation: patch.saturation } : {}),
+        ...(patch.vibrancy !== undefined ? { outlineVibrancy: patch.vibrancy } : {}),
+        ...(patch.opacity !== undefined ? { outlineOpacity: patch.opacity } : {}),
+      } : image));
+    }
+  };
+
   const resetActiveAdjustment = () => {
     updateActiveAdjustment({ exposure: 0, contrast: 0, saturation: 0, vibrancy: 0, opacity: 100 });
     toast.info(`${activeAdjustmentTarget}的影像調整已重設`);
@@ -3138,6 +3241,12 @@ export default function Home() {
         context.translate(entry.item.x + entry.item.width / 2, entry.item.y + entry.item.height / 2);
         context.rotate((entry.item.rotation * Math.PI) / 180);
         context.drawImage(imageElement, -entry.item.width / 2, -entry.item.height / 2, entry.item.width, entry.item.height);
+        if ((entry.item.outlineWidth ?? 0) > 0) {
+          context.filter = "none";
+          context.strokeStyle = makeOutlineColor(entry.item.outlineColor ?? "#FFFDF8", entry.item.outlineExposure, entry.item.outlineContrast, entry.item.outlineSaturation, entry.item.outlineVibrancy, entry.item.outlineOpacity);
+          context.lineWidth = entry.item.outlineWidth ?? 0;
+          context.strokeRect(-entry.item.width / 2, -entry.item.height / 2, entry.item.width, entry.item.height);
+        }
         context.restore();
         return;
       }
@@ -3152,8 +3261,13 @@ export default function Home() {
           context.shadowOffsetY = 0;
         }
         context.fillStyle = entry.item.color;
+        if ((entry.item.outlineWidth ?? 0) > 0) {
+          context.strokeStyle = makeOutlineColor(entry.item.outlineColor ?? "#FFFDF8", entry.item.outlineExposure, entry.item.outlineContrast, entry.item.outlineSaturation, entry.item.outlineVibrancy, entry.item.outlineOpacity);
+          context.lineWidth = entry.item.outlineWidth ?? 0;
+        }
         context.font = `${entry.item.fontWeight} ${entry.item.fontSize}px "${entry.item.fontFamily}", sans-serif`;
         context.textBaseline = "top";
+        if ((entry.item.outlineWidth ?? 0) > 0) context.strokeText(entry.item.text, entry.item.x, entry.item.y);
         context.fillText(entry.item.text, entry.item.x, entry.item.y);
         context.restore();
         return;
@@ -3169,7 +3283,7 @@ export default function Home() {
         context.shadowOffsetY = 0;
       }
       context.fillStyle = shape.fill;
-      context.strokeStyle = shape.outline;
+      context.strokeStyle = makeOutlineColor(shape.outline, shape.outlineExposure, shape.outlineContrast, shape.outlineSaturation, shape.outlineVibrancy, shape.outlineOpacity);
       context.lineWidth = shape.outlineWidth;
       context.translate(shape.x + shape.width / 2, shape.y + shape.height / 2);
       context.rotate((shape.rotation * Math.PI) / 180);
@@ -3748,13 +3862,13 @@ export default function Home() {
     : ({ left: `${desktopToolPosition.x}px`, top: `${desktopToolPosition.y}px`, transform: "none" } as CSSProperties);
   const mobileMiniToolsStyle = ({ left: `${mobileMiniToolPosition.x}px`, top: `${mobileMiniToolPosition.y}px` } as CSSProperties);
   const handleDesktopToolCreate = (nextTool: DesktopCreativeTool) => {
-    setTool(nextTool);
+    setTool(nextTool === "outline" ? "move" : nextTool);
     setActiveDesktopTool(nextTool);
     setOpenDesktopTool(nextTool);
     if (nextTool === "text") addTextLayer();
   };
   const handleDesktopToolSettings = (nextTool: DesktopCreativeTool) => {
-    setTool(nextTool);
+    setTool(nextTool === "outline" ? "move" : nextTool);
     setActiveDesktopTool(nextTool);
     if (nextTool === "text" && !selectedText && layersRef.current.length > 0) {
       setSelectedTextId(layersRef.current[layersRef.current.length - 1].id);
@@ -3764,7 +3878,7 @@ export default function Home() {
     setOpenDesktopTool(nextTool);
   };
   const handleMobileMiniToolCreate = (nextTool: DesktopCreativeTool) => {
-    setTool(nextTool);
+    setTool(nextTool === "outline" ? "move" : nextTool);
     setActiveDesktopTool(nextTool);
     setOpenDesktopTool(nextTool);
     if (nextTool === "text") addTextLayer();
@@ -3802,6 +3916,8 @@ export default function Home() {
       ? copy.shape
       : activeDesktopTool === "text"
         ? copy.text
+        : activeDesktopTool === "outline"
+          ? tr("輪廓", "Outline")
         : copy.workspaceSignature;
   const hasMovableArtwork = layers.length > 0 || shapes.length > 0 || images.length > 0 || strokes.length > 0;
   const hasSelectedObject = Boolean(selectedTextId || selectedShapeId || selectedImageId || selectedStrokeId);
@@ -3966,6 +4082,7 @@ export default function Home() {
             <ToolButton label={copy.brush} active={activeDesktopTool === "brush"} icon={<Pencil size={18} />} onClick={() => handleDesktopToolCreate("brush")} onDoubleActivate={() => handleDesktopToolSettings("brush")} />
             <ToolButton label={copy.shape} active={activeDesktopTool === "shape"} icon={<Shapes size={18} />} onClick={() => handleDesktopToolCreate("shape")} onDoubleActivate={() => handleDesktopToolSettings("shape")} />
             <ToolButton label={copy.text} active={activeDesktopTool === "text"} icon={<Type size={18} />} onClick={() => handleDesktopToolCreate("text")} onDoubleActivate={() => handleDesktopToolSettings("text")} />
+            <ToolButton label={tr("輪廓", "Outline")} active={activeDesktopTool === "outline"} icon={<SquareDashed size={18} />} onClick={() => handleDesktopToolSettings("outline")} disabled={!hasSelectedObject} />
             <ToolButton label={cropDraft ? tr("套用裁切", "Apply crop") : tr("裁切", "Crop")} active={tool === "crop"} icon={<Crop size={18} />} onClick={handleCropTool} disabled={!isCropToolAvailable} />
             <button type="button" className="tool-button tool-settings-entry" onClick={handleSelectedObjectSettings} disabled={!hasSelectedObject} aria-label={copy.openSettings} title={copy.openSettings}><SlidersHorizontal size={18} /><span>{copy.settings}</span></button>
           </div>
@@ -4184,12 +4301,28 @@ export default function Home() {
                     <button type="button" className={`shape-choice ${shapeKind === "triangle" ? "is-active" : ""}`} onClick={() => { setShapeKind("triangle"); addShape("triangle"); }}><Triangle size={18} /><span>{tr("三角形", "Triangle")}</span></button>
                     <button type="button" className={`shape-choice ${shapeKind === "pentagon" ? "is-active" : ""}`} onClick={() => { setShapeKind("pentagon"); addShape("pentagon"); }}><Pentagon size={18} /><span>{tr("五邊形", "Pentagon")}</span></button>
                   </div>
-                  <div className="color-row"><span className="field-label">{tr("填色", "Fill")}</span><label className="color-picker"><input type="color" value={shapeFill} onChange={(event) => { setShapeFill(event.target.value); if (selectedShape) updateShape({ fill: event.target.value }); }} aria-label={tr("圖形填色", "Shape fill")} /><span style={{ backgroundColor: shapeFill }} /></label></div>
-                  <div className="color-row"><span className="field-label">{tr("輪廓", "Outline")}</span><label className="color-picker"><input type="color" value={shapeOutline} onChange={(event) => { setShapeOutline(event.target.value); if (selectedShape) updateShape({ outline: event.target.value }); }} aria-label={tr("圖形輪廓", "Shape outline")} /><span style={{ backgroundColor: shapeOutline }} /></label></div>
-                  <RangeControl label={tr("輪廓粗細", "Outline width")} value={selectedShape?.outlineWidth ?? shapeOutlineWidth} min={0} max={16} suffix=" px" onChange={(value) => { setShapeOutlineWidth(value); if (selectedShape) updateShape({ outlineWidth: value }); }} />
+                  <div className="color-row"><span className="field-label">{tr("顏色", "Color")}</span><label className="color-picker"><input type="color" value={shapeFill} onChange={(event) => { setShapeFill(event.target.value); if (selectedShape) updateShape({ fill: event.target.value }); }} aria-label={tr("圖形顏色", "Shape color")} /><span style={{ backgroundColor: shapeFill }} /></label></div>
                   <RangeControl label={tr("圓角半徑", "Corner radius")} value={selectedShape?.kind === "rectangle" ? selectedShape.cornerRadius : shapeCornerRadius} min={0} max={72} suffix=" px" onChange={(value) => { setShapeCornerRadius(value); if (selectedShape?.kind === "rectangle") updateShape({ cornerRadius: value }); }} />
-                  {selectedShape && <RangeControl label={tr("不透明度", "Opacity")} value={selectedShape.opacity} min={1} max={100} suffix="%" onChange={(value) => updateShape({ opacity: value })} />}
-                  {selectedShape && <RangeControl label={tr("陰影強度", "Shadow")} value={selectedShape.shadowOpacity} min={0} max={100} suffix="%" onChange={(value) => updateShape({ shadow: value > 0, shadowOpacity: value, shadowX: 0, shadowY: 0 })} />}
+                  <RangeControl label={tr("不透明度", "Opacity")} value={selectedShape?.opacity ?? shapeOpacity} min={1} max={100} suffix="%" onChange={(value) => { setShapeOpacity(value); if (selectedShape) updateShape({ opacity: value }); }} />
+                  <RangeControl label={tr("陰影強度", "Shadow")} value={selectedShape?.shadowOpacity ?? shapeShadowOpacity} min={0} max={100} suffix="%" onChange={(value) => { setShapeShadowOpacity(value); setShapeShadow(value > 0); if (selectedShape) updateShape({ shadow: value > 0, shadowOpacity: value, shadowX: 0, shadowY: 0 }); }} />
+                </div>
+              )}
+
+              {openDesktopTool === "outline" && (
+                <div className="desktop-tool-popover-content">
+                  {!activeOutlineSettings ? (
+                    <p className="empty-inspector">{tr("請先選取圖片、圖形或文字，再設定輪廓。", "Select an image, shape, or text object to configure its outline.")}</p>
+                  ) : (
+                    <>
+                      <div className="color-row"><span className="field-label">{tr("顏色", "Color")}</span><label className="color-picker"><input type="color" value={activeOutlineSettings.color} onChange={(event) => updateActiveOutline({ color: event.target.value })} aria-label={tr("輪廓顏色", "Outline color")} /><span style={{ backgroundColor: activeOutlineSettings.color }} /></label></div>
+                      <RangeControl label={tr("粗細", "Width")} value={activeOutlineSettings.width} min={0} max={32} suffix=" px" onChange={(value) => updateActiveOutline({ width: value })} />
+                      <RangeControl label={tr("曝光度", "Exposure")} value={activeOutlineSettings.exposure} min={-100} max={100} suffix="%" onChange={(value) => updateActiveOutline({ exposure: value })} />
+                      <RangeControl label={tr("對比度", "Contrast")} value={activeOutlineSettings.contrast} min={-100} max={100} suffix="%" onChange={(value) => updateActiveOutline({ contrast: value })} />
+                      <RangeControl label={tr("飽和度", "Saturation")} value={activeOutlineSettings.saturation} min={-100} max={100} suffix="%" onChange={(value) => updateActiveOutline({ saturation: value })} />
+                      <RangeControl label={tr("亮麗度", "Vibrancy")} value={activeOutlineSettings.vibrancy} min={-100} max={100} suffix="%" onChange={(value) => updateActiveOutline({ vibrancy: value })} />
+                      <RangeControl label={tr("不透明度", "Opacity")} value={activeOutlineSettings.opacity} min={0} max={100} suffix="%" onChange={(value) => updateActiveOutline({ opacity: value })} />
+                    </>
+                  )}
                 </div>
               )}
 
@@ -4345,6 +4478,7 @@ export default function Home() {
                         zIndex: getMaterialStackOrder("image", image, index),
                         opacity: image.opacity / 100,
                         filter: makeAdjustmentFilter(image.exposure, image.contrast, image.saturation, image.vibrancy),
+                        outline: (image.outlineWidth ?? 0) > 0 ? `${image.outlineWidth}px solid ${makeOutlineColor(image.outlineColor ?? "#FFFDF8", image.outlineExposure, image.outlineContrast, image.outlineSaturation, image.outlineVibrancy, image.outlineOpacity)}` : "none",
                       } as CSSProperties}
                       onPointerDown={(event) => handleImagePointerDown(event, image)}
                       role="button"
@@ -4420,16 +4554,16 @@ export default function Home() {
                           rx={Math.min(50, (shape.cornerRadius / Math.max(1, shape.width)) * 100)}
                           ry={Math.min(50, (shape.cornerRadius / Math.max(1, shape.height)) * 100)}
                           fill={shape.fill}
-                          stroke={shape.outline}
+                          stroke={makeOutlineColor(shape.outline, shape.outlineExposure, shape.outlineContrast, shape.outlineSaturation, shape.outlineVibrancy, shape.outlineOpacity)}
                           strokeWidth={shape.outlineWidth * 0.8}
                           vectorEffect="non-scaling-stroke"
                         />
                       )}
-                      {shape.kind === "circle" && <circle cx="50" cy="50" r="50" fill={shape.fill} stroke={shape.outline} strokeWidth={shape.outlineWidth * 0.8} vectorEffect="non-scaling-stroke" />}
-                      {shape.kind === "star" && <polygon points={STAR_POINTS} fill={shape.fill} stroke={shape.outline} strokeWidth={shape.outlineWidth * 0.8} vectorEffect="non-scaling-stroke" strokeLinejoin="round" />}
-                      {shape.kind === "heart" && <path d="M50 88 C44 82 15 65 15 38 C15 18 39 14 50 33 C61 14 85 18 85 38 C85 65 56 82 50 88Z" fill={shape.fill} stroke={shape.outline} strokeWidth={shape.outlineWidth * 0.8} vectorEffect="non-scaling-stroke" strokeLinejoin="round" />}
-                      {shape.kind === "triangle" && <polygon points={TRIANGLE_POINTS} fill={shape.fill} stroke={shape.outline} strokeWidth={shape.outlineWidth * 0.8} vectorEffect="non-scaling-stroke" strokeLinejoin="round" />}
-                      {shape.kind === "pentagon" && <polygon points={PENTAGON_POINTS} fill={shape.fill} stroke={shape.outline} strokeWidth={shape.outlineWidth * 0.8} vectorEffect="non-scaling-stroke" strokeLinejoin="round" />}
+                      {shape.kind === "circle" && <circle cx="50" cy="50" r="50" fill={shape.fill} stroke={makeOutlineColor(shape.outline, shape.outlineExposure, shape.outlineContrast, shape.outlineSaturation, shape.outlineVibrancy, shape.outlineOpacity)} strokeWidth={shape.outlineWidth * 0.8} vectorEffect="non-scaling-stroke" />}
+                      {shape.kind === "star" && <polygon points={STAR_POINTS} fill={shape.fill} stroke={makeOutlineColor(shape.outline, shape.outlineExposure, shape.outlineContrast, shape.outlineSaturation, shape.outlineVibrancy, shape.outlineOpacity)} strokeWidth={shape.outlineWidth * 0.8} vectorEffect="non-scaling-stroke" strokeLinejoin="round" />}
+                      {shape.kind === "heart" && <path d="M50 88 C44 82 15 65 15 38 C15 18 39 14 50 33 C61 14 85 18 85 38 C85 65 56 82 50 88Z" fill={shape.fill} stroke={makeOutlineColor(shape.outline, shape.outlineExposure, shape.outlineContrast, shape.outlineSaturation, shape.outlineVibrancy, shape.outlineOpacity)} strokeWidth={shape.outlineWidth * 0.8} vectorEffect="non-scaling-stroke" strokeLinejoin="round" />}
+                      {shape.kind === "triangle" && <polygon points={TRIANGLE_POINTS} fill={shape.fill} stroke={makeOutlineColor(shape.outline, shape.outlineExposure, shape.outlineContrast, shape.outlineSaturation, shape.outlineVibrancy, shape.outlineOpacity)} strokeWidth={shape.outlineWidth * 0.8} vectorEffect="non-scaling-stroke" strokeLinejoin="round" />}
+                      {shape.kind === "pentagon" && <polygon points={PENTAGON_POINTS} fill={shape.fill} stroke={makeOutlineColor(shape.outline, shape.outlineExposure, shape.outlineContrast, shape.outlineSaturation, shape.outlineVibrancy, shape.outlineOpacity)} strokeWidth={shape.outlineWidth * 0.8} vectorEffect="non-scaling-stroke" strokeLinejoin="round" />}
                     </svg>
                   ))}
                   {shapes.filter((shape) => shape.id === selectedShapeId && !isPaintLayerLocked(shape.paintLayerId)).map((shape) => (
@@ -4485,6 +4619,8 @@ export default function Home() {
                           makeAdjustmentFilter(layer.exposure, layer.contrast, layer.saturation, layer.vibrancy),
                           layer.shadowOpacity > 0 ? `drop-shadow(0 0 14px rgba(0, 0, 0, ${layer.shadowOpacity / 100}))` : "",
                         ].filter((value) => value && value !== "none").join(" ") || "none",
+                        WebkitTextStroke: (layer.outlineWidth ?? 0) > 0 ? `${layer.outlineWidth}px ${makeOutlineColor(layer.outlineColor ?? "#FFFDF8", layer.outlineExposure, layer.outlineContrast, layer.outlineSaturation, layer.outlineVibrancy, layer.outlineOpacity)}` : "0 transparent",
+                        paintOrder: "stroke fill",
                         "--text-control-scale": 100 / zoom,
                       } as CSSProperties}
                       onPointerDown={(event) => handleTextPointerDown(event, layer)}
@@ -4615,9 +4751,7 @@ export default function Home() {
                 {!selectedShape && <p className="empty-inspector">{tr("選擇圖形或按上方按鈕，把形狀放到畫布中央。", "Select a shape or use a button above to place one in the center of the canvas.")}</p>}
                 {selectedShape && (
                   <>
-                    <div className="color-row"><span className="field-label">{tr("填色", "Fill")}</span><label className="color-picker"><input type="color" value={selectedShape.fill} onChange={(event) => updateShape({ fill: event.target.value })} aria-label={tr("圖形填色", "Shape fill")} /><span style={{ backgroundColor: selectedShape.fill }} /></label></div>
-                    <div className="color-row"><span className="field-label">{tr("輪廓", "Outline")}</span><label className="color-picker"><input type="color" value={selectedShape.outline} onChange={(event) => updateShape({ outline: event.target.value })} aria-label={tr("圖形輪廓顏色", "Shape outline color")} /><span style={{ backgroundColor: selectedShape.outline }} /></label></div>
-                    <RangeControl label={tr("輪廓粗細", "Outline width")} value={selectedShape.outlineWidth} min={0} max={16} suffix=" px" onChange={(value) => updateShape({ outlineWidth: value })} />
+                    <div className="color-row"><span className="field-label">{tr("顏色", "Color")}</span><label className="color-picker"><input type="color" value={selectedShape.fill} onChange={(event) => updateShape({ fill: event.target.value })} aria-label={tr("圖形顏色", "Shape color")} /><span style={{ backgroundColor: selectedShape.fill }} /></label></div>
                     {selectedShape.kind === "rectangle" && <RangeControl label={tr("圓角半徑", "Corner radius")} value={selectedShape.cornerRadius} min={0} max={Math.max(1, Math.floor(Math.min(selectedShape.width, selectedShape.height) / 2))} suffix=" px" onChange={(value) => updateShape({ cornerRadius: value })} />}
                     <div className="shape-rotation-readout"><span className="field-label">{tr("旋轉角度", "Rotation")}</span><span className="mono-value">{Math.round(selectedShape.rotation)}°</span></div>
                     <RangeControl label={tr("不透明度", "Opacity")} value={selectedShape.opacity} min={1} max={100} suffix="%" onChange={(value) => updateShape({ opacity: value })} />
