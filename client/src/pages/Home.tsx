@@ -1241,6 +1241,10 @@ export default function Home() {
   const longPressPanRef = useRef<{ pointerId: number; startX: number; startY: number; originX: number; originY: number; timer: number | null; active: boolean } | null>(null);
   const imageUpdateFrameRef = useRef<number | null>(null);
   const pendingImagesRef = useRef<ImageLayer[] | null>(null);
+  const shapeUpdateFrameRef = useRef<number | null>(null);
+  const pendingShapesRef = useRef<ShapeLayer[] | null>(null);
+  const layerUpdateFrameRef = useRef<number | null>(null);
+  const pendingLayersRef = useRef<TextLayer[] | null>(null);
   const viewportRef = useRef<HTMLDivElement>(null);
   const studioLayoutRef = useRef<HTMLDivElement>(null);
   const workspaceRef = useRef<HTMLElement>(null);
@@ -1456,6 +1460,50 @@ export default function Home() {
     pendingImagesRef.current = null;
     if (pendingImages) syncImages(pendingImages);
   }, [syncImages]);
+
+  const scheduleShapes = useCallback((nextShapes: ShapeLayer[]) => {
+    shapesRef.current = nextShapes;
+    pendingShapesRef.current = nextShapes;
+    if (shapeUpdateFrameRef.current !== null) return;
+    shapeUpdateFrameRef.current = window.requestAnimationFrame(() => {
+      shapeUpdateFrameRef.current = null;
+      const pendingShapes = pendingShapesRef.current;
+      pendingShapesRef.current = null;
+      if (pendingShapes) setShapes(pendingShapes);
+    });
+  }, []);
+
+  const flushShapeUpdates = useCallback(() => {
+    if (shapeUpdateFrameRef.current !== null) {
+      window.cancelAnimationFrame(shapeUpdateFrameRef.current);
+      shapeUpdateFrameRef.current = null;
+    }
+    const pendingShapes = pendingShapesRef.current;
+    pendingShapesRef.current = null;
+    if (pendingShapes) setShapes(pendingShapes);
+  }, []);
+
+  const scheduleLayers = useCallback((nextLayers: TextLayer[]) => {
+    layersRef.current = nextLayers;
+    pendingLayersRef.current = nextLayers;
+    if (layerUpdateFrameRef.current !== null) return;
+    layerUpdateFrameRef.current = window.requestAnimationFrame(() => {
+      layerUpdateFrameRef.current = null;
+      const pendingLayers = pendingLayersRef.current;
+      pendingLayersRef.current = null;
+      if (pendingLayers) setLayers(pendingLayers);
+    });
+  }, []);
+
+  const flushLayerUpdates = useCallback(() => {
+    if (layerUpdateFrameRef.current !== null) {
+      window.cancelAnimationFrame(layerUpdateFrameRef.current);
+      layerUpdateFrameRef.current = null;
+    }
+    const pendingLayers = pendingLayersRef.current;
+    pendingLayersRef.current = null;
+    if (pendingLayers) setLayers(pendingLayers);
+  }, []);
 
   const getCanvasPoint = useCallback((clientX: number, clientY: number, allowOutside = false) => {
     const canvas = canvasRef.current;
@@ -1995,7 +2043,7 @@ export default function Home() {
             y: textResize.axis.includes("top") ? textResize.startY + textResize.startHeight - nextDimensions.height : textResize.startY,
           };
         });
-        syncLayers(nextLayers);
+        scheduleLayers(nextLayers);
         return;
       }
       if (imageRotate) {
@@ -2050,7 +2098,7 @@ export default function Home() {
         const currentAngle = Math.atan2(point.y - rotate.centerY, point.x - rotate.centerX);
         let nextRotation = rotate.startRotation + ((currentAngle - rotate.startAngle) * 180) / Math.PI;
         if (event.shiftKey) nextRotation = Math.round(nextRotation / 15) * 15;
-        syncShapes(shapesRef.current.map((shape) => shape.id === rotate.id ? { ...shape, rotation: nextRotation } : shape));
+        scheduleShapes(shapesRef.current.map((shape) => shape.id === rotate.id ? { ...shape, rotation: nextRotation } : shape));
         return;
       }
       if (resize) {
@@ -2093,7 +2141,7 @@ export default function Home() {
             cornerRadius: Math.min(shape.cornerRadius, Math.min(nextWidth, nextHeight) / 2),
           };
         });
-        syncShapes(nextShapes);
+        scheduleShapes(nextShapes);
         return;
       }
       if (drag) {
@@ -2107,11 +2155,12 @@ export default function Home() {
           nextGuides = snapped.guides;
           return { ...layer, x: snapped.x, y: snapped.y };
         });
-        setSnapGuides(nextGuides);
-        syncLayers(nextLayers);
+        setSnapGuides((current) => current.x === nextGuides.x && current.y === nextGuides.y ? current : nextGuides);
+        scheduleLayers(nextLayers);
       }
       if (shapeDrag) {
         let nextGuides: SnapGuides = { x: null, y: null };
+        const originalShape = shapesRef.current.find((shape) => shape.id === shapeDrag.id);
         const nextShapes = shapesRef.current.map((shape) => {
           if (shape.id !== shapeDrag.id) return shape;
           const rawX = point.x - shapeDrag.offsetX;
@@ -2120,14 +2169,13 @@ export default function Home() {
           nextGuides = snapped.guides;
           return { ...shape, x: snapped.x, y: snapped.y };
         });
-        setSnapGuides(nextGuides);
-        syncShapes(nextShapes);
-        const originalShape = shapesRef.current.find((shape) => shape.id === shapeDrag.id);
+        setSnapGuides((current) => current.x === nextGuides.x && current.y === nextGuides.y ? current : nextGuides);
+        scheduleShapes(nextShapes);
         const movedShape = nextShapes.find((shape) => shape.id === shapeDrag.id);
         if (originalShape && movedShape) {
           const deltaX = movedShape.x - originalShape.x;
           const deltaY = movedShape.y - originalShape.y;
-          syncLayers(layersRef.current.map((layer) => layer.anchorShapeId === shapeDrag.id
+          scheduleLayers(layersRef.current.map((layer) => layer.anchorShapeId === shapeDrag.id
             ? { ...layer, x: layer.x + deltaX, y: layer.y + deltaY }
             : layer));
         }
@@ -2178,6 +2226,8 @@ export default function Home() {
       imageRotateRef.current = null;
       setSnapGuides({ x: null, y: null });
       flushImageUpdates();
+      flushShapeUpdates();
+      flushLayerUpdates();
       captureHistory();
     };
     window.addEventListener("pointermove", handleMove);
@@ -2186,7 +2236,7 @@ export default function Home() {
       window.removeEventListener("pointermove", handleMove);
       window.removeEventListener("pointerup", handleUp);
     };
-  }, [canvasSize.height, canvasSize.width, captureHistory, flushImageUpdates, getCanvasPoint, getSnappedPosition, getTextLayerDimensions, scheduleImages, syncLayers, syncShapes, syncStrokes, zoom]);
+  }, [canvasSize.height, canvasSize.width, captureHistory, flushImageUpdates, flushLayerUpdates, flushShapeUpdates, getCanvasPoint, getSnappedPosition, getTextLayerDimensions, scheduleImages, scheduleLayers, scheduleShapes, syncStrokes, zoom]);
 
   useEffect(() => {
     const handleShortcut = (event: KeyboardEvent) => {
@@ -4438,7 +4488,6 @@ export default function Home() {
                       aria-label={`文字卡：${layer.text}`}
                     >
                       {layer.text}
-                      {selectedTextId === layer.id && <span className="text-layer-tag" contentEditable={false}>TEXT</span>}
                       {selectedTextId === layer.id && editingTextId !== layer.id && !isPaintLayerLocked(layer.paintLayerId) && (
                         <>
                           <span className="text-resize-handle text-resize-handle-top-left" contentEditable={false} onPointerDown={(event) => handleTextResizePointerDown(event, layer, "top-left")} />
