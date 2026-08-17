@@ -3387,10 +3387,20 @@ export default function Home() {
       context.lineWidth = shape.outlineWidth;
       context.translate(shape.x + shape.width / 2, shape.y + shape.height / 2);
       context.rotate((shape.rotation * Math.PI) / 180);
-      context.beginPath();
       if (shape.kind === "rectangle") {
-        context.roundRect(-shape.width / 2, -shape.height / 2, shape.width, shape.height, Math.min(shape.cornerRadius, Math.min(shape.width, shape.height) / 2));
-      } else if (shape.kind === "circle") {
+        const cornerRadius = Math.min(shape.cornerRadius, Math.min(shape.width, shape.height) / 2);
+        context.beginPath();
+        context.roundRect(-shape.width / 2, -shape.height / 2, shape.width, shape.height, cornerRadius);
+        context.fill();
+        if (shape.outlineWidth > 0) {
+          const inset = shape.outlineWidth / 2;
+          context.beginPath();
+          context.roundRect(-shape.width / 2 + inset, -shape.height / 2 + inset, Math.max(0, shape.width - shape.outlineWidth), Math.max(0, shape.height - shape.outlineWidth), Math.max(0, cornerRadius - inset));
+          context.stroke();
+        }
+      } else {
+        context.beginPath();
+      if (shape.kind === "circle") {
         context.ellipse(0, 0, shape.width / 2, shape.height / 2, 0, 0, Math.PI * 2);
       } else if (shape.kind === "heart") {
         const w = shape.width; const h = shape.height; const x = -w / 2; const y = -h / 2;
@@ -3411,8 +3421,9 @@ export default function Home() {
         }
         context.closePath();
       }
-      context.fill();
-      if (shape.outlineWidth > 0) context.stroke();
+        context.fill();
+        if (shape.outlineWidth > 0) context.stroke();
+      }
       context.restore();
     });
     const baseName = fileMeta.name.replace(/\.[^.]+$/, "") || "abipaint";
@@ -4668,8 +4679,19 @@ export default function Home() {
                           rx={Math.min(50, (shape.cornerRadius / Math.max(1, shape.width)) * 100)}
                           ry={Math.min(50, (shape.cornerRadius / Math.max(1, shape.height)) * 100)}
                           fill={shape.fill}
+                        />
+                      )}
+                      {shape.kind === "rectangle" && shape.outlineWidth > 0 && (
+                        <rect
+                          x={(shape.outlineWidth / 2 / Math.max(1, shape.width)) * 100}
+                          y={(shape.outlineWidth / 2 / Math.max(1, shape.height)) * 100}
+                          width={100 - (shape.outlineWidth / Math.max(1, shape.width)) * 100}
+                          height={100 - (shape.outlineWidth / Math.max(1, shape.height)) * 100}
+                          rx={Math.max(0, Math.min(50, ((shape.cornerRadius - shape.outlineWidth / 2) / Math.max(1, shape.width)) * 100))}
+                          ry={Math.max(0, Math.min(50, ((shape.cornerRadius - shape.outlineWidth / 2) / Math.max(1, shape.height)) * 100))}
+                          fill="none"
                           stroke={makeOutlineColor(shape.outline, shape.outlineExposure, shape.outlineContrast, shape.outlineSaturation, shape.outlineVibrancy, shape.outlineOpacity)}
-                          strokeWidth={shape.outlineWidth * 0.8}
+                          strokeWidth={shape.outlineWidth}
                           vectorEffect="non-scaling-stroke"
                         />
                       )}
