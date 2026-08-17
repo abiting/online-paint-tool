@@ -259,6 +259,7 @@ type TextLayer = {
   contrast: number;
   saturation: number;
   vibrancy: number;
+  shadowOpacity: number;
   fontFamily: "Noto Sans TC" | "Noto Serif TC" | "LXGW WenKai TC" | "PMingLiU" | "Arial" | "DM Sans" | "IBM Plex Mono" | "Kaisei Decol" | "Klee One" | "Kosugi Maru" | "M PLUS Rounded 1c" | "Shippori Mincho" | "Times New Roman" | "Yomogi" | "Zen Kaku Gothic New";
   anchorShapeId?: string;
 };
@@ -1303,7 +1304,8 @@ export default function Home() {
       : selectedText
       ? { exposure: selectedText.exposure ?? 0, contrast: selectedText.contrast ?? 0, saturation: selectedText.saturation ?? 0, vibrancy: selectedText.vibrancy ?? 0, opacity: selectedText.opacity }
       : adjustments;
-  const activeAdjustmentTarget = selectedShape ? "目前圖形" : selectedImage ? "目前圖片" : selectedText ? "目前文字卡" : "整個畫布";
+  const activeShadowOpacity = selectedShape ? selectedShape.shadowOpacity : selectedText ? selectedText.shadowOpacity : null;
+  const activeAdjustmentTarget = selectedShape ? tr("目前圖形", "Current shape") : selectedImage ? tr("目前圖片", "Current image") : selectedText ? tr("目前文字卡", "Current text") : tr("整個畫布", "Entire canvas");
 
   const canvasFilter = useMemo(
     () => makeAdjustmentFilter(adjustments.exposure, adjustments.contrast, adjustments.saturation, adjustments.vibrancy),
@@ -1318,6 +1320,7 @@ export default function Home() {
       contrast: layer.contrast ?? 0,
       saturation: layer.saturation ?? 0,
       vibrancy: layer.vibrancy ?? 0,
+      shadowOpacity: layer.shadowOpacity ?? 0,
     }));
     layersRef.current = normalizedLayers;
     setLayers(normalizedLayers);
@@ -2426,10 +2429,10 @@ export default function Home() {
       outlineWidth: shapeOutlineWidth,
       shadow: shapeShadow,
       shadowColor: "#000000",
-      shadowOpacity: 28,
+      shadowOpacity: 20,
       shadowBlur: 14,
       shadowX: 0,
-      shadowY: 8,
+      shadowY: 0,
     };
     const nextShapes = [...shapesRef.current, nextShape];
     syncShapes(nextShapes);
@@ -2461,6 +2464,7 @@ export default function Home() {
         contrast: 0,
         saturation: 0,
         vibrancy: 0,
+        shadowOpacity: 0,
         fontFamily: "Noto Sans TC",
     };
     const dimensions = getTextLayerDimensions(draftLayer);
@@ -2655,6 +2659,7 @@ export default function Home() {
       contrast: 0,
       saturation: 0,
       vibrancy: 0,
+      shadowOpacity: 0,
       fontFamily: "DM Sans",
       anchorShapeId: anchorShape?.id,
     };
@@ -2716,6 +2721,7 @@ export default function Home() {
         contrast: 0,
         saturation: 0,
         vibrancy: 0,
+        shadowOpacity: 0,
         fontFamily: "Noto Sans TC" as TextLayer["fontFamily"],
       }),
       id: makeId("text"),
@@ -2903,6 +2909,7 @@ export default function Home() {
       contrast: 0,
       saturation: 0,
       vibrancy: 0,
+      shadowOpacity: 0,
     }));
     syncLayers(templateTexts);
     syncShapes([]);
@@ -2997,6 +3004,14 @@ export default function Home() {
       return;
     }
     setAdjustments((current) => ({ ...current, ...patch }));
+  };
+
+  const updateActiveShadowOpacity = (value: number) => {
+    if (selectedShape) {
+      updateShape({ shadow: value > 0, shadowOpacity: value, shadowX: 0, shadowY: 0 });
+      return;
+    }
+    if (selectedText) updateTextLayer({ shadowOpacity: value });
   };
 
   const resetActiveAdjustment = () => {
@@ -3130,6 +3145,12 @@ export default function Home() {
         context.save();
         context.globalAlpha = (adjustments.opacity / 100) * (entry.item.opacity / 100);
         context.filter = makeAdjustmentFilter(entry.item.exposure, entry.item.contrast, entry.item.saturation, entry.item.vibrancy);
+        if (entry.item.shadowOpacity > 0) {
+          context.shadowColor = `rgba(0, 0, 0, ${entry.item.shadowOpacity / 100})`;
+          context.shadowBlur = 14;
+          context.shadowOffsetX = 0;
+          context.shadowOffsetY = 0;
+        }
         context.fillStyle = entry.item.color;
         context.font = `${entry.item.fontWeight} ${entry.item.fontSize}px "${entry.item.fontFamily}", sans-serif`;
         context.textBaseline = "top";
@@ -3141,11 +3162,11 @@ export default function Home() {
       context.save();
       context.globalAlpha = (adjustments.opacity / 100) * (shape.opacity / 100);
       context.filter = makeAdjustmentFilter(shape.exposure, shape.contrast, shape.saturation, shape.vibrancy);
-      if (shape.shadow) {
+      if (shape.shadow && shape.shadowOpacity > 0) {
         context.shadowColor = hexToRgba(shape.shadowColor, shape.shadowOpacity / 100);
         context.shadowBlur = shape.shadowBlur;
-        context.shadowOffsetX = shape.shadowX;
-        context.shadowOffsetY = shape.shadowY;
+        context.shadowOffsetX = 0;
+        context.shadowOffsetY = 0;
       }
       context.fillStyle = shape.fill;
       context.strokeStyle = shape.outline;
@@ -4163,11 +4184,12 @@ export default function Home() {
                     <button type="button" className={`shape-choice ${shapeKind === "triangle" ? "is-active" : ""}`} onClick={() => { setShapeKind("triangle"); addShape("triangle"); }}><Triangle size={18} /><span>{tr("三角形", "Triangle")}</span></button>
                     <button type="button" className={`shape-choice ${shapeKind === "pentagon" ? "is-active" : ""}`} onClick={() => { setShapeKind("pentagon"); addShape("pentagon"); }}><Pentagon size={18} /><span>{tr("五邊形", "Pentagon")}</span></button>
                   </div>
-                  <div className="color-row"><span className="field-label">填色</span><label className="color-picker"><input type="color" value={shapeFill} onChange={(event) => { setShapeFill(event.target.value); if (selectedShape) updateShape({ fill: event.target.value }); }} aria-label="圖形填色" /><span style={{ backgroundColor: shapeFill }} /></label></div>
-                  <div className="color-row"><span className="field-label">輪廓</span><label className="color-picker"><input type="color" value={shapeOutline} onChange={(event) => { setShapeOutline(event.target.value); if (selectedShape) updateShape({ outline: event.target.value }); }} aria-label="圖形輪廓" /><span style={{ backgroundColor: shapeOutline }} /></label></div>
-                  <RangeControl label="輪廓粗細" value={selectedShape?.outlineWidth ?? shapeOutlineWidth} min={0} max={16} suffix=" px" onChange={(value) => { setShapeOutlineWidth(value); if (selectedShape) updateShape({ outlineWidth: value }); }} />
-                  <RangeControl label="圓角半徑" value={selectedShape?.kind === "rectangle" ? selectedShape.cornerRadius : shapeCornerRadius} min={0} max={72} suffix=" px" onChange={(value) => { setShapeCornerRadius(value); if (selectedShape?.kind === "rectangle") updateShape({ cornerRadius: value }); }} />
-                  {selectedShape && <RangeControl label="圖形不透明度" value={selectedShape.opacity} min={1} max={100} suffix="%" onChange={(value) => updateShape({ opacity: value })} />}
+                  <div className="color-row"><span className="field-label">{tr("填色", "Fill")}</span><label className="color-picker"><input type="color" value={shapeFill} onChange={(event) => { setShapeFill(event.target.value); if (selectedShape) updateShape({ fill: event.target.value }); }} aria-label={tr("圖形填色", "Shape fill")} /><span style={{ backgroundColor: shapeFill }} /></label></div>
+                  <div className="color-row"><span className="field-label">{tr("輪廓", "Outline")}</span><label className="color-picker"><input type="color" value={shapeOutline} onChange={(event) => { setShapeOutline(event.target.value); if (selectedShape) updateShape({ outline: event.target.value }); }} aria-label={tr("圖形輪廓", "Shape outline")} /><span style={{ backgroundColor: shapeOutline }} /></label></div>
+                  <RangeControl label={tr("輪廓粗細", "Outline width")} value={selectedShape?.outlineWidth ?? shapeOutlineWidth} min={0} max={16} suffix=" px" onChange={(value) => { setShapeOutlineWidth(value); if (selectedShape) updateShape({ outlineWidth: value }); }} />
+                  <RangeControl label={tr("圓角半徑", "Corner radius")} value={selectedShape?.kind === "rectangle" ? selectedShape.cornerRadius : shapeCornerRadius} min={0} max={72} suffix=" px" onChange={(value) => { setShapeCornerRadius(value); if (selectedShape?.kind === "rectangle") updateShape({ cornerRadius: value }); }} />
+                  {selectedShape && <RangeControl label={tr("不透明度", "Opacity")} value={selectedShape.opacity} min={1} max={100} suffix="%" onChange={(value) => updateShape({ opacity: value })} />}
+                  {selectedShape && <RangeControl label={tr("陰影強度", "Shadow")} value={selectedShape.shadowOpacity} min={0} max={100} suffix="%" onChange={(value) => updateShape({ shadow: value > 0, shadowOpacity: value, shadowX: 0, shadowY: 0 })} />}
                 </div>
               )}
 
@@ -4195,7 +4217,8 @@ export default function Home() {
                         </div>
                       </div>
                       <RangeControl label={tr("字級", "Font size")} value={selectedText.fontSize} min={12} max={180} suffix=" px" onChange={(value) => updateTextLayer({ fontSize: value })} />
-                      <RangeControl label={tr("文字不透明度", "Text opacity")} value={selectedText.opacity} min={1} max={100} suffix="%" onChange={(value) => updateTextLayer({ opacity: value })} />
+                      <RangeControl label={tr("不透明度", "Opacity")} value={selectedText.opacity} min={1} max={100} suffix="%" onChange={(value) => updateTextLayer({ opacity: value })} />
+                      <RangeControl label={tr("陰影強度", "Shadow")} value={selectedText.shadowOpacity} min={0} max={100} suffix="%" onChange={(value) => updateTextLayer({ shadowOpacity: value })} />
                     </>
                   )}
                 </div>
@@ -4379,8 +4402,8 @@ export default function Home() {
                         opacity: shape.opacity / 100,
                         filter: [
                           makeAdjustmentFilter(shape.exposure, shape.contrast, shape.saturation, shape.vibrancy),
-                          shape.shadow ? `drop-shadow(${shape.shadowX}px ${shape.shadowY}px ${shape.shadowBlur}px ${hexToRgba(shape.shadowColor, shape.shadowOpacity / 100)})` : "",
-                        ].filter(Boolean).join(" ") || "none",
+                          shape.shadow && shape.shadowOpacity > 0 ? `drop-shadow(0 0 ${shape.shadowBlur}px ${hexToRgba(shape.shadowColor, shape.shadowOpacity / 100)})` : "",
+                        ].filter((value) => value && value !== "none").join(" ") || "none",
                       }}
                       onPointerDown={(event) => handleShapePointerDown(event, shape)}
                       onDoubleClick={(event) => handleShapeDoubleClick(event, shape)}
@@ -4390,10 +4413,10 @@ export default function Home() {
                     >
                       {shape.kind === "rectangle" && (
                         <rect
-                          x="3"
-                          y="3"
-                          width="94"
-                          height="94"
+                          x="0"
+                          y="0"
+                          width="100"
+                          height="100"
                           rx={Math.min(50, (shape.cornerRadius / Math.max(1, shape.width)) * 100)}
                           ry={Math.min(50, (shape.cornerRadius / Math.max(1, shape.height)) * 100)}
                           fill={shape.fill}
@@ -4402,7 +4425,7 @@ export default function Home() {
                           vectorEffect="non-scaling-stroke"
                         />
                       )}
-                      {shape.kind === "circle" && <circle cx="50" cy="50" r="46" fill={shape.fill} stroke={shape.outline} strokeWidth={shape.outlineWidth * 0.8} vectorEffect="non-scaling-stroke" />}
+                      {shape.kind === "circle" && <circle cx="50" cy="50" r="50" fill={shape.fill} stroke={shape.outline} strokeWidth={shape.outlineWidth * 0.8} vectorEffect="non-scaling-stroke" />}
                       {shape.kind === "star" && <polygon points={STAR_POINTS} fill={shape.fill} stroke={shape.outline} strokeWidth={shape.outlineWidth * 0.8} vectorEffect="non-scaling-stroke" strokeLinejoin="round" />}
                       {shape.kind === "heart" && <path d="M50 88 C44 82 15 65 15 38 C15 18 39 14 50 33 C61 14 85 18 85 38 C85 65 56 82 50 88Z" fill={shape.fill} stroke={shape.outline} strokeWidth={shape.outlineWidth * 0.8} vectorEffect="non-scaling-stroke" strokeLinejoin="round" />}
                       {shape.kind === "triangle" && <polygon points={TRIANGLE_POINTS} fill={shape.fill} stroke={shape.outline} strokeWidth={shape.outlineWidth * 0.8} vectorEffect="non-scaling-stroke" strokeLinejoin="round" />}
@@ -4458,7 +4481,10 @@ export default function Home() {
                         fontWeight: layer.fontWeight,
                         fontFamily: `"${layer.fontFamily}", "Noto Sans TC", sans-serif`,
                         opacity: layer.opacity / 100,
-                        filter: makeAdjustmentFilter(layer.exposure, layer.contrast, layer.saturation, layer.vibrancy),
+                        filter: [
+                          makeAdjustmentFilter(layer.exposure, layer.contrast, layer.saturation, layer.vibrancy),
+                          layer.shadowOpacity > 0 ? `drop-shadow(0 0 14px rgba(0, 0, 0, ${layer.shadowOpacity / 100}))` : "",
+                        ].filter((value) => value && value !== "none").join(" ") || "none",
                         "--text-control-scale": 100 / zoom,
                       } as CSSProperties}
                       onPointerDown={(event) => handleTextPointerDown(event, layer)}
@@ -4577,28 +4603,27 @@ export default function Home() {
 
             {(tool === "shape" || selectedShape) && (
               <div className="inspector-section shape-inspector-section">
-                <SectionTitle eyebrow="SHAPES" title="圖形" action={<Shapes size={15} className="section-icon" />} />
+                <SectionTitle eyebrow="SHAPES" title={tr("圖形", "Shapes")} action={<Shapes size={15} className="section-icon" />} />
                 <div className="shape-choice-grid">
-                  <button type="button" className={`shape-choice ${shapeKind === "rectangle" ? "is-active" : ""}`} onClick={() => { setShapeKind("rectangle"); addShape("rectangle"); }}><Square size={18} /><span>方塊</span></button>
-                  <button type="button" className={`shape-choice ${shapeKind === "circle" ? "is-active" : ""}`} onClick={() => { setShapeKind("circle"); addShape("circle"); }}><Circle size={18} /><span>圓形</span></button>
-                  <button type="button" className={`shape-choice ${shapeKind === "star" ? "is-active" : ""}`} onClick={() => { setShapeKind("star"); addShape("star"); }}><Star size={18} /><span>星星</span></button>
-                  <button type="button" className={`shape-choice ${shapeKind === "heart" ? "is-active" : ""}`} onClick={() => { setShapeKind("heart"); addShape("heart"); }}><Heart size={18} /><span>愛心</span></button>
-                  <button type="button" className={`shape-choice ${shapeKind === "triangle" ? "is-active" : ""}`} onClick={() => { setShapeKind("triangle"); addShape("triangle"); }}><Triangle size={18} /><span>三角形</span></button>
-                  <button type="button" className={`shape-choice ${shapeKind === "pentagon" ? "is-active" : ""}`} onClick={() => { setShapeKind("pentagon"); addShape("pentagon"); }}><Pentagon size={18} /><span>五邊形</span></button>
+                  <button type="button" className={`shape-choice ${shapeKind === "rectangle" ? "is-active" : ""}`} onClick={() => { setShapeKind("rectangle"); addShape("rectangle"); }}><Square size={18} /><span>{tr("方塊", "Rectangle")}</span></button>
+                  <button type="button" className={`shape-choice ${shapeKind === "circle" ? "is-active" : ""}`} onClick={() => { setShapeKind("circle"); addShape("circle"); }}><Circle size={18} /><span>{tr("圓形", "Circle")}</span></button>
+                  <button type="button" className={`shape-choice ${shapeKind === "star" ? "is-active" : ""}`} onClick={() => { setShapeKind("star"); addShape("star"); }}><Star size={18} /><span>{tr("星星", "Star")}</span></button>
+                  <button type="button" className={`shape-choice ${shapeKind === "heart" ? "is-active" : ""}`} onClick={() => { setShapeKind("heart"); addShape("heart"); }}><Heart size={18} /><span>{tr("愛心", "Heart")}</span></button>
+                  <button type="button" className={`shape-choice ${shapeKind === "triangle" ? "is-active" : ""}`} onClick={() => { setShapeKind("triangle"); addShape("triangle"); }}><Triangle size={18} /><span>{tr("三角形", "Triangle")}</span></button>
+                  <button type="button" className={`shape-choice ${shapeKind === "pentagon" ? "is-active" : ""}`} onClick={() => { setShapeKind("pentagon"); addShape("pentagon"); }}><Pentagon size={18} /><span>{tr("五邊形", "Pentagon")}</span></button>
                 </div>
-                {!selectedShape && <p className="empty-inspector">選擇圖形或按上方按鈕，把形狀放到畫布中央。</p>}
+                {!selectedShape && <p className="empty-inspector">{tr("選擇圖形或按上方按鈕，把形狀放到畫布中央。", "Select a shape or use a button above to place one in the center of the canvas.")}</p>}
                 {selectedShape && (
                   <>
-                    <div className="color-row"><span className="field-label">填色</span><label className="color-picker"><input type="color" value={selectedShape.fill} onChange={(event) => updateShape({ fill: event.target.value })} aria-label="圖形填色" /><span style={{ backgroundColor: selectedShape.fill }} /></label></div>
-                    <div className="color-row"><span className="field-label">輪廓</span><label className="color-picker"><input type="color" value={selectedShape.outline} onChange={(event) => updateShape({ outline: event.target.value })} aria-label="圖形輪廓顏色" /><span style={{ backgroundColor: selectedShape.outline }} /></label></div>
-                    <RangeControl label="輪廓粗細" value={selectedShape.outlineWidth} min={0} max={16} suffix=" px" onChange={(value) => updateShape({ outlineWidth: value })} />
-                    {selectedShape.kind === "rectangle" && <RangeControl label="圓角半徑" value={selectedShape.cornerRadius} min={0} max={Math.max(1, Math.floor(Math.min(selectedShape.width, selectedShape.height) / 2))} suffix=" px" onChange={(value) => updateShape({ cornerRadius: value })} />}
-                    <div className="shape-rotation-readout"><span className="field-label">旋轉角度</span><span className="mono-value">{Math.round(selectedShape.rotation)}°</span></div>
-                    <RangeControl label="圖形不透明度" value={selectedShape.opacity} min={1} max={100} suffix="%" onChange={(value) => updateShape({ opacity: value })} />
-                    <label className="toggle-row"><span>陰影</span><input type="checkbox" checked={selectedShape.shadow} onChange={(event) => updateShape({ shadow: event.target.checked })} /></label>
-                    {selectedShape.shadow && <RangeControl label="陰影柔化" value={selectedShape.shadowBlur} min={0} max={40} suffix=" px" onChange={(value) => updateShape({ shadowBlur: value })} />}
-                    <div className="align-actions"><span className="field-label">置中對齊</span><div className="align-button-row"><button type="button" className="secondary-button" onClick={() => alignSelected("horizontal")}><AlignCenter size={14} /> 水平</button><button type="button" className="secondary-button" onClick={() => alignSelected("vertical")}><AlignVerticalJustifyCenter size={14} /> 垂直</button><button type="button" className="secondary-button" onClick={() => alignSelected("both")}>中央</button></div></div>
-                    <button type="button" className="secondary-button full-width" onClick={deleteSelectedShape}><Trash2 size={14} /> 移除圖形</button>
+                    <div className="color-row"><span className="field-label">{tr("填色", "Fill")}</span><label className="color-picker"><input type="color" value={selectedShape.fill} onChange={(event) => updateShape({ fill: event.target.value })} aria-label={tr("圖形填色", "Shape fill")} /><span style={{ backgroundColor: selectedShape.fill }} /></label></div>
+                    <div className="color-row"><span className="field-label">{tr("輪廓", "Outline")}</span><label className="color-picker"><input type="color" value={selectedShape.outline} onChange={(event) => updateShape({ outline: event.target.value })} aria-label={tr("圖形輪廓顏色", "Shape outline color")} /><span style={{ backgroundColor: selectedShape.outline }} /></label></div>
+                    <RangeControl label={tr("輪廓粗細", "Outline width")} value={selectedShape.outlineWidth} min={0} max={16} suffix=" px" onChange={(value) => updateShape({ outlineWidth: value })} />
+                    {selectedShape.kind === "rectangle" && <RangeControl label={tr("圓角半徑", "Corner radius")} value={selectedShape.cornerRadius} min={0} max={Math.max(1, Math.floor(Math.min(selectedShape.width, selectedShape.height) / 2))} suffix=" px" onChange={(value) => updateShape({ cornerRadius: value })} />}
+                    <div className="shape-rotation-readout"><span className="field-label">{tr("旋轉角度", "Rotation")}</span><span className="mono-value">{Math.round(selectedShape.rotation)}°</span></div>
+                    <RangeControl label={tr("不透明度", "Opacity")} value={selectedShape.opacity} min={1} max={100} suffix="%" onChange={(value) => updateShape({ opacity: value })} />
+                    <RangeControl label={tr("陰影強度", "Shadow")} value={selectedShape.shadowOpacity} min={0} max={100} suffix="%" onChange={(value) => updateShape({ shadow: value > 0, shadowOpacity: value, shadowX: 0, shadowY: 0 })} />
+                    <div className="align-actions"><span className="field-label">{tr("置中對齊", "Align")}</span><div className="align-button-row"><button type="button" className="secondary-button" onClick={() => alignSelected("horizontal")}><AlignCenter size={14} /> {tr("水平", "Horizontal")}</button><button type="button" className="secondary-button" onClick={() => alignSelected("vertical")}><AlignVerticalJustifyCenter size={14} /> {tr("垂直", "Vertical")}</button><button type="button" className="secondary-button" onClick={() => alignSelected("both")}>{tr("中央", "Center")}</button></div></div>
+                    <button type="button" className="secondary-button full-width" onClick={deleteSelectedShape}><Trash2 size={14} /> {tr("移除圖形", "Remove shape")}</button>
                   </>
                 )}
               </div>
@@ -4622,18 +4647,18 @@ export default function Home() {
                 {!selectedText && <p className="empty-inspector">選擇畫布上的文字，或按左側「文字工具」建立文字卡。</p>}
                 {selectedText && (
                   <>
-                    <label className="field-label" htmlFor="text-content">文字內容</label>
+                    <label className="field-label" htmlFor="text-content">{tr("文字內容", "Text content")}</label>
                     <textarea id="text-content" className="text-input" value={selectedText.text} onChange={(event) => updateTextLayer({ text: event.target.value })} rows={3} />
                     <div className="select-row">
                       <label className="select-wrap">
-                        <span className="field-label">字型</span>
+                        <span className="field-label">{tr("字型", "Font")}</span>
                         <select value={selectedText.fontFamily} onChange={(event) => updateTextLayer({ fontFamily: event.target.value as TextLayer["fontFamily"] })}>
-                          {TEXT_FONT_OPTIONS.map((font) => <option key={font.value} value={font.value}>{font.label}</option>)}
+                          {TEXT_FONT_OPTIONS.map((font) => <option key={font.value} value={font.value}>{isEnglish ? font.labelEn ?? font.label : font.label}</option>)}
                         </select>
                         <ChevronDown size={14} />
                       </label>
                       <label className="select-wrap small-select">
-                        <span className="field-label">粗細</span>
+                        <span className="field-label">{tr("粗細", "Weight")}</span>
                         <select value={selectedText.fontWeight} onChange={(event) => updateTextLayer({ fontWeight: Number(event.target.value) })}>
                           <option value={400}>Regular</option>
                           <option value={500}>Medium</option>
@@ -4644,22 +4669,23 @@ export default function Home() {
                     </div>
                     <div className="text-color-control">
                       <div className="text-color-heading">
-                        <span className="field-label">文字顏色</span>
+                        <span className="field-label">{tr("文字顏色", "Text color")}</span>
                         <label className="color-picker compact-color-picker">
-                          <input type="color" value={selectedText.color} onChange={(event) => updateTextLayer({ color: event.target.value })} aria-label="自訂文字顏色" />
+                          <input type="color" value={selectedText.color} onChange={(event) => updateTextLayer({ color: event.target.value })} aria-label={tr("自訂文字顏色", "Custom text color")} />
                           <span style={{ backgroundColor: selectedText.color }} />
                         </label>
                       </div>
-                      <div className="text-palette" role="group" aria-label="文字顏色色票">
+                      <div className="text-palette" role="group" aria-label={tr("文字顏色色票", "Text color swatches")}>
                         {["#000000", "#1F2528", "#555B5D", "#8C9290", "#FFFFFF", "#FFFDF8", "#E4513B", "#B72F34", "#F07C41", "#D59B42", "#F4C95D", "#2F855A", "#82A480", "#426B8A", "#2D5B9B", "#8B5CF6", "#D26A9C", "#F3A6C8"].map((color) => (
-                          <button key={color} type="button" className={`text-swatch ${selectedText.color.toUpperCase() === color ? "is-selected" : ""}`} style={{ backgroundColor: color }} onClick={() => updateTextLayer({ color })} aria-label={`文字顏色 ${color}`} title={color} />
+                          <button key={color} type="button" className={`text-swatch ${selectedText.color.toUpperCase() === color ? "is-selected" : ""}`} style={{ backgroundColor: color }} onClick={() => updateTextLayer({ color })} aria-label={`${tr("文字顏色", "Text color")} ${color}`} title={color} />
                         ))}
                       </div>
                     </div>
-                    <RangeControl label="字級" value={selectedText.fontSize} min={12} max={180} suffix=" px" onChange={(value) => updateTextLayer({ fontSize: value })} />
-                    <RangeControl label="不透明度" value={selectedText.opacity} min={1} max={100} suffix="%" onChange={(value) => updateTextLayer({ opacity: value })} />
+                    <RangeControl label={tr("字級", "Font size")} value={selectedText.fontSize} min={12} max={180} suffix=" px" onChange={(value) => updateTextLayer({ fontSize: value })} />
+                    <RangeControl label={tr("不透明度", "Opacity")} value={selectedText.opacity} min={1} max={100} suffix="%" onChange={(value) => updateTextLayer({ opacity: value })} />
+                    <RangeControl label={tr("陰影強度", "Shadow")} value={selectedText.shadowOpacity} min={0} max={100} suffix="%" onChange={(value) => updateTextLayer({ shadowOpacity: value })} />
                     <div className="text-actions">
-                      <button type="button" className="secondary-button full-width" onClick={deleteSelectedText}><Trash2 size={14} /> 移除文字卡</button>
+                      <button type="button" className="secondary-button full-width" onClick={deleteSelectedText}><Trash2 size={14} /> {tr("移除文字卡", "Remove text")}</button>
                     </div>
                   </>
                 )}
@@ -4713,6 +4739,7 @@ export default function Home() {
               <RangeControl label={copy.saturation} value={activeAdjustmentValues.saturation} min={-100} max={100} suffix="%" editable onChange={(value) => updateActiveAdjustment({ saturation: value })} />
               <RangeControl label={copy.vibrancy} value={activeAdjustmentValues.vibrancy} min={-100} max={100} suffix="%" editable onChange={(value) => updateActiveAdjustment({ vibrancy: value })} />
               <RangeControl label={copy.opacity} value={activeAdjustmentValues.opacity} min={1} max={100} suffix="%" editable onChange={(value) => updateActiveAdjustment({ opacity: value })} />
+              {activeShadowOpacity !== null && <RangeControl label={tr("陰影強度", "Shadow")} value={activeShadowOpacity} min={0} max={100} suffix="%" editable onChange={updateActiveShadowOpacity} />}
               <button type="button" className="link-button" onClick={resetActiveAdjustment}><RotateCcw size={13} /> {isEnglish ? "Reset adjustments" : "重設目前調整"}</button>
             </div>
 
