@@ -636,7 +636,7 @@ const makeOutlineColor = (hex: string, exposure = 0, contrast = 0, saturation = 
 
 const makeAlphaOutlineFilter = (color: string, width: number) => {
   if (width <= 0) return "";
-  const segments = Math.max(8, Math.min(20, Math.ceil(width * 1.25)));
+  const segments = Math.max(16, Math.min(48, Math.ceil(width * 2)));
   return Array.from({ length: segments }, (_, index) => {
     const angle = (Math.PI * 2 * index) / segments;
     return `drop-shadow(${Math.cos(angle) * width}px ${Math.sin(angle) * width}px 0 ${color})`;
@@ -654,7 +654,7 @@ const drawAlphaOutline = (context: CanvasRenderingContext2D, image: HTMLImageEle
   surfaceContext.globalCompositeOperation = "source-in";
   surfaceContext.fillStyle = color;
   surfaceContext.fillRect(0, 0, width, height);
-  const segments = Math.max(8, Math.min(24, Math.ceil(thickness * 1.4)));
+  const segments = Math.max(16, Math.min(48, Math.ceil(thickness * 2)));
   for (let index = 0; index < segments; index += 1) {
     const angle = (Math.PI * 2 * index) / segments;
     context.drawImage(surface, -width / 2 + Math.cos(angle) * thickness, -height / 2 + Math.sin(angle) * thickness, width, height);
@@ -4368,7 +4368,6 @@ export default function Home() {
                 <div className="desktop-tool-popover-content">
                   <p className="empty-inspector compact-object-note">{tr("筆觸樣式", "Stroke appearance")}</p>
                   <RangeControl label={tr("不透明度", "Opacity")} value={selectedStroke.opacity} min={1} max={100} suffix="%" onChange={(value) => updateStroke({ opacity: value })} />
-                  <RangeControl label={tr("陰影強度", "Shadow")} value={selectedStroke.shadowOpacity ?? 0} min={0} max={100} suffix="%" onChange={(value) => updateStroke({ shadowOpacity: value })} />
                 </div>
               )}
 
@@ -4459,7 +4458,6 @@ export default function Home() {
                       </div>
                       <RangeControl label={tr("字級", "Font size")} value={selectedText.fontSize} min={12} max={180} suffix=" px" onChange={(value) => updateTextLayer({ fontSize: value })} />
                       <RangeControl label={tr("不透明度", "Opacity")} value={selectedText.opacity} min={1} max={100} suffix="%" onChange={(value) => updateTextLayer({ opacity: value })} />
-                      <RangeControl label={tr("陰影強度", "Shadow")} value={selectedText.shadowOpacity} min={0} max={100} suffix="%" onChange={(value) => updateTextLayer({ shadowOpacity: value })} />
                     </>
                   )}
                 </div>
@@ -4726,11 +4724,11 @@ export default function Home() {
                         top: 0,
                         transform: `translate3d(${layer.x}px, ${layer.y}px, 0)`,
                         zIndex: getMaterialStackOrder("text", layer, index),
-                        color: layer.color,
+                        color: hexToRgba(layer.color, layer.opacity / 100),
                         fontSize: `${layer.fontSize}px`,
                         fontWeight: layer.fontWeight,
                         fontFamily: `"${layer.fontFamily}", "Noto Sans TC", sans-serif`,
-                        opacity: layer.opacity / 100,
+                        opacity: 1,
                         filter: [
                           makeAdjustmentFilter(layer.exposure, layer.contrast, layer.saturation, layer.vibrancy),
                           layer.shadowOpacity > 0 ? `drop-shadow(0 0 14px rgba(0, 0, 0, ${layer.shadowOpacity / 100}))` : "",
@@ -4871,7 +4869,6 @@ export default function Home() {
                     {selectedShape.kind === "rectangle" && <RangeControl label={tr("圓角半徑", "Corner radius")} value={selectedShape.cornerRadius} min={0} max={Math.max(1, Math.floor(Math.min(selectedShape.width, selectedShape.height) / 2))} suffix=" px" onChange={(value) => updateShape({ cornerRadius: value })} />}
                     <div className="shape-rotation-readout"><span className="field-label">{tr("旋轉角度", "Rotation")}</span><span className="mono-value">{Math.round(selectedShape.rotation)}°</span></div>
                     <RangeControl label={tr("不透明度", "Opacity")} value={selectedShape.opacity} min={1} max={100} suffix="%" onChange={(value) => updateShape({ opacity: value })} />
-                    <RangeControl label={tr("陰影強度", "Shadow")} value={selectedShape.shadowOpacity} min={0} max={100} suffix="%" onChange={(value) => updateShape({ shadow: value > 0, shadowOpacity: value, shadowX: 0, shadowY: 0 })} />
                     <div className="align-actions"><span className="field-label">{tr("置中對齊", "Align")}</span><div className="align-button-row"><button type="button" className="secondary-button" onClick={() => alignSelected("horizontal")}><AlignCenter size={14} /> {tr("水平", "Horizontal")}</button><button type="button" className="secondary-button" onClick={() => alignSelected("vertical")}><AlignVerticalJustifyCenter size={14} /> {tr("垂直", "Vertical")}</button><button type="button" className="secondary-button" onClick={() => alignSelected("both")}>{tr("中央", "Center")}</button></div></div>
                     <button type="button" className="secondary-button full-width" onClick={deleteSelectedShape}><Trash2 size={14} /> {tr("移除圖形", "Remove shape")}</button>
                   </>
@@ -4933,7 +4930,6 @@ export default function Home() {
                     </div>
                     <RangeControl label={tr("字級", "Font size")} value={selectedText.fontSize} min={12} max={180} suffix=" px" onChange={(value) => updateTextLayer({ fontSize: value })} />
                     <RangeControl label={tr("不透明度", "Opacity")} value={selectedText.opacity} min={1} max={100} suffix="%" onChange={(value) => updateTextLayer({ opacity: value })} />
-                    <RangeControl label={tr("陰影強度", "Shadow")} value={selectedText.shadowOpacity} min={0} max={100} suffix="%" onChange={(value) => updateTextLayer({ shadowOpacity: value })} />
                     <div className="text-actions">
                       <button type="button" className="secondary-button full-width" onClick={deleteSelectedText}><Trash2 size={14} /> {tr("移除文字卡", "Remove text")}</button>
                     </div>
