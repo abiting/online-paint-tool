@@ -4310,11 +4310,11 @@ export default function Home() {
                       key={image.id}
                       className={`image-layer ${selectedImageId === image.id ? "is-selected" : ""} ${selectedImageId === image.id && (snapGuides.x !== null || snapGuides.y !== null) ? "is-snapped" : ""} ${isPaintLayerLocked(image.paintLayerId) ? "is-locked" : ""} ${imageEditingId === image.id ? "is-editing" : "is-passive"} ${cropDraft?.imageId === image.id ? "is-cropping" : ""}`}
                       style={{
-                        left: `${image.x}px`,
-                        top: `${image.y}px`,
+                        left: 0,
+                        top: 0,
                         width: `${image.width}px`,
                         height: `${image.height}px`,
-                        transform: `rotate(${image.rotation}deg)`,
+                        transform: `translate3d(${image.x}px, ${image.y}px, 0) rotate(${image.rotation}deg)`,
                         "--image-control-scale": 100 / zoom,
                         "--image-rotation-stem-length": `${18 * (100 / zoom)}px`,
                         "--image-rotation-handle-offset": `${24 * (100 / zoom)}px`,
@@ -4370,12 +4370,12 @@ export default function Home() {
                       viewBox="0 0 100 100"
                       preserveAspectRatio="none"
                       style={{
-                        left: `${shape.x}px`,
-                        top: `${shape.y}px`,
+                        left: 0,
+                        top: 0,
                         width: `${shape.width}px`,
                         height: `${shape.height}px`,
                         zIndex: getMaterialStackOrder("shape", shape, index),
-                        transform: `rotate(${shape.rotation}deg)`,
+                        transform: `translate3d(${shape.x}px, ${shape.y}px, 0) rotate(${shape.rotation}deg)`,
                         opacity: shape.opacity / 100,
                         filter: [
                           makeAdjustmentFilter(shape.exposure, shape.contrast, shape.saturation, shape.vibrancy),
@@ -4414,12 +4414,12 @@ export default function Home() {
                       key={`${shape.id}-controls`}
                       className="shape-control-layer"
                       style={{
-                        left: `${shape.x}px`,
-                        top: `${shape.y}px`,
+                        left: 0,
+                        top: 0,
                         width: `${shape.width}px`,
                         height: `${shape.height}px`,
                         zIndex: getMaterialStackOrder("shape", shape, shapes.findIndex((item) => item.id === shape.id)) + 10000,
-                        transform: `rotate(${shape.rotation}deg)`,
+                        transform: `translate3d(${shape.x}px, ${shape.y}px, 0) rotate(${shape.rotation}deg)`,
                         "--shape-control-scale": 100 / zoom,
                         "--shape-rotation-stem-length": `${18 * (100 / zoom)}px`,
                         "--shape-rotation-handle-offset": `${24 * (100 / zoom)}px`,
@@ -4449,8 +4449,9 @@ export default function Home() {
                         else textLayerElementsRef.current.delete(layer.id);
                       }}
                       style={{
-                        left: `${layer.x}px`,
-                        top: `${layer.y}px`,
+                        left: 0,
+                        top: 0,
+                        transform: `translate3d(${layer.x}px, ${layer.y}px, 0)`,
                         zIndex: getMaterialStackOrder("text", layer, index),
                         color: layer.color,
                         fontSize: `${layer.fontSize}px`,

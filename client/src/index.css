@@ -285,8 +285,8 @@ kbd { min-width: 19px; padding: 3px 4px; text-align: center; color: #aab1aa; bac
 .canvas-shell { position: absolute; left: 0; top: 0; transform-origin: top left; box-shadow: 0 16px 30px rgba(9,13,14,0.28), 0 3px 8px rgba(9,13,14,0.14); }
 .canvas-content { position: relative; width: 100%; height: 100%; transform-origin: center; }
 .canvas-content canvas { display: block; width: 100%; height: 100%; cursor: crosshair; touch-action: none; background: #fffcf4; }
-.text-layer { position: absolute; min-width: 48px; min-height: 1.2em; padding: 2px 4px; white-space: pre-wrap; line-height: 1.12; cursor: move; user-select: none; transform-origin: top left; }
-.shape-layer { user-select: none; -webkit-user-select: none; touch-action: none; cursor: move; }
+.text-layer { position: absolute; min-width: 48px; min-height: 1.2em; padding: 2px 4px; white-space: pre-wrap; line-height: 1.12; cursor: move; user-select: none; transform-origin: top left; will-change: transform; contain: layout paint; backface-visibility: hidden; }
+.shape-layer { user-select: none; -webkit-user-select: none; touch-action: none; cursor: move; will-change: transform; contain: layout paint; backface-visibility: hidden; }
 .stroke-layer { position: absolute; left: 0; top: 0; overflow: visible; user-select: none; -webkit-user-select: none; touch-action: none; cursor: move; }
 .stroke-layer.is-draft { pointer-events: none; }
 .stroke-layer.is-locked { cursor: not-allowed; }
@@ -484,7 +484,7 @@ input[type="range"]::-moz-range-thumb { width: 11px; height: 11px; border: 2px s
 .shape-rotation-handle { fill: #fff8ec; stroke: #e4513b; stroke-width: 1.8; vector-effect: non-scaling-stroke; cursor: grab; pointer-events: auto; }
 .shape-rotation-handle:active { cursor: grabbing; }
 .shape-rotation-label { fill: #1f2528; font: 700 8px "DM Sans", sans-serif; paint-order: stroke; stroke: #fff8ec; stroke-width: 3px; pointer-events: none; }
-.shape-control-layer { position: absolute; z-index: 8; overflow: visible; transform-origin: center; pointer-events: none; }
+.shape-control-layer { position: absolute; z-index: 8; overflow: visible; transform-origin: center; pointer-events: none; will-change: transform; contain: layout paint; backface-visibility: hidden; }
 .shape-control-handle { position: absolute; z-index: 2; width: 12px; height: 12px; margin: -6px; border: 1.5px solid #e4513b; background: #fff8ec; box-sizing: border-box; pointer-events: auto; transform: scale(var(--shape-control-scale, 1)); transform-origin: center; }
 .shape-control-handle-left, .shape-control-handle-right { top: 50%; cursor: ew-resize; }
 .shape-control-handle-left { left: 0; }
@@ -501,7 +501,7 @@ input[type="range"]::-moz-range-thumb { width: 11px; height: 11px; border: 2px s
 .shape-control-rotation-handle { position: absolute; z-index: 3; left: 50%; top: var(--shape-rotation-handle-offset, 24px); width: 14px; height: 14px; margin: -7px; border: 2px solid #e4513b; border-radius: 50%; background: #fff8ec; cursor: grab; pointer-events: auto; transform: scale(var(--shape-control-scale, 1)); transform-origin: center; }
 .shape-control-rotation-handle:active { cursor: grabbing; }
 .shape-control-rotation-label { position: absolute; z-index: 3; left: 50%; top: var(--shape-rotation-label-offset, 40px); transform: translateX(-50%) scale(var(--shape-control-scale, 1)); transform-origin: center; padding: 2px 4px; color: #1f2528; background: #fff8ec; border: 1px solid rgba(228,81,59,0.7); font: 700 9px "DM Sans", sans-serif; pointer-events: none; white-space: nowrap; }
-.image-layer { position: absolute; display: block; overflow: visible; transform-origin: center; cursor: default; user-select: none; touch-action: none; }
+.image-layer { position: absolute; display: block; overflow: visible; transform-origin: center; cursor: default; user-select: none; touch-action: none; will-change: transform; contain: layout paint; backface-visibility: hidden; }
 .image-layer.is-editing { cursor: grab; }
 .image-layer.is-cropping { cursor: crosshair; }
 .image-layer:active { cursor: grabbing; }
