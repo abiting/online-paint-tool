@@ -965,6 +965,7 @@ function RangeControl({
   max,
   step = 1,
   suffix = "",
+  editable = false,
   onChange,
 }: {
   label: string;
@@ -973,16 +974,61 @@ function RangeControl({
   max: number;
   step?: number;
   suffix?: string;
+  editable?: boolean;
   onChange: (value: number) => void;
 }) {
+  const [draftValue, setDraftValue] = useState(() => String(value));
+
+  useEffect(() => {
+    setDraftValue(String(value));
+  }, [value]);
+
+  const commitValue = (rawValue: string) => {
+    const parsedValue = Number(rawValue);
+    if (!Number.isFinite(parsedValue)) {
+      setDraftValue(String(value));
+      return;
+    }
+    const boundedValue = clamp(parsedValue, min, max);
+    const steppedValue = min + Math.round((boundedValue - min) / step) * step;
+    const nextValue = Number(clamp(steppedValue, min, max).toFixed(6));
+    setDraftValue(String(nextValue));
+    onChange(nextValue);
+  };
+
   return (
     <label className="range-control">
       <span className="range-heading">
         <span>{label}</span>
-        <span className="mono-value">
-          {value}
-          {suffix}
-        </span>
+        {editable ? (
+          <span className="range-number-field">
+            <input
+              className="range-number-input"
+              type="number"
+              min={min}
+              max={max}
+              step={step}
+              value={draftValue}
+              inputMode="decimal"
+              aria-label={`${label}${suffix}`}
+              onChange={(event) => setDraftValue(event.target.value)}
+              onBlur={(event) => commitValue(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === "Enter") event.currentTarget.blur();
+                if (event.key === "Escape") {
+                  event.currentTarget.value = String(value);
+                  event.currentTarget.blur();
+                }
+              }}
+            />
+            {suffix && <span>{suffix}</span>}
+          </span>
+        ) : (
+          <span className="mono-value">
+            {value}
+            {suffix}
+          </span>
+        )}
       </span>
       <input
         type="range"
@@ -4520,11 +4566,11 @@ export default function Home() {
 
             <div className="inspector-section">
               <SectionTitle eyebrow={copy.imageAdjustments} emphasis action={<SlidersHorizontal size={15} className="section-icon" />} />
-              <RangeControl label={copy.exposure} value={activeAdjustmentValues.exposure} min={-100} max={100} suffix="%" onChange={(value) => updateActiveAdjustment({ exposure: value })} />
-              <RangeControl label={copy.contrast} value={activeAdjustmentValues.contrast} min={-100} max={100} suffix="%" onChange={(value) => updateActiveAdjustment({ contrast: value })} />
-              <RangeControl label={copy.saturation} value={activeAdjustmentValues.saturation} min={-100} max={100} suffix="%" onChange={(value) => updateActiveAdjustment({ saturation: value })} />
-              <RangeControl label={copy.vibrancy} value={activeAdjustmentValues.vibrancy} min={-100} max={100} suffix="%" onChange={(value) => updateActiveAdjustment({ vibrancy: value })} />
-              <RangeControl label={copy.opacity} value={activeAdjustmentValues.opacity} min={1} max={100} suffix="%" onChange={(value) => updateActiveAdjustment({ opacity: value })} />
+              <RangeControl label={copy.exposure} value={activeAdjustmentValues.exposure} min={-100} max={100} suffix="%" editable onChange={(value) => updateActiveAdjustment({ exposure: value })} />
+              <RangeControl label={copy.contrast} value={activeAdjustmentValues.contrast} min={-100} max={100} suffix="%" editable onChange={(value) => updateActiveAdjustment({ contrast: value })} />
+              <RangeControl label={copy.saturation} value={activeAdjustmentValues.saturation} min={-100} max={100} suffix="%" editable onChange={(value) => updateActiveAdjustment({ saturation: value })} />
+              <RangeControl label={copy.vibrancy} value={activeAdjustmentValues.vibrancy} min={-100} max={100} suffix="%" editable onChange={(value) => updateActiveAdjustment({ vibrancy: value })} />
+              <RangeControl label={copy.opacity} value={activeAdjustmentValues.opacity} min={1} max={100} suffix="%" editable onChange={(value) => updateActiveAdjustment({ opacity: value })} />
               <button type="button" className="link-button" onClick={resetActiveAdjustment}><RotateCcw size={13} /> {isEnglish ? "Reset adjustments" : "重設目前調整"}</button>
             </div>
 
