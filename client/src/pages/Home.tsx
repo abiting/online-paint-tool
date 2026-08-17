@@ -340,6 +340,14 @@ type BrushStroke = {
   size: number;
   opacity: number;
   kind: BrushKind;
+  shadowOpacity?: number;
+  outlineColor?: string;
+  outlineWidth?: number;
+  outlineExposure?: number;
+  outlineContrast?: number;
+  outlineSaturation?: number;
+  outlineVibrancy?: number;
+  outlineOpacity?: number;
 };
 
 type PaintLayer = {
@@ -624,6 +632,33 @@ const makeOutlineColor = (hex: string, exposure = 0, contrast = 0, saturation = 
   const saturationFactor = Math.max(0, 1 + saturation / 100 + (vibrancy / 100) * 0.35 * (1 - colorfulness));
   const adjusted = (channel: number) => Math.round(clamp(luma + (channel - luma) * saturationFactor, 0, 255));
   return `rgba(${adjusted(exposed.r)}, ${adjusted(exposed.g)}, ${adjusted(exposed.b)}, ${clamp(opacity, 0, 100) / 100})`;
+};
+
+const makeAlphaOutlineFilter = (color: string, width: number) => {
+  if (width <= 0) return "";
+  const segments = Math.max(8, Math.min(20, Math.ceil(width * 1.25)));
+  return Array.from({ length: segments }, (_, index) => {
+    const angle = (Math.PI * 2 * index) / segments;
+    return `drop-shadow(${Math.cos(angle) * width}px ${Math.sin(angle) * width}px 0 ${color})`;
+  }).join(" ");
+};
+
+const drawAlphaOutline = (context: CanvasRenderingContext2D, image: HTMLImageElement, width: number, height: number, color: string, thickness: number) => {
+  if (thickness <= 0) return;
+  const surface = document.createElement("canvas");
+  surface.width = Math.max(1, Math.ceil(width));
+  surface.height = Math.max(1, Math.ceil(height));
+  const surfaceContext = surface.getContext("2d");
+  if (!surfaceContext) return;
+  surfaceContext.drawImage(image, 0, 0, width, height);
+  surfaceContext.globalCompositeOperation = "source-in";
+  surfaceContext.fillStyle = color;
+  surfaceContext.fillRect(0, 0, width, height);
+  const segments = Math.max(8, Math.min(24, Math.ceil(thickness * 1.4)));
+  for (let index = 0; index < segments; index += 1) {
+    const angle = (Math.PI * 2 * index) / segments;
+    context.drawImage(surface, -width / 2 + Math.cos(angle) * thickness, -height / 2 + Math.sin(angle) * thickness, width, height);
+  }
 };
 
 const getMaterialStackOrder = (
@@ -1300,6 +1335,10 @@ export default function Home() {
     () => images.find((image) => image.id === selectedImageId) ?? null,
     [images, selectedImageId],
   );
+  const selectedStroke = useMemo(
+    () => strokes.find((stroke) => stroke.id === selectedStrokeId) ?? null,
+    [selectedStrokeId, strokes],
+  );
   const materialStackEntries = useMemo<MaterialStackEntry[]>(() => [
     ...strokes.map((stroke, index) => ({ type: "stroke" as const, id: stroke.id, paintLayerId: stroke.paintLayerId, stackOrder: getMaterialStackOrder("stroke", stroke, index) })),
     ...images.map((image, index) => ({ type: "image" as const, id: image.id, paintLayerId: image.paintLayerId, stackOrder: getMaterialStackOrder("image", image, index) })),
@@ -1342,7 +1381,9 @@ export default function Home() {
       ? { color: selectedText.outlineColor ?? "#FFFDF8", width: selectedText.outlineWidth ?? 0, exposure: selectedText.outlineExposure ?? 0, contrast: selectedText.outlineContrast ?? 0, saturation: selectedText.outlineSaturation ?? 0, vibrancy: selectedText.outlineVibrancy ?? 0, opacity: selectedText.outlineOpacity ?? 100 }
       : selectedImage
         ? { color: selectedImage.outlineColor ?? "#FFFDF8", width: selectedImage.outlineWidth ?? 0, exposure: selectedImage.outlineExposure ?? 0, contrast: selectedImage.outlineContrast ?? 0, saturation: selectedImage.outlineSaturation ?? 0, vibrancy: selectedImage.outlineVibrancy ?? 0, opacity: selectedImage.outlineOpacity ?? 100 }
-        : null;
+        : selectedStroke
+          ? { color: selectedStroke.outlineColor ?? "#FFFDF8", width: selectedStroke.outlineWidth ?? 0, exposure: selectedStroke.outlineExposure ?? 0, contrast: selectedStroke.outlineContrast ?? 0, saturation: selectedStroke.outlineSaturation ?? 0, vibrancy: selectedStroke.outlineVibrancy ?? 0, opacity: selectedStroke.outlineOpacity ?? 100 }
+          : null;
   const activeAdjustmentTarget = selectedShape ? tr("目前圖形", "Current shape") : selectedImage ? tr("目前圖片", "Current image") : selectedText ? tr("目前文字卡", "Current text") : tr("整個畫布", "Entire canvas");
 
   const canvasFilter = useMemo(
@@ -1414,8 +1455,20 @@ export default function Home() {
   }, []);
 
   const syncStrokes = useCallback((nextStrokes: BrushStroke[]) => {
-    strokesRef.current = nextStrokes;
-    setStrokes(nextStrokes);
+    const normalizedStrokes = nextStrokes.map((stroke) => ({
+      ...stroke,
+      paintLayerId: stroke.paintLayerId ?? BASE_PAINT_LAYER_ID,
+      shadowOpacity: stroke.shadowOpacity ?? 0,
+      outlineColor: stroke.outlineColor ?? "#FFFDF8",
+      outlineWidth: stroke.outlineWidth ?? 0,
+      outlineExposure: stroke.outlineExposure ?? 0,
+      outlineContrast: stroke.outlineContrast ?? 0,
+      outlineSaturation: stroke.outlineSaturation ?? 0,
+      outlineVibrancy: stroke.outlineVibrancy ?? 0,
+      outlineOpacity: stroke.outlineOpacity ?? 100,
+    }));
+    strokesRef.current = normalizedStrokes;
+    setStrokes(normalizedStrokes);
   }, []);
 
   const syncWorkingFiles = useCallback((nextFiles: WorkingFile[]) => {
@@ -2368,6 +2421,27 @@ export default function Home() {
   const renderBrushStroke = (context: CanvasRenderingContext2D, stroke: BrushStroke) => {
     if (stroke.points.length === 0) return;
     const points = stroke.points.map((point) => ({ x: point.x + stroke.x, y: point.y + stroke.y }));
+    const outlineWidth = stroke.outlineWidth ?? 0;
+    if (outlineWidth > 0) {
+      drawSmoothCanvasStroke(
+        context,
+        points,
+        makeOutlineColor(stroke.outlineColor ?? "#FFFDF8", stroke.outlineExposure, stroke.outlineContrast, stroke.outlineSaturation, stroke.outlineVibrancy, stroke.outlineOpacity),
+        stroke.size + outlineWidth * 2,
+        1,
+        stroke.kind,
+      );
+    }
+    if ((stroke.shadowOpacity ?? 0) > 0) {
+      context.save();
+      context.shadowColor = `rgba(0, 0, 0, ${(stroke.shadowOpacity ?? 0) / 100})`;
+      context.shadowBlur = 10;
+      context.shadowOffsetX = 0;
+      context.shadowOffsetY = 0;
+      drawSmoothCanvasStroke(context, points, stroke.color, stroke.size, stroke.opacity / 100, stroke.kind);
+      context.restore();
+      return;
+    }
     drawSmoothCanvasStroke(context, points, stroke.color, stroke.size, stroke.opacity / 100, stroke.kind);
   };
 
@@ -2823,6 +2897,13 @@ export default function Home() {
     syncShapes(nextShapes);
   };
 
+  const updateStroke = (patch: Partial<BrushStroke>) => {
+    if (!selectedStrokeId) return;
+    const selectedLayer = strokesRef.current.find((stroke) => stroke.id === selectedStrokeId);
+    if (!selectedLayer || isPaintLayerLocked(selectedLayer.paintLayerId)) return;
+    syncStrokes(strokesRef.current.map((stroke) => stroke.id === selectedStrokeId ? { ...stroke, ...patch } : stroke));
+  };
+
   const deleteSelectedShape = () => {
     if (!selectedShapeId) return;
     const selectedLayer = shapesRef.current.find((shape) => shape.id === selectedShapeId);
@@ -3076,6 +3157,7 @@ export default function Home() {
       return;
     }
     if (selectedText) updateTextLayer({ shadowOpacity: value });
+    if (selectedStroke) updateStroke({ shadowOpacity: value });
   };
 
   const updateActiveOutline = (patch: { color?: string; width?: number; exposure?: number; contrast?: number; saturation?: number; vibrancy?: number; opacity?: number }) => {
@@ -3114,6 +3196,18 @@ export default function Home() {
         ...(patch.vibrancy !== undefined ? { outlineVibrancy: patch.vibrancy } : {}),
         ...(patch.opacity !== undefined ? { outlineOpacity: patch.opacity } : {}),
       } : image));
+      return;
+    }
+    if (selectedStroke) {
+      updateStroke({
+        ...(patch.color !== undefined ? { outlineColor: patch.color } : {}),
+        ...(patch.width !== undefined ? { outlineWidth: patch.width } : {}),
+        ...(patch.exposure !== undefined ? { outlineExposure: patch.exposure } : {}),
+        ...(patch.contrast !== undefined ? { outlineContrast: patch.contrast } : {}),
+        ...(patch.saturation !== undefined ? { outlineSaturation: patch.saturation } : {}),
+        ...(patch.vibrancy !== undefined ? { outlineVibrancy: patch.vibrancy } : {}),
+        ...(patch.opacity !== undefined ? { outlineOpacity: patch.opacity } : {}),
+      });
     }
   };
 
@@ -3240,13 +3334,19 @@ export default function Home() {
         context.filter = makeAdjustmentFilter(entry.item.exposure, entry.item.contrast, entry.item.saturation, entry.item.vibrancy);
         context.translate(entry.item.x + entry.item.width / 2, entry.item.y + entry.item.height / 2);
         context.rotate((entry.item.rotation * Math.PI) / 180);
-        context.drawImage(imageElement, -entry.item.width / 2, -entry.item.height / 2, entry.item.width, entry.item.height);
         if ((entry.item.outlineWidth ?? 0) > 0) {
           context.filter = "none";
-          context.strokeStyle = makeOutlineColor(entry.item.outlineColor ?? "#FFFDF8", entry.item.outlineExposure, entry.item.outlineContrast, entry.item.outlineSaturation, entry.item.outlineVibrancy, entry.item.outlineOpacity);
-          context.lineWidth = entry.item.outlineWidth ?? 0;
-          context.strokeRect(-entry.item.width / 2, -entry.item.height / 2, entry.item.width, entry.item.height);
+          drawAlphaOutline(
+            context,
+            imageElement,
+            entry.item.width,
+            entry.item.height,
+            makeOutlineColor(entry.item.outlineColor ?? "#FFFDF8", entry.item.outlineExposure, entry.item.outlineContrast, entry.item.outlineSaturation, entry.item.outlineVibrancy, entry.item.outlineOpacity),
+            entry.item.outlineWidth ?? 0,
+          );
+          context.filter = makeAdjustmentFilter(entry.item.exposure, entry.item.contrast, entry.item.saturation, entry.item.vibrancy);
         }
+        context.drawImage(imageElement, -entry.item.width / 2, -entry.item.height / 2, entry.item.width, entry.item.height);
         context.restore();
         return;
       }
@@ -4250,7 +4350,7 @@ export default function Home() {
                 <button type="button" className="icon-button subtle" onClick={() => setOpenDesktopTool(null)} title={tr("完成設定", "Done")} aria-label={tr("完成設定", "Done")}><Check size={16} /></button>
               </div>
 
-              {selectedMaterialStackEntry && (
+              {selectedMaterialStackEntry && openDesktopTool !== "outline" && (
                 <div className="material-stack-controls" aria-label={tr("素材位置", "Stack order")}>
                   <span className="field-label">{tr("素材位置", "Stack order")}</span>
                   <div className="material-stack-actions">
@@ -4261,6 +4361,14 @@ export default function Home() {
                       <ArrowDown size={14} /> {tr("向後", "Backward")}
                     </button>
                   </div>
+                </div>
+              )}
+
+              {openDesktopTool === "object" && selectedStroke && (
+                <div className="desktop-tool-popover-content">
+                  <p className="empty-inspector compact-object-note">{tr("筆觸樣式", "Stroke appearance")}</p>
+                  <RangeControl label={tr("不透明度", "Opacity")} value={selectedStroke.opacity} min={1} max={100} suffix="%" onChange={(value) => updateStroke({ opacity: value })} />
+                  <RangeControl label={tr("陰影強度", "Shadow")} value={selectedStroke.shadowOpacity ?? 0} min={0} max={100} suffix="%" onChange={(value) => updateStroke({ shadowOpacity: value })} />
                 </div>
               )}
 
@@ -4432,6 +4540,9 @@ export default function Home() {
                     const isBrushStroke = stroke.kind === "brush";
                     const strokeWidth = isPencilStroke ? Math.max(1, stroke.size * 0.78) : isBrushStroke ? Math.max(2, stroke.size * 1.32) : stroke.size;
                     const brushStamps = isBrushStroke ? buildBrushStamps(stroke.points, stroke.size) : [];
+                    const outlineWidth = stroke.outlineWidth ?? 0;
+                    const outlineColor = makeOutlineColor(stroke.outlineColor ?? "#FFFDF8", stroke.outlineExposure, stroke.outlineContrast, stroke.outlineSaturation, stroke.outlineVibrancy, stroke.outlineOpacity);
+                    const shadowFilter = (stroke.shadowOpacity ?? 0) > 0 ? `drop-shadow(0 0 10px rgba(0, 0, 0, ${(stroke.shadowOpacity ?? 0) / 100}))` : undefined;
                     return (
                       <svg
                         key={stroke.id}
@@ -4443,16 +4554,19 @@ export default function Home() {
                         tabIndex={isStrokeSelectable ? 0 : -1}
                         aria-label="畫筆筆觸"
                       >
-                        <g transform={`translate(${stroke.x} ${stroke.y})`}>
+                        <g transform={`translate(${stroke.x} ${stroke.y})`} style={{ filter: shadowFilter }}>
                           {stroke.points.length === 1 ? (
                             <>
+                              {outlineWidth > 0 && (isBrushStroke ? <ellipse cx={stroke.points[0].x} cy={stroke.points[0].y} rx={stroke.size * 0.66 + outlineWidth} ry={stroke.size * 0.5 + outlineWidth} fill={outlineColor} /> : <circle cx={stroke.points[0].x} cy={stroke.points[0].y} r={strokeWidth / 2 + outlineWidth} fill={outlineColor} />)}
                               {isBrushStroke ? <ellipse cx={stroke.points[0].x} cy={stroke.points[0].y} rx={stroke.size * 0.66} ry={stroke.size * 0.5} fill={stroke.color} opacity={(stroke.opacity / 100) * 0.44} /> : <circle cx={stroke.points[0].x} cy={stroke.points[0].y} r={strokeWidth / 2} fill={stroke.color} opacity={isPencilStroke ? (stroke.opacity / 100) * 0.56 : stroke.opacity / 100} />}
                               {isStrokeSelectable && <circle className="stroke-hit-area" cx={stroke.points[0].x} cy={stroke.points[0].y} r={Math.max(12, strokeWidth)} />}
                             </>
                           ) : (
                             <>
+                              {!isBrushStroke && outlineWidth > 0 && <path d={smoothPath} fill="none" stroke={outlineColor} strokeWidth={strokeWidth + outlineWidth * 2} strokeLinecap="round" strokeLinejoin="round" />}
                               {!isBrushStroke && <path className="stroke-visible" d={smoothPath} fill="none" stroke={stroke.color} strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round" opacity={isPencilStroke ? (stroke.opacity / 100) * 0.56 : stroke.opacity / 100} />}
                               {isPencilStroke && [-0.85, 0.7].map((offset, index) => <path key={`grain-${index}`} d={smoothPath} transform={`translate(${offset} ${index === 0 ? 0.45 : -0.45})`} fill="none" stroke={stroke.color} strokeWidth={Math.max(0.65, stroke.size * 0.14)} strokeLinecap="round" strokeLinejoin="round" strokeDasharray={`${Math.max(0.8, stroke.size * 0.09)} ${Math.max(1.8, stroke.size * 0.24)}`} opacity={(stroke.opacity / 100) * (index === 0 ? 0.26 : 0.19)} />)}
+                              {isBrushStroke && outlineWidth > 0 && brushStamps.map((stamp, index) => <ellipse key={`brush-outline-${index}`} cx={stamp.x} cy={stamp.y} rx={stroke.size * 0.66 * stamp.scale + outlineWidth} ry={stroke.size * 0.5 * stamp.scale + outlineWidth} fill={outlineColor} />)}
                               {isBrushStroke && brushStamps.map((stamp, index) => <g key={`brush-stamp-${index}`} transform={`translate(${stamp.x} ${stamp.y}) rotate(${(stamp.angle * 180) / Math.PI}) scale(${stamp.scale})`}><ellipse cx="0" cy="0" rx={stroke.size * 0.66} ry={stroke.size * 0.5} fill={stroke.color} opacity={(stroke.opacity / 100) * (index % 4 === 0 ? 0.31 : 0.36)} /><ellipse cx={stroke.size * 0.06} cy={-stroke.size * 0.32} rx={stroke.size * 0.48} ry={Math.max(0.6, stroke.size * 0.055)} fill={stroke.color} opacity={(stroke.opacity / 100) * 0.08} /><ellipse cx={stroke.size * 0.06} cy={stroke.size * 0.32} rx={stroke.size * 0.48} ry={Math.max(0.6, stroke.size * 0.055)} fill={stroke.color} opacity={(stroke.opacity / 100) * 0.08} /></g>)}
                               {isStrokeSelectable && <path className="stroke-hit-area" d={smoothPath} fill="none" strokeWidth={Math.max(18, strokeWidth + 12)} strokeLinecap="round" strokeLinejoin="round" />}
                             </>
@@ -4477,8 +4591,10 @@ export default function Home() {
                         "--image-rotation-label-offset": `${40 * (100 / zoom)}px`,
                         zIndex: getMaterialStackOrder("image", image, index),
                         opacity: image.opacity / 100,
-                        filter: makeAdjustmentFilter(image.exposure, image.contrast, image.saturation, image.vibrancy),
-                        outline: (image.outlineWidth ?? 0) > 0 ? `${image.outlineWidth}px solid ${makeOutlineColor(image.outlineColor ?? "#FFFDF8", image.outlineExposure, image.outlineContrast, image.outlineSaturation, image.outlineVibrancy, image.outlineOpacity)}` : "none",
+                        filter: [
+                          makeAdjustmentFilter(image.exposure, image.contrast, image.saturation, image.vibrancy),
+                          makeAlphaOutlineFilter(makeOutlineColor(image.outlineColor ?? "#FFFDF8", image.outlineExposure, image.outlineContrast, image.outlineSaturation, image.outlineVibrancy, image.outlineOpacity), image.outlineWidth ?? 0),
+                        ].filter((value) => value && value !== "none").join(" ") || "none",
                       } as CSSProperties}
                       onPointerDown={(event) => handleImagePointerDown(event, image)}
                       role="button"
