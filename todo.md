@@ -272,3 +272,5 @@
 - [x] 支援 Ctrl/Cmd+C 與 Ctrl/Cmd+V 複製貼上已選取的圖片、圖形、文字與筆觸
 - [x] 在桌面版工作台版本號旁加入小型 StartupBase 合作徽章
 - [x] 將版本號與 StartupBase 徽章改為工作台內容內的非浮動位置
+- [x] 將版本號與 StartupBase 徽章移至右側影像調整欄底部
+- [x] 將右側欄版本號與 StartupBase 徽章改為與 Copyright 相同的右側對齊基準
