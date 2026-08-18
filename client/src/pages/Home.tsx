@@ -318,6 +318,7 @@ type ImageLayer = OutlineAdjustments & {
   contrast: number;
   saturation: number;
   vibrancy: number;
+  shadowOpacity: number;
   outlineColor?: string;
   crop?: ImageCrop;
 };
@@ -1374,7 +1375,7 @@ export default function Home() {
       : selectedText
       ? { exposure: selectedText.exposure ?? 0, contrast: selectedText.contrast ?? 0, saturation: selectedText.saturation ?? 0, vibrancy: selectedText.vibrancy ?? 0, opacity: selectedText.opacity }
       : adjustments;
-  const activeShadowOpacity = selectedShape ? selectedShape.shadowOpacity : selectedText ? selectedText.shadowOpacity : null;
+  const activeShadowOpacity = selectedShape ? selectedShape.shadowOpacity : selectedImage ? selectedImage.shadowOpacity : selectedText ? selectedText.shadowOpacity : null;
   const activeOutlineSettings = selectedShape
     ? { color: selectedShape.outline, width: selectedShape.outlineWidth ?? 0, exposure: selectedShape.outlineExposure ?? 0, contrast: selectedShape.outlineContrast ?? 0, saturation: selectedShape.outlineSaturation ?? 0, vibrancy: selectedShape.outlineVibrancy ?? 0, opacity: selectedShape.outlineOpacity ?? 100 }
     : selectedText
@@ -1440,6 +1441,7 @@ export default function Home() {
       contrast: image.contrast ?? 0,
       saturation: image.saturation ?? 0,
       vibrancy: image.vibrancy ?? 0,
+      shadowOpacity: clamp(typeof image.shadowOpacity === "number" ? image.shadowOpacity : 0, 0, 100),
       rotation: image.rotation ?? 0,
       crop: image.crop ?? FULL_IMAGE_CROP,
       outlineColor: image.outlineColor ?? "#FFFDF8",
@@ -1629,7 +1631,7 @@ export default function Home() {
   }, []);
 
   const getSnappedPosition = useCallback((rawX: number, rawY: number, width: number, height: number, excludedShapeId?: string) => {
-    const threshold = 20 / Math.max(0.25, zoom / 100);
+    const threshold = 8 / Math.max(0.25, zoom / 100);
     const canvasHorizontalTargets = [
       { position: 0, guide: 0 },
       { position: canvasSize.width / 2 - width / 2, guide: canvasSize.width / 2 },
@@ -3156,6 +3158,10 @@ export default function Home() {
       updateShape({ shadow: value > 0, shadowOpacity: value, shadowX: 0, shadowY: 0 });
       return;
     }
+    if (selectedImage) {
+      syncImages(imagesRef.current.map((image) => image.id === selectedImage.id ? { ...image, shadowOpacity: value } : image));
+      return;
+    }
     if (selectedText) updateTextLayer({ shadowOpacity: value });
     if (selectedStroke) updateStroke({ shadowOpacity: value });
   };
@@ -3275,6 +3281,7 @@ export default function Home() {
         contrast: 0,
         saturation: 0,
         vibrancy: 0,
+        shadowOpacity: 0,
       };
       syncImages([...imagesRef.current, nextImage]);
       setSelectedImageId(nextImage.id);
@@ -3345,6 +3352,12 @@ export default function Home() {
             entry.item.outlineWidth ?? 0,
           );
           context.filter = makeAdjustmentFilter(entry.item.exposure, entry.item.contrast, entry.item.saturation, entry.item.vibrancy);
+        }
+        if (entry.item.shadowOpacity > 0) {
+          context.shadowColor = `rgba(0, 0, 0, ${entry.item.shadowOpacity / 100})`;
+          context.shadowBlur = 14;
+          context.shadowOffsetX = 0;
+          context.shadowOffsetY = 0;
         }
         context.drawImage(imageElement, -entry.item.width / 2, -entry.item.height / 2, entry.item.width, entry.item.height);
         context.restore();
@@ -4603,6 +4616,7 @@ export default function Home() {
                         filter: [
                           makeAdjustmentFilter(image.exposure, image.contrast, image.saturation, image.vibrancy),
                           makeAlphaOutlineFilter(makeOutlineColor(image.outlineColor ?? "#FFFDF8", image.outlineExposure, image.outlineContrast, image.outlineSaturation, image.outlineVibrancy, image.outlineOpacity), image.outlineWidth ?? 0),
+                          image.shadowOpacity > 0 ? `drop-shadow(0 0 14px rgba(0, 0, 0, ${image.shadowOpacity / 100}))` : "",
                         ].filter((value) => value && value !== "none").join(" ") || "none",
                       } as CSSProperties}
                       onPointerDown={(event) => handleImagePointerDown(event, image)}
@@ -5010,7 +5024,7 @@ export default function Home() {
               {activeShadowOpacity !== null ? (
                 <RangeControl label={tr("陰影強度", "Shadow")} value={activeShadowOpacity} min={0} max={100} suffix="%" editable onChange={updateActiveShadowOpacity} />
               ) : (
-                <div className="range-control shadow-control-hint"><span className="range-heading"><span>{tr("陰影強度", "Shadow")}</span><span className="mono-value">—</span></span><p>{tr("選取圖形或文字後可調整", "Select a shape or text object to adjust")}</p></div>
+                <div className="range-control shadow-control-hint"><span className="range-heading"><span>{tr("陰影強度", "Shadow")}</span><span className="mono-value">—</span></span><p>{tr("選取圖片、圖形或文字後可調整", "Select an image, shape, or text object to adjust")}</p></div>
               )}
               <button type="button" className="link-button" onClick={resetActiveAdjustment}><RotateCcw size={13} /> {isEnglish ? "Reset adjustments" : "重設目前調整"}</button>
             </div>
