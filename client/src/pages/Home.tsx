@@ -364,6 +364,12 @@ type MaterialStackEntry = {
   stackOrder: number;
 };
 
+type ObjectClipboard =
+  | { type: "text"; item: TextLayer }
+  | { type: "shape"; item: ShapeLayer }
+  | { type: "image"; item: ImageLayer }
+  | { type: "stroke"; item: BrushStroke };
+
 type BleedGuide = {
   inset: number;
 };
@@ -1302,7 +1308,7 @@ export default function Home() {
   const [isEasterEggOpen, setIsEasterEggOpen] = useState(false);
   const [mobileMiniToolPosition, setMobileMiniToolPosition] = useState({ x: 14, y: 14 });
   const [isMobileMiniToolDragging, setIsMobileMiniToolDragging] = useState(false);
-  const clipboardTextRef = useRef<TextLayer | null>(null);
+  const objectClipboardRef = useRef<ObjectClipboard | null>(null);
   const panDragRef = useRef<{ startX: number; startY: number; originX: number; originY: number } | null>(null);
   const touchPointsRef = useRef(new Map<number, { x: number; y: number }>());
   const pinchPanRef = useRef<{ startDistance: number; startCenterX: number; startCenterY: number; startZoom: number; originX: number; originY: number } | null>(null);
@@ -2407,7 +2413,7 @@ export default function Home() {
       }
       if (modifier && key === "c") {
         const hasNativeTextSelection = Boolean(window.getSelection()?.toString().trim());
-        if (hasNativeTextSelection || !selectedTextId) return;
+        if (hasNativeTextSelection || (!selectedTextId && !selectedShapeId && !selectedImageId && !selectedStrokeId)) return;
         event.preventDefault();
         void copySelection();
         return;
@@ -2566,7 +2572,7 @@ export default function Home() {
       toast.info(tr("目前圖層已鎖定，請先解除鎖定", "This layer is locked. Unlock it before adding artwork"));
       return;
     }
-    const isSquareDefault = ["circle", "star", "heart", "pentagon"].includes(kind);
+    const isSquareDefault = ["rectangle", "circle", "star", "heart", "pentagon"].includes(kind);
     const width = isSquareDefault ? 190 : 220;
     const height = isSquareDefault ? 190 : 150;
     const nextShape: ShapeLayer = {
@@ -2842,17 +2848,28 @@ export default function Home() {
   };
 
   const copySelection = async () => {
-    if (!selectedText) {
-      toast.info(tr("請先選取文字卡", "Select a text object first"));
+    const source = selectedText
+      ? { type: "text" as const, item: { ...selectedText } }
+      : selectedShape
+        ? { type: "shape" as const, item: { ...selectedShape } }
+        : selectedImage
+          ? { type: "image" as const, item: { ...selectedImage, crop: selectedImage.crop ? { ...selectedImage.crop } : undefined } }
+          : selectedStroke
+            ? { type: "stroke" as const, item: { ...selectedStroke, points: selectedStroke.points.map((point) => ({ ...point })) } }
+            : null;
+    if (!source) {
+      toast.info(tr("請先選取素材", "Select an object first"));
       return;
     }
-    clipboardTextRef.current = { ...selectedText };
-    try {
-      await navigator.clipboard?.writeText(selectedText.text);
-    } catch {
-      // 瀏覽器未授權 clipboard 時仍保留工作台內部複製內容。
+    objectClipboardRef.current = source;
+    if (source.type === "text") {
+      try {
+        await navigator.clipboard?.writeText(source.item.text);
+      } catch {
+        // 瀏覽器未授權 clipboard 時仍保留工作台內部複製內容。
+      }
     }
-    toast.success(tr("文字卡已複製", "Text object copied"));
+    toast.success(tr("素材已複製", "Object copied"));
   };
 
   const pasteSelection = async () => {
@@ -2862,13 +2879,35 @@ export default function Home() {
     } catch {
       // 使用工作台內部剪貼簿作為 fallback。
     }
-    const source = clipboardTextRef.current;
-    if (!source && !clipboardText) {
-      toast.info(tr("請先複製文字卡，或將文字複製到剪貼簿", "Copy a text object or text to your clipboard first"));
+    const source = objectClipboardRef.current;
+    if (source?.type === "shape") {
+      const nextShape: ShapeLayer = { ...source.item, id: makeId("shape"), paintLayerId: activePaintLayer?.id ?? BASE_PAINT_LAYER_ID, stackOrder: getNextMaterialStackOrder(), x: source.item.x + 24, y: source.item.y + 24 };
+      syncShapes([...shapesRef.current, nextShape]);
+      setSelectedShapeId(nextShape.id); setSelectedTextId(null); setSelectedImageId(null); setSelectedStrokeId(null);
+      setTool("move"); captureHistory(); toast.success(tr("圖形已貼上", "Shape pasted"));
       return;
     }
+    if (source?.type === "image") {
+      const nextImage: ImageLayer = { ...source.item, id: makeId("image"), paintLayerId: activePaintLayer?.id ?? BASE_PAINT_LAYER_ID, stackOrder: getNextMaterialStackOrder(), x: source.item.x + 24, y: source.item.y + 24, crop: source.item.crop ? { ...source.item.crop } : undefined };
+      syncImages([...imagesRef.current, nextImage]);
+      setSelectedImageId(nextImage.id); setSelectedTextId(null); setSelectedShapeId(null); setSelectedStrokeId(null);
+      setImageEditingId(nextImage.id); setTool("move"); captureHistory(); toast.success(tr("圖片已貼上", "Image pasted"));
+      return;
+    }
+    if (source?.type === "stroke") {
+      const nextStroke: BrushStroke = { ...source.item, id: makeId("stroke"), paintLayerId: activePaintLayer?.id ?? BASE_PAINT_LAYER_ID, stackOrder: getNextMaterialStackOrder(), x: source.item.x + 24, y: source.item.y + 24, points: source.item.points.map((point) => ({ x: point.x + 24, y: point.y + 24 })) };
+      syncStrokes([...strokesRef.current, nextStroke]);
+      setSelectedStrokeId(nextStroke.id); setSelectedTextId(null); setSelectedShapeId(null); setSelectedImageId(null);
+      setTool("move"); captureHistory(); toast.success(tr("筆觸已貼上", "Brush stroke pasted"));
+      return;
+    }
+    if (!source && !clipboardText) {
+      toast.info(tr("請先複製素材或文字", "Copy an object or text first"));
+      return;
+    }
+    const textSource = source?.type === "text" ? source.item : null;
     const nextLayer: TextLayer = {
-      ...(source ?? {
+      ...(textSource ?? {
         id: makeId("text"),
         paintLayerId: activePaintLayer?.id ?? BASE_PAINT_LAYER_ID,
         text: clipboardText,
@@ -2888,14 +2927,15 @@ export default function Home() {
       id: makeId("text"),
       paintLayerId: activePaintLayer?.id ?? BASE_PAINT_LAYER_ID,
       stackOrder: getNextMaterialStackOrder(),
-      text: clipboardText || source?.text || "貼上的文字",
-      x: (source?.x ?? canvasSize.width * 0.2) + 24,
-      y: (source?.y ?? canvasSize.height * 0.2) + 24,
+      text: clipboardText || textSource?.text || "貼上的文字",
+      x: (textSource?.x ?? canvasSize.width * 0.2) + 24,
+      y: (textSource?.y ?? canvasSize.height * 0.2) + 24,
       anchorShapeId: undefined,
     };
     syncLayers([...layersRef.current, nextLayer]);
     setSelectedTextId(nextLayer.id);
-    setSelectedShapeId(null);
+    setSelectedShapeId(null); setSelectedImageId(null); setSelectedStrokeId(null);
+    setTool("move");
     captureHistory();
     toast.success(tr("文字卡已貼上", "Text object pasted"));
   };
