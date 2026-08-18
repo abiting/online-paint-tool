@@ -315,8 +315,9 @@ kbd { min-width: 19px; padding: 3px 4px; text-align: center; color: #aab1aa; bac
 .product-footnote { max-width: min(740px, 78%); margin: 0; }
 .product-footnote-label { color: rgba(226,213,187,0.48); font: 9px "IBM Plex Mono", monospace; letter-spacing: 0.12em; }
 .product-footnote p { margin: 4px 0 0; color: #7f8882; font: 9px "IBM Plex Mono", "Noto Sans TC", monospace; line-height: 1.58; }
-.product-footer-meta { flex: 0 0 auto; margin-left: auto; }
+.product-footer-meta { flex: 0 0 auto; display: flex; align-items: center; gap: 11px; margin-left: auto; }
 .product-copyright { margin: 0; color: #66716d; font: 9px "IBM Plex Mono", monospace; white-space: nowrap; }
+.product-build-meta { display: inline-flex; align-items: center; gap: 6px; }
 .product-version-label { color: rgba(142, 152, 146, 0.56); pointer-events: none; font: 8px "IBM Plex Mono", monospace; letter-spacing: 0.08em; }
 .startupbase-badge { display: inline-flex; align-items: center; line-height: 0; opacity: 0.72; transition: opacity 160ms var(--ease-out), transform 160ms var(--ease-out); }
 .startupbase-badge:hover, .startupbase-badge:focus-visible { opacity: 1; transform: translateY(-1px); }
@@ -349,9 +350,8 @@ kbd { min-width: 19px; padding: 3px 4px; text-align: center; color: #aab1aa; bac
   .faq-panel { display: none !important; }
 }
 
-.inspector { display: flex; flex-direction: column; min-height: 0; border-left: 1px solid rgba(227,213,187,0.17); background: linear-gradient(90deg, rgba(228,81,59,0.16) 0 2px, transparent 2px), rgba(35,33,29,0.95); }
-.inspector-scroll { flex: 1 1 auto; min-height: 0; overflow: auto; padding: 24px 20px 28px; }
-.inspector-partner-meta { display: inline-flex; align-items: center; justify-content: flex-end; width: 100%; gap: 6px; min-height: 40px; padding: 8px 0 0; }
+.inspector { min-height: 0; border-left: 1px solid rgba(227,213,187,0.17); background: linear-gradient(90deg, rgba(228,81,59,0.16) 0 2px, transparent 2px), rgba(35,33,29,0.95); }
+.inspector-scroll { height: 100%; overflow: auto; padding: 24px 20px 28px; }
 .section-title { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 16px; }
 .section-title-emphasis .eyebrow { color: #c4c9c1; font-size: 11px; letter-spacing: 0.12em; }
 .section-title h2, .remove-bg-heading h3 { margin: 4px 0 0; color: #f1ecdf; font-family: "DM Sans", "Noto Sans TC", sans-serif; font-size: 16px; font-weight: 700; letter-spacing: -0.01em; }
@@ -446,7 +446,7 @@ input[type="range"]::-moz-range-thumb { width: 11px; height: 11px; border: 2px s
   .paint-layer-panel { top: 65px; right: 12px; width: 145px; }
   .workspace-footer { padding-left: 14px; padding-right: 14px; }
   .footer-note { display: none; }
-  .inspector-partner-meta { display: none; }
+  .product-build-meta { display: none; }
   .floatingchat-container-wrap,
   .floatingchat-container-wrap-mobi,
   .floating-chat-kofi-popup-iframe,

@@ -4886,6 +4886,17 @@ export default function Home() {
             </div>
             <div className="product-footer-meta">
               <p className="product-copyright">Copyright © 2026 <a href={isEnglish ? "/en" : "/"}>AbiPaint</a></p>
+              <div className="product-build-meta" aria-label="AbiPaint version 1.0.0">
+                <span className="product-version-label">v1.0.0</span>
+                <a
+                  className="startupbase-badge"
+                  href="https://startupbase.io/products/abipaint?utm_source=startupbase&utm_medium=badge&utm_campaign=launch-badge-light"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  <img src="https://statics.startupbase.io/site/badges/launched-on-sb.svg" alt="Launched on StartupBase" />
+                </a>
+              </div>
             </div>
           </footer>
 
@@ -5091,17 +5102,6 @@ export default function Home() {
             </div>
 
             <div className="inspector-divider" />
-            <div className="inspector-partner-meta" aria-label="AbiPaint version 1.0.0">
-              <span className="product-version-label">v1.0.0</span>
-              <a
-                className="startupbase-badge"
-                href="https://startupbase.io/products/abipaint?utm_source=startupbase&utm_medium=badge&utm_campaign=launch-badge-light"
-                target="_blank"
-                rel="noopener noreferrer"
-              >
-                <img src="https://statics.startupbase.io/site/badges/launched-on-sb.svg" alt="Launched on StartupBase" />
-              </a>
-            </div>
           </div>
         </aside>
       </div>
