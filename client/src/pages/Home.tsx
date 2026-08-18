@@ -3643,6 +3643,7 @@ export default function Home() {
 
   const handleShapeRotatePointerDown = (event: ReactPointerEvent<SVGCircleElement | HTMLDivElement>, shape: ShapeLayer) => {
     event.stopPropagation();
+    event.preventDefault();
     if (isPaintLayerLocked(shape.paintLayerId)) return;
     event.currentTarget.setPointerCapture(event.pointerId);
     const point = getCanvasPoint(event.clientX, event.clientY);
@@ -3689,6 +3690,7 @@ export default function Home() {
 
   const handleImageResizePointerDown = (event: ReactPointerEvent<HTMLDivElement>, image: ImageLayer, axis: ShapeResizeAxis) => {
     event.stopPropagation();
+    event.preventDefault();
     if (isPaintLayerLocked(image.paintLayerId)) return;
     if (imageEditingId !== image.id) return;
     event.currentTarget.setPointerCapture(event.pointerId);
@@ -3713,6 +3715,7 @@ export default function Home() {
 
   const handleImageRotatePointerDown = (event: ReactPointerEvent<HTMLDivElement>, image: ImageLayer) => {
     event.stopPropagation();
+    event.preventDefault();
     if (isPaintLayerLocked(image.paintLayerId)) return;
     if (imageEditingId !== image.id) return;
     event.currentTarget.setPointerCapture(event.pointerId);

@@ -476,7 +476,7 @@ input[type="range"]::-moz-range-thumb { width: 11px; height: 11px; border: 2px s
 
 .document-name-input { width: min(280px, 28vw); padding: 2px 4px; color: #eee8db; background: transparent; border: 1px solid transparent; border-radius: 4px; font-family: "DM Sans", "Noto Sans TC", sans-serif; font-size: 13px; font-weight: 500; outline: none; }
 .document-name-input:hover, .document-name-input:focus { background: rgba(245,240,229,0.06); border-color: rgba(227,213,187,0.22); }
-.shape-layer { position: absolute; display: block; overflow: visible; cursor: move; transform-origin: center; }
+.shape-layer { position: absolute; display: block; overflow: visible; cursor: move; user-select: none; -webkit-user-select: none; transform-origin: center; }
 .shape-layer.is-selected { outline: 1px dashed #e4513b; outline-offset: 7px; }
 .shape-resize-handle { fill: #fff8ec; stroke: #e4513b; stroke-width: 1.6; vector-effect: non-scaling-stroke; pointer-events: auto; }
 .shape-resize-handle-left, .shape-resize-handle-right { cursor: ew-resize; }
@@ -490,7 +490,7 @@ input[type="range"]::-moz-range-thumb { width: 11px; height: 11px; border: 2px s
 .shape-rotation-handle { fill: #fff8ec; stroke: #e4513b; stroke-width: 1.8; vector-effect: non-scaling-stroke; cursor: grab; pointer-events: auto; }
 .shape-rotation-handle:active { cursor: grabbing; }
 .shape-rotation-label { fill: #1f2528; font: 700 8px "DM Sans", sans-serif; paint-order: stroke; stroke: #fff8ec; stroke-width: 3px; pointer-events: none; }
-.shape-control-layer { position: absolute; z-index: 8; overflow: visible; transform-origin: center; pointer-events: none; will-change: transform; contain: layout paint; backface-visibility: hidden; }
+.shape-control-layer { position: absolute; z-index: 8; overflow: visible; user-select: none; -webkit-user-select: none; touch-action: none; transform-origin: center; pointer-events: none; will-change: transform; contain: layout paint; backface-visibility: hidden; }
 .shape-control-handle { position: absolute; z-index: 2; width: 12px; height: 12px; margin: -6px; border: 1.5px solid #e4513b; background: #fff8ec; box-sizing: border-box; pointer-events: auto; transform: scale(var(--shape-control-scale, 1)); transform-origin: center; }
 .shape-control-handle-left, .shape-control-handle-right { top: 50%; cursor: ew-resize; }
 .shape-control-handle-left { left: 0; }
