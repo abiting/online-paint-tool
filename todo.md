@@ -275,3 +275,4 @@
 - [x] 將版本號與 StartupBase 徽章移至右側影像調整欄底部
 - [x] 將右側欄版本號與 StartupBase 徽章改為與 Copyright 相同的右側對齊基準
 - [x] 將版本號與 StartupBase 徽章移回頁尾並與 Copyright 同行
+- [x] 移除工作台最上方工具列外露的黑色留白
