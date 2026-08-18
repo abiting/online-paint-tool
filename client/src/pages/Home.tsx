@@ -2207,20 +2207,20 @@ export default function Home() {
           let nextX = event.altKey ? centerX - nextWidth / 2 : movesLeft ? imageResize.startX + imageResize.startWidth - nextWidth : imageResize.startX;
           let nextY = event.altKey ? centerY - nextHeight / 2 : movesTop ? imageResize.startY + imageResize.startHeight - nextHeight : imageResize.startY;
           if (!event.altKey) {
-            const snapThreshold = 8 / Math.max(0.25, zoom / 100);
-            if (movesLeft && Math.abs(nextX) <= snapThreshold) {
-              nextWidth += nextX;
+            const snapThreshold = 14 / Math.max(0.25, zoom / 100);
+            if (movesLeft && point.x <= snapThreshold) {
+              nextWidth = imageResize.startX + imageResize.startWidth;
               nextX = 0;
               resizeGuides.x = 0;
-            } else if (movesRight && Math.abs(nextX + nextWidth - canvasSize.width) <= snapThreshold) {
+            } else if (movesRight && point.x >= canvasSize.width - snapThreshold) {
               nextWidth = canvasSize.width - nextX;
               resizeGuides.x = canvasSize.width;
             }
-            if (movesTop && Math.abs(nextY) <= snapThreshold) {
-              nextHeight += nextY;
+            if (movesTop && point.y <= snapThreshold) {
+              nextHeight = imageResize.startY + imageResize.startHeight;
               nextY = 0;
               resizeGuides.y = 0;
-            } else if (movesBottom && Math.abs(nextY + nextHeight - canvasSize.height) <= snapThreshold) {
+            } else if (movesBottom && point.y >= canvasSize.height - snapThreshold) {
               nextHeight = canvasSize.height - nextY;
               resizeGuides.y = canvasSize.height;
             }
