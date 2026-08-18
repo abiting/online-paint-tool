@@ -94,12 +94,6 @@
 
 @layer base {
   * { @apply border-border outline-ring/50; box-sizing: border-box; }
-  html, body, #root {
-    width: 100%;
-    min-height: 100%;
-    margin: 0;
-    padding: 0;
-  }
   body {
     @apply bg-background text-foreground;
     margin: 0;
@@ -119,7 +113,6 @@ button, input, textarea, select { font: inherit; }
 button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-visible, [role="button"]:focus-visible { outline: 2px solid #e4513b; outline-offset: 3px; }
 
 .studio-app {
-  width: 100%;
   min-height: 100vh;
   background: #2a2924 url("/manus-storage/workbench-paper-texture_df8fcf94.png") center / cover fixed;
   color: #f5f0e5;
