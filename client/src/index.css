@@ -317,7 +317,11 @@ kbd { min-width: 19px; padding: 3px 4px; text-align: center; color: #aab1aa; bac
 .product-footnote p { margin: 4px 0 0; color: #7f8882; font: 9px "IBM Plex Mono", "Noto Sans TC", monospace; line-height: 1.58; }
 .product-footer-meta { flex: 0 0 auto; margin-left: auto; }
 .product-copyright { margin: 0; color: #66716d; font: 9px "IBM Plex Mono", monospace; white-space: nowrap; }
-.app-version-corner { position: fixed; z-index: 16; right: 13px; bottom: 10px; color: rgba(142, 152, 146, 0.56); pointer-events: none; font: 8px "IBM Plex Mono", monospace; letter-spacing: 0.08em; }
+.app-version-corner { position: fixed; z-index: 16; right: 13px; bottom: 10px; display: inline-flex; align-items: center; gap: 6px; }
+.app-version-label { color: rgba(142, 152, 146, 0.56); pointer-events: none; font: 8px "IBM Plex Mono", monospace; letter-spacing: 0.08em; }
+.startupbase-badge { display: inline-flex; align-items: center; line-height: 0; opacity: 0.72; transition: opacity 160ms var(--ease-out), transform 160ms var(--ease-out); }
+.startupbase-badge:hover, .startupbase-badge:focus-visible { opacity: 1; transform: translateY(-1px); }
+.startupbase-badge img { display: block; width: auto; height: 24px; }
 .project-reset-menu-item { margin-top: 5px; color: #e57b72 !important; border-top: 1px solid rgba(228,81,59,0.22); border-radius: 0; }
 .project-reset-menu-item:hover, .project-reset-menu-item:focus { color: #fff6ea !important; background: rgba(183,47,52,0.26) !important; }
 .alert-dialog-footer { gap: 12px !important; }
