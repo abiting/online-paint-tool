@@ -2176,6 +2176,7 @@ export default function Home() {
         return;
       }
       if (imageResize) {
+        let resizeGuides: SnapGuides = { x: null, y: null };
         const nextImages = imagesRef.current.map((image) => {
           if (image.id !== imageResize.id) return image;
           const deltaX = point.x - imageResize.startPointX;
@@ -2203,8 +2204,27 @@ export default function Home() {
           const centerY = imageResize.startY + imageResize.startHeight / 2;
           nextWidth = clamp(nextWidth, 60, Number.POSITIVE_INFINITY);
           nextHeight = clamp(nextHeight, 60, Number.POSITIVE_INFINITY);
-          const nextX = event.altKey ? centerX - nextWidth / 2 : movesLeft ? imageResize.startX + imageResize.startWidth - nextWidth : imageResize.startX;
-          const nextY = event.altKey ? centerY - nextHeight / 2 : movesTop ? imageResize.startY + imageResize.startHeight - nextHeight : imageResize.startY;
+          let nextX = event.altKey ? centerX - nextWidth / 2 : movesLeft ? imageResize.startX + imageResize.startWidth - nextWidth : imageResize.startX;
+          let nextY = event.altKey ? centerY - nextHeight / 2 : movesTop ? imageResize.startY + imageResize.startHeight - nextHeight : imageResize.startY;
+          if (!event.altKey) {
+            const snapThreshold = 8 / Math.max(0.25, zoom / 100);
+            if (movesLeft && Math.abs(nextX) <= snapThreshold) {
+              nextWidth += nextX;
+              nextX = 0;
+              resizeGuides.x = 0;
+            } else if (movesRight && Math.abs(nextX + nextWidth - canvasSize.width) <= snapThreshold) {
+              nextWidth = canvasSize.width - nextX;
+              resizeGuides.x = canvasSize.width;
+            }
+            if (movesTop && Math.abs(nextY) <= snapThreshold) {
+              nextHeight += nextY;
+              nextY = 0;
+              resizeGuides.y = 0;
+            } else if (movesBottom && Math.abs(nextY + nextHeight - canvasSize.height) <= snapThreshold) {
+              nextHeight = canvasSize.height - nextY;
+              resizeGuides.y = canvasSize.height;
+            }
+          }
           return {
             ...image,
             width: nextWidth,
@@ -2213,6 +2233,7 @@ export default function Home() {
             y: nextY,
           };
         });
+        setSnapGuides((current) => current.x === resizeGuides.x && current.y === resizeGuides.y ? current : resizeGuides);
         scheduleImages(nextImages);
         return;
       }
@@ -3631,7 +3652,7 @@ export default function Home() {
     if (isPaintLayerLocked(image.paintLayerId)) return;
     if (imageEditingId !== image.id) return;
     event.currentTarget.setPointerCapture(event.pointerId);
-    const point = getCanvasPoint(event.clientX, event.clientY);
+    const point = getCanvasPoint(event.clientX, event.clientY, true);
     setSelectedImageId(image.id);
     setSelectedTextId(null);
     setSelectedShapeId(null);
