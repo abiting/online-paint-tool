@@ -51,7 +51,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { jsPDF } from "jspdf";
-import { toCanvas } from "html-to-image";
+import { toCanvas, toSvg } from "html-to-image";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 
@@ -3482,6 +3482,34 @@ export default function Home() {
       try { return await loadImageElement(image.src); } catch { return null; }
     }));
     const imageElements = new Map(imagesRef.current.map((image, index) => [image.id, loadedImages[index]]));
+    const renderedTexts = await Promise.all(layersRef.current.map(async (layer) => {
+      const element = textLayerElementsRef.current.get(layer.id);
+      if (!element) return [layer.id, null] as const;
+      try {
+        const width = Math.max(1, element.offsetWidth);
+        const height = Math.max(1, element.offsetHeight);
+        const svgDataUrl = await toSvg(element, {
+          width,
+          height,
+          cacheBust: true,
+          style: {
+            left: "0",
+            top: "0",
+            transform: "none",
+            outline: "none",
+            outlineOffset: "0",
+            filter: "none",
+            opacity: "1",
+            background: "transparent",
+          },
+          filter: (node) => !(node instanceof HTMLElement) || !node.matches(".text-resize-handle"),
+        });
+        return [layer.id, { element: await loadImageElement(svgDataUrl), width, height }] as const;
+      } catch {
+        return [layer.id, null] as const;
+      }
+    }));
+    const textElements = new Map(renderedTexts);
     const renderQueue = [
       ...strokesRef.current.map((stroke, index) => ({ type: "stroke" as const, item: stroke, stackOrder: getMaterialStackOrder("stroke", stroke, index) })),
       ...imagesRef.current.map((image, index) => ({ type: "image" as const, item: image, stackOrder: getMaterialStackOrder("image", image, index) })),
@@ -3501,18 +3529,18 @@ export default function Home() {
       return maxX < minX || maxY < minY ? null : { centerX: (minX + maxX + 1) / 2, centerY: (minY + maxY + 1) / 2 };
     };
 
-    renderQueue.forEach((entry) => {
-      if (isPaintLayerLocked(entry.item.paintLayerId)) return;
+    for (const entry of renderQueue) {
+      if (isPaintLayerLocked(entry.item.paintLayerId)) continue;
       if (entry.type === "stroke") {
         context.save();
         context.globalAlpha = adjustments.opacity / 100;
         renderBrushStroke(context, entry.item);
         context.restore();
-        return;
+        continue;
       }
       if (entry.type === "image") {
         const imageElement = imageElements.get(entry.item.id);
-        if (!imageElement) return;
+        if (!imageElement) continue;
         const crop = entry.item.crop ?? FULL_IMAGE_CROP;
         context.save();
         context.globalAlpha = (adjustments.opacity / 100) * (entry.item.opacity / 100);
@@ -3525,13 +3553,23 @@ export default function Home() {
         }
         context.drawImage(imageElement, imageElement.naturalWidth * crop.x, imageElement.naturalHeight * crop.y, imageElement.naturalWidth * crop.width, imageElement.naturalHeight * crop.height, -entry.item.width / 2, -entry.item.height / 2, entry.item.width, entry.item.height);
         context.restore();
-        return;
+        continue;
       }
       if (entry.type === "text") {
+        const renderedText = textElements.get(entry.item.id);
+        if (renderedText) {
+          context.save();
+          context.globalAlpha = (adjustments.opacity / 100) * (entry.item.opacity / 100);
+          context.filter = makeAdjustmentFilter(entry.item.exposure, entry.item.contrast, entry.item.saturation, entry.item.vibrancy);
+          if (entry.item.shadowOpacity > 0) { context.shadowColor = `rgba(0, 0, 0, ${entry.item.shadowOpacity / 100})`; context.shadowBlur = 14; }
+          context.drawImage(renderedText.element, entry.item.x, entry.item.y, renderedText.width, renderedText.height);
+          context.restore();
+          continue;
+        }
         const textRaster = document.createElement("canvas");
         textRaster.width = output.width; textRaster.height = output.height;
         const textContext = textRaster.getContext("2d");
-        if (!textContext) return;
+        if (!textContext) continue;
         textContext.font = `${entry.item.fontWeight} ${entry.item.fontSize}px "${entry.item.fontFamily}", "Noto Sans TC", sans-serif`;
         textContext.textBaseline = "alphabetic";
         textContext.lineJoin = "round";
@@ -3558,7 +3596,7 @@ export default function Home() {
         if (entry.item.shadowOpacity > 0) { context.shadowColor = `rgba(0, 0, 0, ${entry.item.shadowOpacity / 100})`; context.shadowBlur = 14; }
         context.drawImage(textRaster, offsetX, offsetY);
         context.restore();
-        return;
+        continue;
       }
       const shape = entry.item;
       context.save();
@@ -3582,7 +3620,7 @@ export default function Home() {
         context.fill(); if (shape.outlineWidth > 0) context.stroke();
       }
       context.restore();
-    });
+    }
     return output;
   };
 
