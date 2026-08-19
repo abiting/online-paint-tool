@@ -3467,17 +3467,89 @@ export default function Home() {
     const target = canvasContentRef.current;
     if (!target) throw new Error("Canvas workspace unavailable");
     await document.fonts?.ready;
+    const renderableTextLayers = layersRef.current
+      .filter((layer) => !isPaintLayerLocked(layer.paintLayerId))
+      .map((layer, index) => ({ layer, order: getMaterialStackOrder("text", layer, index) }))
+      .sort((left, right) => left.order - right.order)
+      .map(({ layer }) => layer);
+    const findVisibleBounds = (canvas: HTMLCanvasElement) => {
+      const context = canvas.getContext("2d");
+      if (!context) return null;
+      const pixels = context.getImageData(0, 0, canvas.width, canvas.height).data;
+      let minX = canvas.width;
+      let minY = canvas.height;
+      let maxX = -1;
+      let maxY = -1;
+      for (let y = 0; y < canvas.height; y += 1) {
+        for (let x = 0; x < canvas.width; x += 1) {
+          if (pixels[(y * canvas.width + x) * 4 + 3] < 16) continue;
+          minX = Math.min(minX, x);
+          minY = Math.min(minY, y);
+          maxX = Math.max(maxX, x);
+          maxY = Math.max(maxY, y);
+        }
+      }
+      return maxX < minX || maxY < minY
+        ? null
+        : { centerX: (minX + maxX + 1) / 2, centerY: (minY + maxY + 1) / 2 };
+    };
     target.classList.add("is-exporting");
     try {
-      return await toCanvas(target, {
+      const output = await toCanvas(target, {
         backgroundColor: "#fffcf4",
         width: canvasSize.width,
         height: canvasSize.height,
         pixelRatio: 1,
         cacheBust: true,
-        skipFonts: true,
         filter: (node) => !(node instanceof HTMLElement) || !node.matches(".shape-control-layer, .text-resize-handle, .image-resize-handle, .image-rotation-handle, .image-rotation-stem, .image-rotation-label, .shape-control-handle, .shape-control-rotation-handle, .shape-control-rotation-stem, .shape-control-rotation-label, .snap-guide, .bleed-guide, .image-crop-preview, .canvas-empty-note"),
       });
+      const context = output.getContext("2d");
+      if (!context) throw new Error("Export canvas context unavailable");
+
+      renderableTextLayers.forEach((layer) => {
+        const textRaster = document.createElement("canvas");
+        textRaster.width = output.width;
+        textRaster.height = output.height;
+        const textContext = textRaster.getContext("2d");
+        if (!textContext) return;
+        textContext.font = `${layer.fontWeight} ${layer.fontSize}px "${layer.fontFamily}", "Noto Sans TC", sans-serif`;
+        textContext.textAlign = "left";
+        textContext.textBaseline = "alphabetic";
+        textContext.lineJoin = "round";
+        textContext.lineWidth = layer.outlineWidth ?? 0;
+        textContext.fillStyle = layer.color;
+        textContext.strokeStyle = makeOutlineColor(layer.outlineColor ?? "#FFFDF8", layer.outlineExposure, layer.outlineContrast, layer.outlineSaturation, layer.outlineVibrancy, layer.outlineOpacity);
+        const lineHeight = layer.fontSize * 1.12;
+        const metrics = textContext.measureText("Mg");
+        const fontAscent = metrics.fontBoundingBoxAscent || layer.fontSize * 0.82;
+        const fontDescent = metrics.fontBoundingBoxDescent || layer.fontSize * 0.18;
+        const firstBaseline = layer.y + 2 + (lineHeight - fontAscent - fontDescent) / 2 + fontAscent;
+        layer.text.split("\n").forEach((line, index) => {
+          const baselineY = firstBaseline + lineHeight * index;
+          if ((layer.outlineWidth ?? 0) > 0) textContext.strokeText(line, layer.x + 4, baselineY);
+          textContext.fillText(line, layer.x + 4, baselineY);
+        });
+        const rasterBounds = findVisibleBounds(textRaster);
+        const attachedShape = layer.anchorShapeId
+          ? shapesRef.current.find((shape) => shape.id === layer.anchorShapeId)
+          : null;
+        const offsetX = attachedShape && rasterBounds
+          ? attachedShape.x + attachedShape.width / 2 - rasterBounds.centerX
+          : 0;
+        const offsetY = attachedShape && rasterBounds
+          ? attachedShape.y + attachedShape.height / 2 - rasterBounds.centerY
+          : 0;
+        context.save();
+        context.globalAlpha = layer.opacity / 100;
+        context.filter = makeAdjustmentFilter(layer.exposure, layer.contrast, layer.saturation, layer.vibrancy);
+        if (layer.shadowOpacity > 0) {
+          context.shadowColor = `rgba(0, 0, 0, ${layer.shadowOpacity / 100})`;
+          context.shadowBlur = 14;
+        }
+        context.drawImage(textRaster, offsetX, offsetY);
+        context.restore();
+      });
+      return output;
     } finally {
       target.classList.remove("is-exporting");
     }
@@ -4819,7 +4891,7 @@ export default function Home() {
                   {layers.map((layer, index) => (
                     <div
                       key={layer.id}
-                      className={`text-layer ${selectedTextId === layer.id ? "is-selected" : ""} ${isPaintLayerLocked(layer.paintLayerId) ? "is-locked" : ""}`}
+                      className={`text-layer ${selectedTextId === layer.id ? "is-selected" : ""} ${(layer.outlineWidth ?? 0) > 0 ? "has-outline" : ""} ${isPaintLayerLocked(layer.paintLayerId) ? "is-locked" : ""}`}
                       ref={(element) => {
                         if (element) textLayerElementsRef.current.set(layer.id, element);
                         else textLayerElementsRef.current.delete(layer.id);
@@ -4840,6 +4912,9 @@ export default function Home() {
                         ].filter((value) => value && value !== "none").join(" ") || "none",
                         WebkitTextStroke: (layer.outlineWidth ?? 0) > 0 ? `${layer.outlineWidth}px ${makeOutlineColor(layer.outlineColor ?? "#FFFDF8", layer.outlineExposure, layer.outlineContrast, layer.outlineSaturation, layer.outlineVibrancy, layer.outlineOpacity)}` : "0 transparent",
                         paintOrder: "stroke fill",
+                        "--export-text-outline-width": `${layer.outlineWidth ?? 0}px`,
+                        "--export-text-outline-negative-width": `-${layer.outlineWidth ?? 0}px`,
+                        "--export-text-outline-color": makeOutlineColor(layer.outlineColor ?? "#FFFDF8", layer.outlineExposure, layer.outlineContrast, layer.outlineSaturation, layer.outlineVibrancy, layer.outlineOpacity),
                         "--text-control-scale": 100 / zoom,
                       } as CSSProperties}
                       onPointerDown={(event) => handleTextPointerDown(event, layer)}
