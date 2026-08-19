@@ -4890,7 +4890,7 @@ export default function Home() {
             <div className="product-footer-meta">
               <p className="product-copyright">Copyright © 2026 <a href={isEnglish ? "/en" : "/"}>AbiPaint</a></p>
               <div className="product-build-meta" aria-label="AbiPaint version 1.0.0">
-                <span className="product-version-label">v1.0.0</span>
+                <a className="product-version-label" href="https://abiting.cc/abipaint" target="_blank" rel="noopener noreferrer">v1.0.0</a>
                 <a
                   className="startupbase-badge"
                   href="https://startupbase.io/products/abipaint?utm_source=startupbase&utm_medium=badge&utm_campaign=launch-badge-light"
