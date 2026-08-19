@@ -2678,6 +2678,18 @@ export default function Home() {
     }
   };
 
+  const handleCanvasBlankPointerDown = (event: ReactPointerEvent<HTMLDivElement>) => {
+    if (event.target !== event.currentTarget) return;
+    setSelectedStrokeId(null);
+    setSelectedTextId(null);
+    setSelectedShapeId(null);
+    setSelectedImageId(null);
+    setEditingTextId(null);
+    setImageEditingId(null);
+    setCropDraft(null);
+    setSnapGuides({ x: null, y: null });
+  };
+
   const handleCanvasPointerMove = (event: ReactPointerEvent<HTMLCanvasElement>) => {
     if (!isDrawing || !lastPointRef.current) return;
     const point = getCanvasPoint(event.clientX, event.clientY);
@@ -4595,7 +4607,7 @@ export default function Home() {
                   transform: `scale(${zoom / 100})`,
                 }}
               >
-                <div className="canvas-content">
+                <div className="canvas-content" onPointerDown={handleCanvasBlankPointerDown}>
                   <canvas
                     ref={canvasRef}
                     style={{ filter: canvasFilter, opacity: adjustments.opacity / 100, pointerEvents: tool === "brush" ? "auto" : "none" }}
