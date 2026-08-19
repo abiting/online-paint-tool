@@ -293,6 +293,11 @@ kbd { min-width: 19px; padding: 3px 4px; text-align: center; color: #aab1aa; bac
 .stroke-layer .stroke-hit-area { stroke: transparent; fill: transparent; pointer-events: stroke; cursor: move; }
 .stroke-layer.is-selected .stroke-visible { filter: drop-shadow(0 0 3px rgba(228,81,59,0.9)); }
 .text-layer.is-selected { outline: 1px dashed #e4513b; outline-offset: 6px; }
+.canvas-content.is-exporting .text-layer.is-selected,
+.canvas-content.is-exporting .shape-layer.is-selected,
+.canvas-content.is-exporting .image-layer.is-selected,
+.canvas-content.is-exporting .text-layer[contenteditable="true"] { outline: none !important; background: transparent !important; }
+.canvas-content.is-exporting .stroke-layer.is-selected .stroke-visible { filter: none; }
 .text-layer[contenteditable="true"] { min-width: 120px; cursor: text; user-select: text; outline: 1px solid rgba(228,81,59,0.82); outline-offset: 6px; background: rgba(255,253,248,0.1); }
 .text-layer-tag { position: absolute; left: -1px; top: calc(100% + 8px); padding: 3px 5px; color: #fff6ea; background: #e4513b; font: 8px "IBM Plex Mono", monospace; letter-spacing: 0.08em; }
 .text-resize-handle { position: absolute; z-index: 3; width: 12px; height: 12px; margin: -6px; box-sizing: border-box; border: 1.5px solid #e4513b; background: #fff8ec; cursor: nwse-resize; pointer-events: auto; transform: scale(var(--text-control-scale, 1)); transform-origin: center; }

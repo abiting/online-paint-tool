@@ -2754,9 +2754,7 @@ export default function Home() {
     }
   };
 
-  const handleCanvasBlankPointerDown = (event: ReactPointerEvent<HTMLDivElement>) => {
-    const target = event.target as HTMLElement;
-    if (target.closest(".image-layer, .shape-layer, .stroke-layer, .text-layer, .shape-control-layer, .text-resize-handle, .image-resize-handle, .image-rotation-handle, .shape-control-handle, .shape-control-rotation-handle")) return;
+  const clearSelectedObjects = () => {
     setSelectedStrokeId(null);
     setSelectedTextId(null);
     setSelectedShapeId(null);
@@ -2765,6 +2763,12 @@ export default function Home() {
     setImageEditingId(null);
     setCropDraft(null);
     setSnapGuides({ x: null, y: null });
+  };
+
+  const handleCanvasBlankPointerDown = (event: ReactPointerEvent<HTMLDivElement>) => {
+    const target = event.target as HTMLElement;
+    if (target.closest(".image-layer, .shape-layer, .stroke-layer, .text-layer, .shape-control-layer, .text-resize-handle, .image-resize-handle, .image-rotation-handle, .shape-control-handle, .shape-control-rotation-handle")) return;
+    clearSelectedObjects();
   };
 
   const handleCanvasPointerMove = (event: ReactPointerEvent<HTMLCanvasElement>) => {
@@ -3463,15 +3467,20 @@ export default function Home() {
     const target = canvasContentRef.current;
     if (!target) throw new Error("Canvas workspace unavailable");
     await document.fonts?.ready;
-    return toCanvas(target, {
-      backgroundColor: "#fffcf4",
-      width: canvasSize.width,
-      height: canvasSize.height,
-      pixelRatio: 1,
-      cacheBust: true,
-      skipFonts: true,
-      filter: (node) => !(node instanceof HTMLElement) || !node.matches(".shape-control-layer, .text-resize-handle, .snap-guide, .bleed-guide, .image-crop-preview, .canvas-empty-note"),
-    });
+    target.classList.add("is-exporting");
+    try {
+      return await toCanvas(target, {
+        backgroundColor: "#fffcf4",
+        width: canvasSize.width,
+        height: canvasSize.height,
+        pixelRatio: 1,
+        cacheBust: true,
+        skipFonts: true,
+        filter: (node) => !(node instanceof HTMLElement) || !node.matches(".shape-control-layer, .text-resize-handle, .image-resize-handle, .image-rotation-handle, .image-rotation-stem, .image-rotation-label, .shape-control-handle, .shape-control-rotation-handle, .shape-control-rotation-stem, .shape-control-rotation-label, .snap-guide, .bleed-guide, .image-crop-preview, .canvas-empty-note"),
+      });
+    } finally {
+      target.classList.remove("is-exporting");
+    }
   };
 
   const exportImage = async (format: ExportFormat = "png") => {
@@ -3784,7 +3793,8 @@ export default function Home() {
   const handleViewportPointerDown = (event: ReactPointerEvent<HTMLDivElement>) => {
     event.preventDefault();
     const target = event.target as HTMLElement;
-    if (target.closest("canvas, .canvas-content, .canvas-shell, .canvas-shell-outer, .image-layer, .shape-layer, .text-layer, .stroke-layer")) return;
+    if (target.closest("canvas, .canvas-content, .canvas-shell, .image-layer, .shape-layer, .text-layer, .stroke-layer")) return;
+    clearSelectedObjects();
     if (event.pointerType === "touch") {
       touchPointsRef.current.set(event.pointerId, { x: event.clientX, y: event.clientY });
       event.currentTarget.setPointerCapture(event.pointerId);
