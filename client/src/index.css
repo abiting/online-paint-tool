@@ -118,7 +118,7 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
   color: #f5f0e5;
   letter-spacing: 0.01em;
 }
-.topbar { height: 74px; display: flex; align-items: center; justify-content: space-between; gap: 24px; padding: 0 24px 0 22px; border-bottom: 1px solid rgba(227, 213, 187, 0.17); background: rgba(36, 34, 29, 0.9); backdrop-filter: blur(18px); }
+.topbar { height: 74px; display: flex; align-items: center; justify-content: space-between; gap: 24px; padding: 0 24px 0 22px; border-bottom: 1px solid rgba(227, 213, 187, 0.17); background: linear-gradient(90deg, rgba(42,39,32,0.96), rgba(33,32,27,0.93)), repeating-linear-gradient(90deg, rgba(255,255,255,0.012) 0 1px, transparent 1px 5px); backdrop-filter: blur(18px); }
 .brand-lockup, .top-actions, .document-meta, .workspace-actions, .active-tool-name, .brush-context, .footer-note, .color-row, .range-heading, .canvas-meta, .remove-bg-heading, .select-row { display: flex; align-items: center; }
 .brand-lockup { gap: 10px; min-width: 220px; }
 .brand-mark { width: 36px; height: 36px; display: grid; place-items: center; border: 1px solid rgba(255,255,255,0.25); background: #f5eee0; border-radius: 100%; overflow: hidden; box-shadow: 0 7px 18px rgba(0,0,0,0.2); }
@@ -273,7 +273,7 @@ kbd { min-width: 19px; padding: 3px 4px; text-align: center; color: #aab1aa; bac
 .ghost-button { display: grid; place-items: center; width: 28px; height: 28px; color: #929b96; background: transparent; border-radius: 5px; }
 .ghost-button:hover { color: #f3ede0; background: rgba(245,240,229,0.08); }
 .zoom-value { min-width: 39px; text-align: center; color: #c7c7bd; font: 11px "IBM Plex Mono", monospace; }
-.canvas-viewport { position: relative; flex: 1; min-height: 0; display: block; padding: 0; overflow: hidden; cursor: grab; touch-action: none; background-color: rgba(55, 53, 45, 0.72); background-image: linear-gradient(rgba(238,222,190,0.045) 1px, transparent 1px), linear-gradient(90deg, rgba(238,222,190,0.045) 1px, transparent 1px), radial-gradient(circle at 25% 20%, rgba(255,247,226,0.035), transparent 34%); background-size: 20px 20px, 20px 20px, auto; }
+.canvas-viewport { position: relative; flex: 1; min-height: 0; display: block; padding: 0; overflow: hidden; cursor: grab; touch-action: none; background-color: rgba(55,53,45,0.72); background-image: linear-gradient(rgba(238,222,190,0.052) 1px, transparent 1px), linear-gradient(90deg, rgba(238,222,190,0.052) 1px, transparent 1px), linear-gradient(rgba(228,81,59,0.035) 1px, transparent 1px), linear-gradient(90deg, rgba(228,81,59,0.035) 1px, transparent 1px), radial-gradient(circle at 25% 20%, rgba(255,247,226,0.04), transparent 34%); background-size: 20px 20px, 20px 20px, 100px 100px, 100px 100px, auto; }
 .canvas-viewport.is-panning { cursor: grabbing; }
 .canvas-viewport::before, .canvas-viewport::after { content: ""; position: absolute; width: 28px; height: 28px; border-color: rgba(227,213,187,0.25); pointer-events: none; }
 .canvas-viewport::before { top: 18px; left: 18px; border-top: 1px solid; border-left: 1px solid; }
@@ -283,9 +283,11 @@ kbd { min-width: 19px; padding: 3px 4px; text-align: center; color: #aab1aa; bac
 .stage-note-bottom { right: 28px; bottom: 28px; }
 .canvas-shell-outer { position: absolute; left: 0; top: 0; flex: none; }
 .canvas-shell { position: absolute; left: 0; top: 0; transform-origin: top left; box-shadow: 0 16px 30px rgba(9,13,14,0.28), 0 3px 8px rgba(9,13,14,0.14); }
+.canvas-shell::before { content: ""; position: absolute; z-index: 7; inset: -9px; pointer-events: none; background: linear-gradient(#d9d0bd,#d9d0bd) left top / 25px 1px no-repeat, linear-gradient(#d9d0bd,#d9d0bd) left top / 1px 25px no-repeat, linear-gradient(#d9d0bd,#d9d0bd) right top / 25px 1px no-repeat, linear-gradient(#d9d0bd,#d9d0bd) right top / 1px 25px no-repeat, linear-gradient(#d9d0bd,#d9d0bd) left bottom / 25px 1px no-repeat, linear-gradient(#d9d0bd,#d9d0bd) left bottom / 1px 25px no-repeat, linear-gradient(#d9d0bd,#d9d0bd) right bottom / 25px 1px no-repeat, linear-gradient(#d9d0bd,#d9d0bd) right bottom / 1px 25px no-repeat; opacity: 0.62; }
 .canvas-content { position: relative; width: 100%; height: 100%; transform-origin: center; }
 .canvas-content canvas { display: block; width: 100%; height: 100%; cursor: crosshair; touch-action: none; background: #fffcf4; }
 .text-layer { position: absolute; min-width: 48px; min-height: 1.2em; padding: 2px 4px; white-space: pre-wrap; line-height: 1.12; cursor: move; user-select: none; transform-origin: top left; will-change: transform; contain: layout paint; backface-visibility: hidden; }
+.text-layer-raster { display: block; width: 100%; height: 100%; object-fit: fill; pointer-events: none; user-select: none; -webkit-user-drag: none; }
 .shape-layer { user-select: none; -webkit-user-select: none; touch-action: none; cursor: move; will-change: transform; contain: layout paint; backface-visibility: hidden; }
 .stroke-layer { position: absolute; left: 0; top: 0; overflow: visible; user-select: none; -webkit-user-select: none; touch-action: none; cursor: move; }
 .stroke-layer.is-draft { pointer-events: none; }

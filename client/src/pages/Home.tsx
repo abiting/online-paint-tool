@@ -51,7 +51,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { jsPDF } from "jspdf";
-import { toCanvas, toSvg } from "html-to-image";
+import { toCanvas } from "html-to-image";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 
@@ -275,6 +275,9 @@ type TextLayer = OutlineAdjustments & {
   outlineColor?: string;
   fontFamily: "Noto Sans TC" | "Noto Serif TC" | "LXGW WenKai TC" | "PMingLiU" | "Arial" | "DM Sans" | "IBM Plex Mono" | "Kaisei Decol" | "Klee One" | "Kosugi Maru" | "M PLUS Rounded 1c" | "Shippori Mincho" | "Times New Roman" | "Yomogi" | "Zen Kaku Gothic New";
   anchorShapeId?: string;
+  rasterDataUrl?: string;
+  rasterWidth?: number;
+  rasterHeight?: number;
 };
 
 type ShapeLayer = OutlineAdjustments & {
@@ -1242,7 +1245,7 @@ export default function Home() {
   const imagesRef = useRef<ImageLayer[]>([]);
   const strokesRef = useRef<BrushStroke[]>([]);
   const textLayerElementsRef = useRef(new Map<string, HTMLDivElement>());
-  const textExportSnapshotCacheRef = useRef(new Map<string, { key: string; element: HTMLImageElement; width: number; height: number }>());
+  const textRasterTimersRef = useRef(new Map<string, number>());
   const projectImportInputRef = useRef<HTMLInputElement>(null);
   const isProjectHydratedRef = useRef(false);
   const autosaveTimerRef = useRef<number | null>(null);
@@ -1763,6 +1766,67 @@ export default function Home() {
       })();
     });
   };
+
+  const rasterizeTextLayer = useCallback((textId: string) => {
+    const previousTimer = textRasterTimersRef.current.get(textId);
+    if (previousTimer) window.clearTimeout(previousTimer);
+    const timer = window.setTimeout(() => {
+      textRasterTimersRef.current.delete(textId);
+      const layer = layersRef.current.find((item) => item.id === textId);
+      const element = textLayerElementsRef.current.get(textId);
+      if (!layer || !element || editingTextId === textId) return;
+      const width = Math.max(1, element.offsetWidth);
+      const height = Math.max(1, element.offsetHeight);
+      const scale = 2;
+      const raster = document.createElement("canvas");
+      raster.width = Math.ceil(width * scale);
+      raster.height = Math.ceil(height * scale);
+      const rasterContext = raster.getContext("2d");
+      if (!rasterContext) return;
+      rasterContext.scale(scale, scale);
+      rasterContext.font = `${layer.fontWeight} ${layer.fontSize}px "${layer.fontFamily}", "Noto Sans TC", sans-serif`;
+      rasterContext.textBaseline = "alphabetic";
+      rasterContext.lineJoin = "round";
+      rasterContext.fillStyle = layer.color;
+      rasterContext.strokeStyle = makeOutlineColor(layer.outlineColor ?? "#FFFDF8", layer.outlineExposure, layer.outlineContrast, layer.outlineSaturation, layer.outlineVibrancy, layer.outlineOpacity);
+      rasterContext.lineWidth = layer.outlineWidth ?? 0;
+      const metrics = rasterContext.measureText("Mg");
+      const ascent = metrics.fontBoundingBoxAscent || layer.fontSize * 0.82;
+      const descent = metrics.fontBoundingBoxDescent || layer.fontSize * 0.18;
+      const lineHeight = layer.fontSize * 1.12;
+      const firstBaseline = 2 + (lineHeight - ascent - descent) / 2 + ascent;
+      layer.text.split("\n").forEach((line, index) => {
+        const baselineY = firstBaseline + lineHeight * index;
+        if ((layer.outlineWidth ?? 0) > 0) rasterContext.strokeText(line, 4, baselineY);
+        rasterContext.fillText(line, 4, baselineY);
+      });
+      const imageData = rasterContext.getImageData(0, 0, raster.width, raster.height).data;
+      let minX = raster.width; let minY = raster.height; let maxX = -1; let maxY = -1;
+      for (let y = 0; y < raster.height; y += 1) for (let x = 0; x < raster.width; x += 1) {
+        if (imageData[(y * raster.width + x) * 4 + 3] < 16) continue;
+        minX = Math.min(minX, x); minY = Math.min(minY, y); maxX = Math.max(maxX, x); maxY = Math.max(maxY, y);
+      }
+      const anchorShape = layer.anchorShapeId ? shapesRef.current.find((shape) => shape.id === layer.anchorShapeId) : undefined;
+      const nextX = anchorShape && maxX >= minX ? anchorShape.x + anchorShape.width / 2 - (minX + maxX + 1) / (2 * scale) : layer.x;
+      const nextY = anchorShape && maxY >= minY ? anchorShape.y + anchorShape.height / 2 - (minY + maxY + 1) / (2 * scale) : layer.y;
+      const dataUrl = raster.toDataURL("image/png");
+      syncLayers(layersRef.current.map((item) => item.id === textId ? {
+        ...item,
+        x: nextX,
+        y: nextY,
+        rasterDataUrl: dataUrl,
+        rasterWidth: width,
+        rasterHeight: height,
+      } : item));
+    }, 80);
+    textRasterTimersRef.current.set(textId, timer);
+  }, [editingTextId, syncLayers]);
+
+  useEffect(() => {
+    layers.forEach((layer) => {
+      if (!layer.rasterDataUrl && editingTextId !== layer.id) rasterizeTextLayer(layer.id);
+    });
+  }, [layers, editingTextId, rasterizeTextLayer]);
 
   const captureHistory = useCallback((guide = bleedGuide) => {
     const canvas = canvasRef.current;
@@ -2810,8 +2874,13 @@ export default function Home() {
     if (!selectedTextId) return;
     const selectedLayer = layersRef.current.find((layer) => layer.id === selectedTextId);
     if (!selectedLayer || isPaintLayerLocked(selectedLayer.paintLayerId)) return;
+    const updatesPixels = ["text", "fontFamily", "fontWeight", "fontSize", "color", "outlineColor", "outlineWidth", "outlineExposure", "outlineContrast", "outlineSaturation", "outlineVibrancy", "outlineOpacity"].some((key) => key in patch);
     const nextLayers = layersRef.current.map((layer) =>
-      layer.id === selectedTextId ? { ...layer, ...patch } : layer,
+      layer.id === selectedTextId ? {
+        ...layer,
+        ...patch,
+        ...(updatesPixels ? { rasterDataUrl: undefined, rasterWidth: undefined, rasterHeight: undefined } : {}),
+      } : layer,
     );
     syncLayers(nextLayers);
     const updatedLayer = nextLayers.find((layer) => layer.id === selectedTextId);
@@ -3484,40 +3553,11 @@ export default function Home() {
       try { return await loadImageElement(image.src); } catch { return null; }
     }));
     const imageElements = new Map(imagesRef.current.map((image, index) => [image.id, loadedImages[index]]));
-    const renderedTexts = await Promise.all(layersRef.current.map(async (layer) => {
-      const element = textLayerElementsRef.current.get(layer.id);
-      if (!element) return [layer.id, null] as const;
-      try {
-        const width = Math.max(1, element.offsetWidth);
-        const height = Math.max(1, element.offsetHeight);
-        const snapshotKey = [layer.text, layer.fontFamily, layer.fontWeight, layer.fontSize, layer.color, layer.outlineColor, layer.outlineWidth, layer.outlineOpacity, width, height].join("|");
-        const cachedSnapshot = textExportSnapshotCacheRef.current.get(layer.id);
-        if (cachedSnapshot?.key === snapshotKey) return [layer.id, cachedSnapshot] as const;
-        const svgDataUrl = await toSvg(element, {
-          width,
-          height,
-          cacheBust: false,
-          fontEmbedCSS: "",
-          style: {
-            left: "0",
-            top: "0",
-            transform: "none",
-            outline: "none",
-            outlineOffset: "0",
-            filter: "none",
-            opacity: "1",
-            background: "transparent",
-          },
-          filter: (node) => !(node instanceof HTMLElement) || !node.matches(".text-resize-handle"),
-        });
-        const snapshot = { key: snapshotKey, element: await loadImageElement(svgDataUrl), width, height };
-        textExportSnapshotCacheRef.current.set(layer.id, snapshot);
-        return [layer.id, snapshot] as const;
-      } catch {
-        return [layer.id, null] as const;
-      }
+    const loadedTextRasters = await Promise.all(layersRef.current.map(async (layer) => {
+      if (!layer.rasterDataUrl) return null;
+      try { return await loadImageElement(layer.rasterDataUrl); } catch { return null; }
     }));
-    const textElements = new Map(renderedTexts);
+    const textRasterElements = new Map(layersRef.current.map((layer, index) => [layer.id, loadedTextRasters[index]]));
     const renderQueue = [
       ...strokesRef.current.map((stroke, index) => ({ type: "stroke" as const, item: stroke, stackOrder: getMaterialStackOrder("stroke", stroke, index) })),
       ...imagesRef.current.map((image, index) => ({ type: "image" as const, item: image, stackOrder: getMaterialStackOrder("image", image, index) })),
@@ -3564,13 +3604,13 @@ export default function Home() {
         continue;
       }
       if (entry.type === "text") {
-        const renderedText = textElements.get(entry.item.id);
-        if (renderedText) {
+        const rasterElement = textRasterElements.get(entry.item.id);
+        if (rasterElement && entry.item.rasterWidth && entry.item.rasterHeight) {
           context.save();
           context.globalAlpha = (adjustments.opacity / 100) * (entry.item.opacity / 100);
           context.filter = makeAdjustmentFilter(entry.item.exposure, entry.item.contrast, entry.item.saturation, entry.item.vibrancy);
           if (entry.item.shadowOpacity > 0) { context.shadowColor = `rgba(0, 0, 0, ${entry.item.shadowOpacity / 100})`; context.shadowBlur = 14; }
-          context.drawImage(renderedText.element, entry.item.x, entry.item.y, renderedText.width, renderedText.height);
+          context.drawImage(rasterElement, entry.item.x, entry.item.y, entry.item.rasterWidth, entry.item.rasterHeight);
           context.restore();
           continue;
         }
@@ -5005,6 +5045,7 @@ export default function Home() {
                         left: 0,
                         top: 0,
                         transform: `translate3d(${layer.x}px, ${layer.y}px, 0)`,
+                        ...(layer.rasterDataUrl && editingTextId !== layer.id ? { width: `${layer.rasterWidth ?? 0}px`, height: `${layer.rasterHeight ?? 0}px`, padding: 0 } : {}),
                         zIndex: getMaterialStackOrder("text", layer, index),
                         color: hexToRgba(layer.color, layer.opacity / 100),
                         fontSize: `${layer.fontSize}px`,
@@ -5049,7 +5090,9 @@ export default function Home() {
                       tabIndex={0}
                       aria-label={`文字卡：${layer.text}`}
                     >
-                      {layer.text}
+                      {layer.rasterDataUrl && editingTextId !== layer.id ? (
+                        <img className="text-layer-raster" src={layer.rasterDataUrl} alt="" draggable={false} style={{ opacity: layer.opacity / 100 }} />
+                      ) : layer.text}
                       {selectedTextId === layer.id && editingTextId !== layer.id && !isPaintLayerLocked(layer.paintLayerId) && (
                         <>
                           <span className="text-resize-handle text-resize-handle-top-left" contentEditable={false} onPointerDown={(event) => handleTextResizePointerDown(event, layer, "top-left")} />
