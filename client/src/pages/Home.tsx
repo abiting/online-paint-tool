@@ -3464,107 +3464,145 @@ export default function Home() {
   };
 
   const renderExportCanvas = async () => {
-    const target = canvasContentRef.current;
-    if (!target) throw new Error("Canvas workspace unavailable");
+    const source = canvasRef.current;
+    if (!source) throw new Error("Canvas workspace unavailable");
     await document.fonts?.ready;
-    const renderableTextLayers = layersRef.current
-      .filter((layer) => !isPaintLayerLocked(layer.paintLayerId))
-      .map((layer, index) => ({ layer, order: getMaterialStackOrder("text", layer, index) }))
-      .sort((left, right) => left.order - right.order)
-      .map(({ layer }) => layer);
-    const findVisibleBounds = (canvas: HTMLCanvasElement) => {
-      const context = canvas.getContext("2d");
-      if (!context) return null;
-      const pixels = context.getImageData(0, 0, canvas.width, canvas.height).data;
-      let minX = canvas.width;
-      let minY = canvas.height;
-      let maxX = -1;
-      let maxY = -1;
-      for (let y = 0; y < canvas.height; y += 1) {
-        for (let x = 0; x < canvas.width; x += 1) {
-          if (pixels[(y * canvas.width + x) * 4 + 3] < 16) continue;
-          minX = Math.min(minX, x);
-          minY = Math.min(minY, y);
-          maxX = Math.max(maxX, x);
-          maxY = Math.max(maxY, y);
-        }
-      }
-      return maxX < minX || maxY < minY
-        ? null
-        : { centerX: (minX + maxX + 1) / 2, centerY: (minY + maxY + 1) / 2 };
-    };
-    target.classList.add("is-exporting");
-    try {
-      const output = await toCanvas(target, {
-        backgroundColor: "#fffcf4",
-        width: canvasSize.width,
-        height: canvasSize.height,
-        pixelRatio: 1,
-        cacheBust: true,
-        filter: (node) => !(node instanceof HTMLElement) || !node.matches(".shape-control-layer, .text-resize-handle, .image-resize-handle, .image-rotation-handle, .image-rotation-stem, .image-rotation-label, .shape-control-handle, .shape-control-rotation-handle, .shape-control-rotation-stem, .shape-control-rotation-label, .snap-guide, .bleed-guide, .image-crop-preview, .canvas-empty-note"),
-      });
-      const context = output.getContext("2d");
-      if (!context) throw new Error("Export canvas context unavailable");
+    const output = document.createElement("canvas");
+    output.width = source.width;
+    output.height = source.height;
+    const context = output.getContext("2d");
+    if (!context) throw new Error("Export canvas context unavailable");
+    context.filter = canvasFilter;
+    context.globalAlpha = adjustments.opacity / 100;
+    context.drawImage(source, 0, 0);
+    context.filter = "none";
+    context.globalAlpha = 1;
 
-      renderableTextLayers.forEach((layer) => {
-        const textRaster = document.createElement("canvas");
-        textRaster.width = output.width;
-        textRaster.height = output.height;
-        const textContext = textRaster.getContext("2d");
-        if (!textContext) return;
-        textContext.font = `${layer.fontWeight} ${layer.fontSize}px "${layer.fontFamily}", "Noto Sans TC", sans-serif`;
-        textContext.textAlign = "left";
-        textContext.textBaseline = "alphabetic";
-        textContext.lineJoin = "round";
-        textContext.lineWidth = layer.outlineWidth ?? 0;
-        textContext.fillStyle = layer.color;
-        textContext.strokeStyle = makeOutlineColor(layer.outlineColor ?? "#FFFDF8", layer.outlineExposure, layer.outlineContrast, layer.outlineSaturation, layer.outlineVibrancy, layer.outlineOpacity);
-        const lineHeight = layer.fontSize * 1.12;
-        const metrics = textContext.measureText("Mg");
-        const fontAscent = metrics.fontBoundingBoxAscent || layer.fontSize * 0.82;
-        const fontDescent = metrics.fontBoundingBoxDescent || layer.fontSize * 0.18;
-        const firstBaseline = layer.y + 2 + (lineHeight - fontAscent - fontDescent) / 2 + fontAscent;
-        layer.text.split("\n").forEach((line, index) => {
-          const baselineY = firstBaseline + lineHeight * index;
-          if ((layer.outlineWidth ?? 0) > 0) textContext.strokeText(line, layer.x + 4, baselineY);
-          textContext.fillText(line, layer.x + 4, baselineY);
-        });
-        const rasterBounds = findVisibleBounds(textRaster);
-        const attachedShape = layer.anchorShapeId
-          ? shapesRef.current.find((shape) => shape.id === layer.anchorShapeId)
-          : null;
-        const offsetX = attachedShape && rasterBounds
-          ? attachedShape.x + attachedShape.width / 2 - rasterBounds.centerX
-          : 0;
-        const offsetY = attachedShape && rasterBounds
-          ? attachedShape.y + attachedShape.height / 2 - rasterBounds.centerY
-          : 0;
+    const loadedImages = await Promise.all(imagesRef.current.map(async (image) => {
+      try { return await loadImageElement(image.src); } catch { return null; }
+    }));
+    const imageElements = new Map(imagesRef.current.map((image, index) => [image.id, loadedImages[index]]));
+    const renderQueue = [
+      ...strokesRef.current.map((stroke, index) => ({ type: "stroke" as const, item: stroke, stackOrder: getMaterialStackOrder("stroke", stroke, index) })),
+      ...imagesRef.current.map((image, index) => ({ type: "image" as const, item: image, stackOrder: getMaterialStackOrder("image", image, index) })),
+      ...shapesRef.current.map((shape, index) => ({ type: "shape" as const, item: shape, stackOrder: getMaterialStackOrder("shape", shape, index) })),
+      ...layersRef.current.map((layer, index) => ({ type: "text" as const, item: layer, stackOrder: getMaterialStackOrder("text", layer, index) })),
+    ].sort((first, second) => first.stackOrder - second.stackOrder);
+
+    const findVisibleBounds = (canvas: HTMLCanvasElement) => {
+      const rasterContext = canvas.getContext("2d");
+      if (!rasterContext) return null;
+      const pixels = rasterContext.getImageData(0, 0, canvas.width, canvas.height).data;
+      let minX = canvas.width; let minY = canvas.height; let maxX = -1; let maxY = -1;
+      for (let y = 0; y < canvas.height; y += 1) for (let x = 0; x < canvas.width; x += 1) {
+        if (pixels[(y * canvas.width + x) * 4 + 3] < 16) continue;
+        minX = Math.min(minX, x); minY = Math.min(minY, y); maxX = Math.max(maxX, x); maxY = Math.max(maxY, y);
+      }
+      return maxX < minX || maxY < minY ? null : { centerX: (minX + maxX + 1) / 2, centerY: (minY + maxY + 1) / 2 };
+    };
+
+    renderQueue.forEach((entry) => {
+      if (isPaintLayerLocked(entry.item.paintLayerId)) return;
+      if (entry.type === "stroke") {
         context.save();
-        context.globalAlpha = layer.opacity / 100;
-        context.filter = makeAdjustmentFilter(layer.exposure, layer.contrast, layer.saturation, layer.vibrancy);
-        if (layer.shadowOpacity > 0) {
-          context.shadowColor = `rgba(0, 0, 0, ${layer.shadowOpacity / 100})`;
+        context.globalAlpha = adjustments.opacity / 100;
+        renderBrushStroke(context, entry.item);
+        context.restore();
+        return;
+      }
+      if (entry.type === "image") {
+        const imageElement = imageElements.get(entry.item.id);
+        if (!imageElement) return;
+        const crop = entry.item.crop ?? FULL_IMAGE_CROP;
+        context.save();
+        context.globalAlpha = (adjustments.opacity / 100) * (entry.item.opacity / 100);
+        context.filter = makeAdjustmentFilter(entry.item.exposure, entry.item.contrast, entry.item.saturation, entry.item.vibrancy);
+        context.translate(entry.item.x + entry.item.width / 2, entry.item.y + entry.item.height / 2);
+        context.rotate((entry.item.rotation * Math.PI) / 180);
+        if (entry.item.shadowOpacity > 0) {
+          context.shadowColor = `rgba(0, 0, 0, ${entry.item.shadowOpacity / 100})`;
           context.shadowBlur = 14;
         }
+        context.drawImage(imageElement, imageElement.naturalWidth * crop.x, imageElement.naturalHeight * crop.y, imageElement.naturalWidth * crop.width, imageElement.naturalHeight * crop.height, -entry.item.width / 2, -entry.item.height / 2, entry.item.width, entry.item.height);
+        context.restore();
+        return;
+      }
+      if (entry.type === "text") {
+        const textRaster = document.createElement("canvas");
+        textRaster.width = output.width; textRaster.height = output.height;
+        const textContext = textRaster.getContext("2d");
+        if (!textContext) return;
+        textContext.font = `${entry.item.fontWeight} ${entry.item.fontSize}px "${entry.item.fontFamily}", "Noto Sans TC", sans-serif`;
+        textContext.textBaseline = "alphabetic";
+        textContext.lineJoin = "round";
+        textContext.fillStyle = entry.item.color;
+        textContext.strokeStyle = makeOutlineColor(entry.item.outlineColor ?? "#FFFDF8", entry.item.outlineExposure, entry.item.outlineContrast, entry.item.outlineSaturation, entry.item.outlineVibrancy, entry.item.outlineOpacity);
+        textContext.lineWidth = entry.item.outlineWidth ?? 0;
+        const metrics = textContext.measureText("Mg");
+        const ascent = metrics.fontBoundingBoxAscent || entry.item.fontSize * 0.82;
+        const descent = metrics.fontBoundingBoxDescent || entry.item.fontSize * 0.18;
+        const lineHeight = entry.item.fontSize * 1.12;
+        const firstBaseline = entry.item.y + 2 + (lineHeight - ascent - descent) / 2 + ascent;
+        entry.item.text.split("\n").forEach((line, index) => {
+          const baselineY = firstBaseline + lineHeight * index;
+          if ((entry.item.outlineWidth ?? 0) > 0) textContext.strokeText(line, entry.item.x + 4, baselineY);
+          textContext.fillText(line, entry.item.x + 4, baselineY);
+        });
+        const visibleBounds = findVisibleBounds(textRaster);
+        const anchorShape = entry.item.anchorShapeId ? shapesRef.current.find((shape) => shape.id === entry.item.anchorShapeId) : undefined;
+        const offsetX = anchorShape && visibleBounds ? anchorShape.x + anchorShape.width / 2 - visibleBounds.centerX : 0;
+        const offsetY = anchorShape && visibleBounds ? anchorShape.y + anchorShape.height / 2 - visibleBounds.centerY : 0;
+        context.save();
+        context.globalAlpha = (adjustments.opacity / 100) * (entry.item.opacity / 100);
+        context.filter = makeAdjustmentFilter(entry.item.exposure, entry.item.contrast, entry.item.saturation, entry.item.vibrancy);
+        if (entry.item.shadowOpacity > 0) { context.shadowColor = `rgba(0, 0, 0, ${entry.item.shadowOpacity / 100})`; context.shadowBlur = 14; }
         context.drawImage(textRaster, offsetX, offsetY);
         context.restore();
-      });
-      return output;
-    } finally {
-      target.classList.remove("is-exporting");
-    }
+        return;
+      }
+      const shape = entry.item;
+      context.save();
+      context.globalAlpha = (adjustments.opacity / 100) * (shape.opacity / 100);
+      context.filter = makeAdjustmentFilter(shape.exposure, shape.contrast, shape.saturation, shape.vibrancy);
+      if (shape.shadow && shape.shadowOpacity > 0) { context.shadowColor = hexToRgba(shape.shadowColor, shape.shadowOpacity / 100); context.shadowBlur = shape.shadowBlur; }
+      context.fillStyle = shape.fill;
+      context.strokeStyle = makeOutlineColor(shape.outline, shape.outlineExposure, shape.outlineContrast, shape.outlineSaturation, shape.outlineVibrancy, shape.outlineOpacity);
+      context.lineWidth = shape.outlineWidth;
+      context.translate(shape.x + shape.width / 2, shape.y + shape.height / 2);
+      context.rotate((shape.rotation * Math.PI) / 180);
+      if (shape.kind === "rectangle") {
+        const radius = Math.min(shape.cornerRadius, Math.min(shape.width, shape.height) / 2);
+        context.beginPath(); context.roundRect(-shape.width / 2, -shape.height / 2, shape.width, shape.height, radius); context.fill();
+        if (shape.outlineWidth > 0) { const inset = shape.outlineWidth / 2; context.beginPath(); context.roundRect(-shape.width / 2 + inset, -shape.height / 2 + inset, Math.max(0, shape.width - shape.outlineWidth), Math.max(0, shape.height - shape.outlineWidth), Math.max(0, radius - inset)); context.stroke(); }
+      } else {
+        context.beginPath();
+        if (shape.kind === "circle") context.ellipse(0, 0, shape.width / 2, shape.height / 2, 0, 0, Math.PI * 2);
+        else if (shape.kind === "heart") { const w = shape.width; const h = shape.height; const x = -w / 2; const y = -h / 2; context.moveTo(0, y + h * 0.9); context.bezierCurveTo(x + w * 0.06, y + h * 0.62, x + w * 0.12, y + h * 0.16, x + w * 0.34, y + h * 0.2); context.bezierCurveTo(x + w * 0.45, y + h * 0.22, x + w * 0.49, y + h * 0.34, 0, y + h * 0.42); context.bezierCurveTo(x + w * 0.51, y + h * 0.34, x + w * 0.55, y + h * 0.22, x + w * 0.66, y + h * 0.2); context.bezierCurveTo(x + w * 0.88, y + h * 0.16, x + w * 0.94, y + h * 0.62, 0, y + h * 0.9); context.closePath(); }
+        else { const sides = shape.kind === "triangle" ? 3 : shape.kind === "pentagon" ? 5 : 10; for (let index = 0; index < sides; index += 1) { const angle = -Math.PI / 2 + (index * Math.PI * 2) / sides; const radius = shape.kind === "star" ? (index % 2 === 0 ? 0.48 : 0.22) : 0.46; const x = Math.cos(angle) * shape.width * radius; const y = Math.sin(angle) * shape.height * radius; if (index === 0) context.moveTo(x, y); else context.lineTo(x, y); } context.closePath(); }
+        context.fill(); if (shape.outlineWidth > 0) context.stroke();
+      }
+      context.restore();
+    });
+    return output;
   };
 
   const exportImage = async (format: ExportFormat = "png") => {
     setIsExportRendering(true);
     try {
       const output = await renderExportCanvas();
-      setExportPreview({
-        url: output.toDataURL(format === "jpeg" ? "image/jpeg" : "image/png", format === "jpeg" ? 0.92 : undefined),
-        format,
-        width: output.width,
-        height: output.height,
-      });
+      const baseName = fileMeta.name.replace(/\.[^.]+$/, "") || "abipaint";
+      if (format === "pdf") {
+        const pdf = new jsPDF({ orientation: output.width >= output.height ? "landscape" : "portrait", unit: "px", format: [output.width, output.height], compress: true });
+        pdf.addImage(output.toDataURL("image/jpeg", 0.94), "JPEG", 0, 0, output.width, output.height, undefined, "FAST");
+        pdf.save(`${baseName}.pdf`);
+      } else {
+        const extension = format === "jpeg" ? "jpg" : "png";
+        const link = document.createElement("a");
+        link.download = `${baseName}.${extension}`;
+        link.href = output.toDataURL(format === "jpeg" ? "image/jpeg" : "image/png", format === "jpeg" ? 0.92 : undefined);
+        link.click();
+      }
+      toast.success(format === "pdf" ? tr("PDF 已匯出", "PDF exported") : tr(`${format === "jpeg" ? "JPG" : "PNG"} 已匯出`, `${format === "jpeg" ? "JPG" : "PNG"} exported`));
     } catch (error) {
       console.error("AbiPaint export preview render failed", error);
       toast.error(tr("無法建立匯出預覽，請再試一次", "Export preview could not be created. Please try again."));
