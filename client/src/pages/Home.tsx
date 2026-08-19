@@ -3451,10 +3451,19 @@ export default function Home() {
           context.strokeStyle = makeOutlineColor(entry.item.outlineColor ?? "#FFFDF8", entry.item.outlineExposure, entry.item.outlineContrast, entry.item.outlineSaturation, entry.item.outlineVibrancy, entry.item.outlineOpacity);
           context.lineWidth = entry.item.outlineWidth ?? 0;
         }
-        context.font = `${entry.item.fontWeight} ${entry.item.fontSize}px "${entry.item.fontFamily}", sans-serif`;
-        context.textBaseline = "top";
-        if ((entry.item.outlineWidth ?? 0) > 0) context.strokeText(entry.item.text, entry.item.x, entry.item.y);
-        context.fillText(entry.item.text, entry.item.x, entry.item.y);
+        context.font = `${entry.item.fontWeight} ${entry.item.fontSize}px "${entry.item.fontFamily}", "Noto Sans TC", sans-serif`;
+        context.textAlign = "left";
+        context.textBaseline = "alphabetic";
+        const referenceMetrics = context.measureText("Mg");
+        const textAscent = referenceMetrics.actualBoundingBoxAscent || entry.item.fontSize * 0.8;
+        const textX = entry.item.x + 4;
+        const textY = entry.item.y + 2 + textAscent;
+        const lineHeight = entry.item.fontSize * 1.12;
+        entry.item.text.split("\n").forEach((line, index) => {
+          const baselineY = textY + lineHeight * index;
+          if ((entry.item.outlineWidth ?? 0) > 0) context.strokeText(line, textX, baselineY);
+          context.fillText(line, textX, baselineY);
+        });
         context.restore();
         return;
       }
