@@ -5119,9 +5119,6 @@ export default function Home() {
         <AlertDialogContent className="max-h-[90vh] max-w-4xl overflow-y-auto border-[rgba(228,81,59,0.56)] bg-[#24221d] text-[#f5f0e5]">
           <AlertDialogHeader>
             <AlertDialogTitle>{tr("匯出前預覽", "Export preview")}</AlertDialogTitle>
-            <AlertDialogDescription className="text-[#b8b8af]">
-              {tr("此預覽即為即將匯出的畫面，請確認素材位置與文字對齊。", "This preview is the exact render that will be exported. Confirm material positions and text alignment.")}
-            </AlertDialogDescription>
           </AlertDialogHeader>
           {exportPreview && <div className="overflow-hidden rounded-[5px] border border-[rgba(227,213,187,0.2)] bg-[#fffdf8]"><img className="block h-auto max-h-[58vh] w-full object-contain" src={exportPreview.url} alt={tr("匯出前預覽", "Export preview")} /></div>}
           <AlertDialogFooter className="gap-3">
