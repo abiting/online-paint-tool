@@ -3635,7 +3635,7 @@ export default function Home() {
         if (isMobileExport && typeof navigator.share === "function" && (!navigator.canShare || navigator.canShare({ files: [file] }))) {
           try {
             await navigator.share({ files: [file], title: filename });
-            toast.success(tr("已開啟分享面板，可選擇儲存位置", "Share sheet opened. Choose where to save the file."));
+            toast.success(tr("已儲存", "Saved"));
             return;
           } catch (error) {
             if (error instanceof DOMException && error.name === "AbortError") return;
