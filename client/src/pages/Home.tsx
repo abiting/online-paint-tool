@@ -3453,16 +3453,21 @@ export default function Home() {
         }
         context.font = `${entry.item.fontWeight} ${entry.item.fontSize}px "${entry.item.fontFamily}", "Noto Sans TC", sans-serif`;
         context.textAlign = "left";
-        context.textBaseline = "alphabetic";
-        const referenceMetrics = context.measureText("Mg");
-        const textAscent = referenceMetrics.actualBoundingBoxAscent || entry.item.fontSize * 0.8;
-        const textX = entry.item.x + 4;
-        const textY = entry.item.y + 2 + textAscent;
+        context.textBaseline = "top";
+        const firstLine = entry.item.text.split("\n")[0] || "Mg";
+        const referenceMetrics = context.measureText(firstLine);
+        const layerElement = textLayerElementsRef.current.get(entry.item.id);
+        const computedStyle = layerElement ? getComputedStyle(layerElement) : null;
+        const fontAscent = referenceMetrics.fontBoundingBoxAscent || entry.item.fontSize;
+        const actualAscent = referenceMetrics.actualBoundingBoxAscent || entry.item.fontSize * 0.8;
+        const paddingTop = computedStyle ? parseFloat(computedStyle.paddingTop) || 0 : 2;
+        const paddingLeft = computedStyle ? parseFloat(computedStyle.paddingLeft) || 0 : 4;
+        const textY = entry.item.y + paddingTop + Math.max(0, (fontAscent - actualAscent) / 2);
         const lineHeight = entry.item.fontSize * 1.12;
         entry.item.text.split("\n").forEach((line, index) => {
           const baselineY = textY + lineHeight * index;
-          if ((entry.item.outlineWidth ?? 0) > 0) context.strokeText(line, textX, baselineY);
-          context.fillText(line, textX, baselineY);
+          if ((entry.item.outlineWidth ?? 0) > 0) context.strokeText(line, entry.item.x + paddingLeft, baselineY);
+          context.fillText(line, entry.item.x + paddingLeft, baselineY);
         });
         context.restore();
         return;
