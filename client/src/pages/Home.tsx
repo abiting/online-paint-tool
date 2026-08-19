@@ -51,6 +51,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { jsPDF } from "jspdf";
+import { toCanvas } from "html-to-image";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 
@@ -63,6 +64,7 @@ type CropHandleAxis = ShapeResizeAxis | "move";
 type Locale = "zh-Hant" | "en";
 type MaterialType = "stroke" | "image" | "shape" | "text";
 type DesktopToolPanel = DesktopCreativeTool | "object";
+type ExportFormat = "png" | "jpeg" | "pdf";
 type KofiWidgetOverlay = {
   draw: (pageId: string, configuration: Record<string, string>) => void;
 };
@@ -1160,6 +1162,7 @@ export default function Home() {
     };
   }, []);
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const canvasContentRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const lastPointRef = useRef<CanvasPoint | null>(null);
   const textDragRef = useRef<{
@@ -1308,6 +1311,8 @@ export default function Home() {
   const [isEasterEggOpen, setIsEasterEggOpen] = useState(false);
   const [mobileMiniToolPosition, setMobileMiniToolPosition] = useState({ x: 14, y: 14 });
   const [isMobileMiniToolDragging, setIsMobileMiniToolDragging] = useState(false);
+  const [isExportRendering, setIsExportRendering] = useState(false);
+  const [exportPreview, setExportPreview] = useState<{ url: string; format: ExportFormat; width: number; height: number } | null>(null);
   const objectClipboardRef = useRef<ObjectClipboard | null>(null);
   const panDragRef = useRef<{ startX: number; startY: number; originX: number; originY: number } | null>(null);
   const touchPointsRef = useRef(new Map<number, { x: number; y: number }>());
@@ -1674,6 +1679,8 @@ export default function Home() {
       guides: { x: xIsSnapped ? closestX.guide : null, y: yIsSnapped ? closestY.guide : null },
     };
   }, [canvasSize.height, canvasSize.width, zoom]);
+
+  const getTextVisualCenterOffset = (fontSize: number) => Math.round(fontSize * 0.06);
 
   const getTextLayerDimensions = useCallback((layer: Pick<TextLayer, "id" | "text" | "fontFamily" | "fontWeight" | "fontSize">) => {
     const element = textLayerElementsRef.current.get(layer.id);
@@ -2638,7 +2645,7 @@ export default function Home() {
     const nextLayer = {
       ...draftLayer,
       x: Math.max(24, (canvasSize.width - dimensions.width) / 2),
-      y: Math.max(24, (canvasSize.height - dimensions.height) / 2),
+      y: Math.max(24, (canvasSize.height - dimensions.height) / 2 - getTextVisualCenterOffset(draftLayer.fontSize)),
     };
     syncLayers([...layersRef.current, nextLayer]);
     setSelectedTextId(nextLayer.id);
@@ -2679,7 +2686,8 @@ export default function Home() {
   };
 
   const handleCanvasBlankPointerDown = (event: ReactPointerEvent<HTMLDivElement>) => {
-    if (event.target !== event.currentTarget) return;
+    const target = event.target as HTMLElement;
+    if (target.closest(".image-layer, .shape-layer, .stroke-layer, .text-layer, .shape-control-layer, .text-resize-handle, .image-resize-handle, .image-rotation-handle, .shape-control-handle, .shape-control-rotation-handle")) return;
     setSelectedStrokeId(null);
     setSelectedTextId(null);
     setSelectedShapeId(null);
@@ -2847,7 +2855,7 @@ export default function Home() {
       ? {
         ...draftLayer,
         x: anchorShape.x + (anchorShape.width - dimensions.width) / 2,
-        y: anchorShape.y + (anchorShape.height - dimensions.height) / 2,
+        y: anchorShape.y + (anchorShape.height - dimensions.height) / 2 - getTextVisualCenterOffset(draftLayer.fontSize),
       }
       : draftLayer;
     const nextLayers = [...layersRef.current, nextLayer];
@@ -3017,7 +3025,7 @@ export default function Home() {
     const dimensions = getTextLayerDimensions(selectedText);
     updateTextLayer({
       ...(axis === "horizontal" || axis === "both" ? { x: target.x + (target.width - dimensions.width) / 2 } : {}),
-      ...(axis === "vertical" || axis === "both" ? { y: target.y + (target.height - dimensions.height) / 2 } : {}),
+      ...(axis === "vertical" || axis === "both" ? { y: target.y + (target.height - dimensions.height) / 2 - getTextVisualCenterOffset(selectedText.fontSize) } : {}),
     });
     captureHistory();
   };
@@ -3375,176 +3383,61 @@ export default function Home() {
     event.target.value = "";
   };
 
-  const exportImage = async (format: "png" | "jpeg" | "pdf" = "png") => {
-    const source = canvasRef.current;
-    if (!source) return;
-    const output = document.createElement("canvas");
-    output.width = source.width;
-    output.height = source.height;
-    const context = output.getContext("2d");
-    if (!context) return;
-    context.filter = canvasFilter;
-    context.globalAlpha = adjustments.opacity / 100;
-    context.drawImage(source, 0, 0);
-    context.filter = "none";
-    const loadedImages = await Promise.all(imagesRef.current.map(async (image) => {
-      try {
-        return await loadImageElement(image.src);
-      } catch {
-        return null;
-      }
-    }));
-    const imageElements = new Map(imagesRef.current.map((image, index) => [image.id, loadedImages[index]]));
-    const renderQueue = [
-      ...strokesRef.current.map((stroke, index) => ({ type: "stroke" as const, item: stroke, stackOrder: getMaterialStackOrder("stroke", stroke, index) })),
-      ...imagesRef.current.map((image, index) => ({ type: "image" as const, item: image, stackOrder: getMaterialStackOrder("image", image, index) })),
-      ...shapesRef.current.map((shape, index) => ({ type: "shape" as const, item: shape, stackOrder: getMaterialStackOrder("shape", shape, index) })),
-      ...layersRef.current.map((layer, index) => ({ type: "text" as const, item: layer, stackOrder: getMaterialStackOrder("text", layer, index) })),
-    ].sort((first, second) => first.stackOrder - second.stackOrder);
-    renderQueue.forEach((entry) => {
-      if (entry.type === "stroke") {
-        renderBrushStroke(context, entry.item);
-        return;
-      }
-      if (entry.type === "image") {
-        const imageElement = imageElements.get(entry.item.id);
-        if (!imageElement) return;
-        context.save();
-        context.globalAlpha = (adjustments.opacity / 100) * (entry.item.opacity / 100);
-        context.filter = makeAdjustmentFilter(entry.item.exposure, entry.item.contrast, entry.item.saturation, entry.item.vibrancy);
-        context.translate(entry.item.x + entry.item.width / 2, entry.item.y + entry.item.height / 2);
-        context.rotate((entry.item.rotation * Math.PI) / 180);
-        if ((entry.item.outlineWidth ?? 0) > 0) {
-          context.filter = "none";
-          drawAlphaOutline(
-            context,
-            imageElement,
-            entry.item.width,
-            entry.item.height,
-            makeOutlineColor(entry.item.outlineColor ?? "#FFFDF8", entry.item.outlineExposure, entry.item.outlineContrast, entry.item.outlineSaturation, entry.item.outlineVibrancy, entry.item.outlineOpacity),
-            entry.item.outlineWidth ?? 0,
-          );
-          context.filter = makeAdjustmentFilter(entry.item.exposure, entry.item.contrast, entry.item.saturation, entry.item.vibrancy);
-        }
-        if (entry.item.shadowOpacity > 0) {
-          context.shadowColor = `rgba(0, 0, 0, ${entry.item.shadowOpacity / 100})`;
-          context.shadowBlur = 14;
-          context.shadowOffsetX = 0;
-          context.shadowOffsetY = 0;
-        }
-        context.drawImage(imageElement, -entry.item.width / 2, -entry.item.height / 2, entry.item.width, entry.item.height);
-        context.restore();
-        return;
-      }
-      if (entry.type === "text") {
-        context.save();
-        context.globalAlpha = (adjustments.opacity / 100) * (entry.item.opacity / 100);
-        context.filter = makeAdjustmentFilter(entry.item.exposure, entry.item.contrast, entry.item.saturation, entry.item.vibrancy);
-        if (entry.item.shadowOpacity > 0) {
-          context.shadowColor = `rgba(0, 0, 0, ${entry.item.shadowOpacity / 100})`;
-          context.shadowBlur = 14;
-          context.shadowOffsetX = 0;
-          context.shadowOffsetY = 0;
-        }
-        context.fillStyle = entry.item.color;
-        if ((entry.item.outlineWidth ?? 0) > 0) {
-          context.strokeStyle = makeOutlineColor(entry.item.outlineColor ?? "#FFFDF8", entry.item.outlineExposure, entry.item.outlineContrast, entry.item.outlineSaturation, entry.item.outlineVibrancy, entry.item.outlineOpacity);
-          context.lineWidth = entry.item.outlineWidth ?? 0;
-        }
-        context.font = `${entry.item.fontWeight} ${entry.item.fontSize}px "${entry.item.fontFamily}", "Noto Sans TC", sans-serif`;
-        context.textAlign = "left";
-        context.textBaseline = "top";
-        const firstLine = entry.item.text.split("\n")[0] || "Mg";
-        const referenceMetrics = context.measureText(firstLine);
-        const layerElement = textLayerElementsRef.current.get(entry.item.id);
-        const computedStyle = layerElement ? getComputedStyle(layerElement) : null;
-        const fontAscent = referenceMetrics.fontBoundingBoxAscent || entry.item.fontSize;
-        const actualAscent = referenceMetrics.actualBoundingBoxAscent || entry.item.fontSize * 0.8;
-        const paddingTop = computedStyle ? parseFloat(computedStyle.paddingTop) || 0 : 2;
-        const paddingLeft = computedStyle ? parseFloat(computedStyle.paddingLeft) || 0 : 4;
-        const textY = entry.item.y + paddingTop + Math.max(0, (fontAscent - actualAscent) / 2);
-        const lineHeight = entry.item.fontSize * 1.12;
-        entry.item.text.split("\n").forEach((line, index) => {
-          const baselineY = textY + lineHeight * index;
-          if ((entry.item.outlineWidth ?? 0) > 0) context.strokeText(line, entry.item.x + paddingLeft, baselineY);
-          context.fillText(line, entry.item.x + paddingLeft, baselineY);
-        });
-        context.restore();
-        return;
-      }
-      const shape = entry.item;
-      context.save();
-      context.globalAlpha = (adjustments.opacity / 100) * (shape.opacity / 100);
-      context.filter = makeAdjustmentFilter(shape.exposure, shape.contrast, shape.saturation, shape.vibrancy);
-      if (shape.shadow && shape.shadowOpacity > 0) {
-        context.shadowColor = hexToRgba(shape.shadowColor, shape.shadowOpacity / 100);
-        context.shadowBlur = shape.shadowBlur;
-        context.shadowOffsetX = 0;
-        context.shadowOffsetY = 0;
-      }
-      context.fillStyle = shape.fill;
-      context.strokeStyle = makeOutlineColor(shape.outline, shape.outlineExposure, shape.outlineContrast, shape.outlineSaturation, shape.outlineVibrancy, shape.outlineOpacity);
-      context.lineWidth = shape.outlineWidth;
-      context.translate(shape.x + shape.width / 2, shape.y + shape.height / 2);
-      context.rotate((shape.rotation * Math.PI) / 180);
-      if (shape.kind === "rectangle") {
-        const cornerRadius = Math.min(shape.cornerRadius, Math.min(shape.width, shape.height) / 2);
-        context.beginPath();
-        context.roundRect(-shape.width / 2, -shape.height / 2, shape.width, shape.height, cornerRadius);
-        context.fill();
-        if (shape.outlineWidth > 0) {
-          const inset = shape.outlineWidth / 2;
-          context.beginPath();
-          context.roundRect(-shape.width / 2 + inset, -shape.height / 2 + inset, Math.max(0, shape.width - shape.outlineWidth), Math.max(0, shape.height - shape.outlineWidth), Math.max(0, cornerRadius - inset));
-          context.stroke();
-        }
-      } else {
-        context.beginPath();
-      if (shape.kind === "circle") {
-        context.ellipse(0, 0, shape.width / 2, shape.height / 2, 0, 0, Math.PI * 2);
-      } else if (shape.kind === "heart") {
-        const w = shape.width; const h = shape.height; const x = -w / 2; const y = -h / 2;
-        context.moveTo(0, y + h * 0.9);
-        context.bezierCurveTo(x + w * 0.06, y + h * 0.62, x + w * 0.12, y + h * 0.16, x + w * 0.34, y + h * 0.2);
-        context.bezierCurveTo(x + w * 0.45, y + h * 0.22, x + w * 0.49, y + h * 0.34, 0, y + h * 0.42);
-        context.bezierCurveTo(x + w * 0.51, y + h * 0.34, x + w * 0.55, y + h * 0.22, x + w * 0.66, y + h * 0.2);
-        context.bezierCurveTo(x + w * 0.88, y + h * 0.16, x + w * 0.94, y + h * 0.62, 0, y + h * 0.9);
-        context.closePath();
-      } else {
-        const sides = shape.kind === "triangle" ? 3 : shape.kind === "pentagon" ? 5 : 10;
-        for (let index = 0; index < sides; index += 1) {
-          const angle = -Math.PI / 2 + (index * Math.PI * 2) / sides;
-          const radius = shape.kind === "star" ? (index % 2 === 0 ? 0.48 : 0.22) : 0.46;
-          const x = Math.cos(angle) * shape.width * radius;
-          const y = Math.sin(angle) * shape.height * radius;
-          if (index === 0) context.moveTo(x, y); else context.lineTo(x, y);
-        }
-        context.closePath();
-      }
-        context.fill();
-        if (shape.outlineWidth > 0) context.stroke();
-      }
-      context.restore();
+  const renderExportCanvas = async () => {
+    const target = canvasContentRef.current;
+    if (!target) throw new Error("Canvas workspace unavailable");
+    await document.fonts?.ready;
+    return toCanvas(target, {
+      backgroundColor: "#fffcf4",
+      width: canvasSize.width,
+      height: canvasSize.height,
+      pixelRatio: 1,
+      cacheBust: true,
+      skipFonts: true,
+      filter: (node) => !(node instanceof HTMLElement) || !node.matches(".shape-control-layer, .text-resize-handle, .snap-guide, .bleed-guide, .image-crop-preview, .canvas-empty-note"),
     });
+  };
+
+  const exportImage = async (format: ExportFormat = "png") => {
+    setIsExportRendering(true);
+    try {
+      const output = await renderExportCanvas();
+      setExportPreview({
+        url: output.toDataURL(format === "jpeg" ? "image/jpeg" : "image/png", format === "jpeg" ? 0.92 : undefined),
+        format,
+        width: output.width,
+        height: output.height,
+      });
+    } catch (error) {
+      console.error("AbiPaint export preview render failed", error);
+      toast.error(tr("無法建立匯出預覽，請再試一次", "Export preview could not be created. Please try again."));
+    } finally {
+      setIsExportRendering(false);
+    }
+  };
+
+  const downloadExportPreview = () => {
+    if (!exportPreview) return;
     const baseName = fileMeta.name.replace(/\.[^.]+$/, "") || "abipaint";
-    if (format === "pdf") {
+    if (exportPreview.format === "pdf") {
       const pdf = new jsPDF({
-        orientation: output.width >= output.height ? "landscape" : "portrait",
+        orientation: exportPreview.width >= exportPreview.height ? "landscape" : "portrait",
         unit: "px",
-        format: [output.width, output.height],
+        format: [exportPreview.width, exportPreview.height],
         compress: true,
       });
-      pdf.addImage(output.toDataURL("image/jpeg", 0.94), "JPEG", 0, 0, output.width, output.height, undefined, "FAST");
+      pdf.addImage(exportPreview.url, "PNG", 0, 0, exportPreview.width, exportPreview.height, undefined, "FAST");
       pdf.save(`${baseName}.pdf`);
       toast.success(tr("PDF 已匯出", "PDF exported"));
-      return;
+    } else {
+      const link = document.createElement("a");
+      const extension = exportPreview.format === "jpeg" ? "jpg" : "png";
+      link.download = `${baseName}.${extension}`;
+      link.href = exportPreview.url;
+      link.click();
+      toast.success(tr(`${extension.toUpperCase()} 已匯出`, `${extension.toUpperCase()} exported`));
     }
-    const link = document.createElement("a");
-    const extension = format === "jpeg" ? "jpg" : "png";
-    link.download = `${baseName}.${extension}`;
-    link.href = output.toDataURL(format === "jpeg" ? "image/jpeg" : "image/png", format === "jpeg" ? 0.92 : undefined);
-    link.click();
-    toast.success(tr(`${extension.toUpperCase()} 已匯出`, `${extension.toUpperCase()} exported`));
+    setExportPreview(null);
   };
 
   const saveDocumentName = (value: string) => {
@@ -4279,9 +4172,9 @@ export default function Home() {
               </button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="export-menu-content">
-              <DropdownMenuItem onSelect={() => void exportImage("png")}><Download size={15} /><span>PNG</span></DropdownMenuItem>
-              <DropdownMenuItem onSelect={() => void exportImage("jpeg")}><Download size={15} /><span>JPG</span></DropdownMenuItem>
-              <DropdownMenuItem onSelect={() => void exportImage("pdf")}><Download size={15} /><span>PDF</span></DropdownMenuItem>
+              <DropdownMenuItem disabled={isExportRendering} onSelect={() => void exportImage("png")}><Download size={15} /><span>PNG</span></DropdownMenuItem>
+              <DropdownMenuItem disabled={isExportRendering} onSelect={() => void exportImage("jpeg")}><Download size={15} /><span>JPG</span></DropdownMenuItem>
+              <DropdownMenuItem disabled={isExportRendering} onSelect={() => void exportImage("pdf")}><Download size={15} /><span>PDF</span></DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
         </div>
@@ -4621,7 +4514,7 @@ export default function Home() {
                   transform: `scale(${zoom / 100})`,
                 }}
               >
-                <div className="canvas-content" onPointerDown={handleCanvasBlankPointerDown}>
+                <div ref={canvasContentRef} className="canvas-content" onPointerDown={handleCanvasBlankPointerDown}>
                   <canvas
                     ref={canvasRef}
                     style={{ filter: canvasFilter, opacity: adjustments.opacity / 100, pointerEvents: tool === "brush" ? "auto" : "none" }}
@@ -5143,6 +5036,21 @@ export default function Home() {
           <AlertDialogFooter className="gap-3">
             <AlertDialogCancel className="w-[108px] justify-center">{copy.cancel}</AlertDialogCancel>
             <AlertDialogAction className="w-[108px] justify-center bg-[#b72f34] text-white hover:bg-[#d54045]" onClick={() => void resetCurrentWorkingFile()}>{copy.confirmResetWorkingFile}</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+      <AlertDialog open={Boolean(exportPreview)} onOpenChange={(open) => { if (!open) setExportPreview(null); }}>
+        <AlertDialogContent className="max-h-[90vh] max-w-4xl overflow-y-auto border-[rgba(228,81,59,0.56)] bg-[#24221d] text-[#f5f0e5]">
+          <AlertDialogHeader>
+            <AlertDialogTitle>{tr("匯出前預覽", "Export preview")}</AlertDialogTitle>
+            <AlertDialogDescription className="text-[#b8b8af]">
+              {tr("此預覽即為即將匯出的畫面，請確認素材位置與文字對齊。", "This preview is the exact render that will be exported. Confirm material positions and text alignment.")}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          {exportPreview && <div className="overflow-hidden rounded-[5px] border border-[rgba(227,213,187,0.2)] bg-[#fffdf8]"><img className="block h-auto max-h-[58vh] w-full object-contain" src={exportPreview.url} alt={tr("匯出前預覽", "Export preview")} /></div>}
+          <AlertDialogFooter className="gap-3">
+            <AlertDialogCancel className="w-[108px] justify-center">{copy.cancel}</AlertDialogCancel>
+            <AlertDialogAction className="w-[128px] justify-center bg-[#e4513b] text-white hover:bg-[#f16049]" onClick={downloadExportPreview}>{tr("確認匯出", "Export")}</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
