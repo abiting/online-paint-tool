@@ -3656,7 +3656,7 @@ export default function Home() {
         link.click();
         link.remove();
         window.setTimeout(() => URL.revokeObjectURL(link.href), 0);
-        toast.success(tr("檔案已下載，請查看瀏覽器下載項目", "File downloaded. Check your browser downloads."));
+        toast.success(tr("檔案已下載", "File downloaded"));
       };
       if (format === "pdf") {
         const pdf = new jsPDF({ orientation: output.width >= output.height ? "landscape" : "portrait", unit: "px", format: [output.width, output.height], compress: true });
@@ -5074,8 +5074,8 @@ export default function Home() {
             </div>
             <div className="product-footer-meta">
               <p className="product-copyright">Copyright © 2026 <a href={isEnglish ? "/en" : "/"}>AbiPaint</a></p>
-              <div className="product-build-meta" aria-label="AbiPaint version 1.0.0">
-                <a className="product-version-label" href="https://abiting.cc/abipaint" target="_blank" rel="noopener noreferrer">v1.0.0</a>
+              <div className="product-build-meta" aria-label="AbiPaint version 1.0.1">
+                <a className="product-version-label" href="https://abiting.cc/abipaint" target="_blank" rel="noopener noreferrer">v1.0.1</a>
                 <a
                   className="startupbase-badge"
                   href="https://startupbase.io/products/abipaint?utm_source=startupbase&utm_medium=badge&utm_campaign=launch-badge-light"

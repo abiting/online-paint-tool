@@ -302,3 +302,4 @@
 - [x] 圓形圖形設定不顯示圓角半徑控制
 - [x] 手機匯出完成提示簡化為「已儲存／Saved」
 - [x] 移除 Google Fonts 跨網域 CSS 掃描造成的桌面匯出卡頓與 SecurityError
+- [x] 將桌面下載提示簡化為「檔案已下載／File downloaded」並更新版本號為 v1.0.1
