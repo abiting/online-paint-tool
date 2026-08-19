@@ -129,7 +129,7 @@ const localeCopy = {
     developerTitle: "阿比丁",
     developerClose: "關閉開發者介紹",
     developerAria: "AbiPaint 開發者介紹",
-    developerBio: "台灣工程師兼創作者，畢業於國立陽明交通大學。曾獨立開發多款免費線上工具，希望能透過技術造福更多人類。",
+    developerBio: "台灣開發者兼創作者，畢業於國立陽明交通大學。曾獨立製作多款免費線上工具，希望能透過技術造福更多人類。",
     developerWorks: "其他代表作",
     faq: [
       ["AbiPaint 是什麼？", "AbiPaint 是免費線上圖片尺寸修改器，不用安裝 Adobe 或註冊 Canva，直接在瀏覽器調整照片尺寸、像素與解析度。"],
@@ -197,7 +197,7 @@ const localeCopy = {
     developerTitle: "Abiting",
     developerClose: "Close developer profile",
     developerAria: "AbiPaint developer profile",
-    developerBio: "Taiwanese engineer and creator, graduate of National Yang Ming Chiao Tung University. Several free online tools have been independently developed with the aim of using technology to help more people.",
+    developerBio: "Taiwanese developer and creator, graduate of National Yang Ming Chiao Tung University. Has independently created a range of free online tools, with the hope of benefiting more people through technology.",
     developerWorks: "Other featured projects",
     faq: [
       ["What is AbiPaint?", "AbiPaint is a free online image resizer. Resize photos, adjust pixels and resolution right in your browser—no Adobe installation or Canva account required."],
