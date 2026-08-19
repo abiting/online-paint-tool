@@ -1680,7 +1680,24 @@ export default function Home() {
     };
   }, [canvasSize.height, canvasSize.width, zoom]);
 
-  const getTextVisualCenterOffset = (fontSize: number) => Math.round(fontSize * 0.06);
+  const getTextVisualCenterOffset = (layer: Pick<TextLayer, "text" | "fontFamily" | "fontWeight" | "fontSize">) => {
+    const context = canvasRef.current?.getContext("2d");
+    if (!context) return Math.round(layer.fontSize * 0.06);
+    context.save();
+    context.font = `${layer.fontWeight} ${layer.fontSize}px "${layer.fontFamily}", "Noto Sans TC", sans-serif`;
+    const lineHeight = layer.fontSize * 1.12;
+    const offsets = layer.text.split("\n").filter(Boolean).map((line) => {
+      const metrics = context.measureText(line);
+      const fontAscent = metrics.fontBoundingBoxAscent || layer.fontSize * 0.82;
+      const fontDescent = metrics.fontBoundingBoxDescent || layer.fontSize * 0.18;
+      const actualAscent = metrics.actualBoundingBoxAscent || layer.fontSize * 0.8;
+      const actualDescent = metrics.actualBoundingBoxDescent || layer.fontSize * 0.2;
+      const glyphCenter = (lineHeight - fontAscent - fontDescent) / 2 + fontAscent - (actualAscent - actualDescent) / 2;
+      return glyphCenter - lineHeight / 2;
+    });
+    context.restore();
+    return offsets.length ? offsets.reduce((sum, offset) => sum + offset, 0) / offsets.length : 0;
+  };
 
   const getTextLayerDimensions = useCallback((layer: Pick<TextLayer, "id" | "text" | "fontFamily" | "fontWeight" | "fontSize">) => {
     const element = textLayerElementsRef.current.get(layer.id);
@@ -1693,6 +1710,57 @@ export default function Home() {
     context.restore();
     return { width, height: Math.ceil(layer.fontSize * 1.12) + 4 };
   }, []);
+
+  const centerTextLayerByVisibleBounds = (textId: string, target: { x: number; y: number; width: number; height: number }, axis: "horizontal" | "vertical" | "both" = "both") => {
+    window.requestAnimationFrame(() => {
+      void (async () => {
+        const layer = layersRef.current.find((item) => item.id === textId);
+        const element = textLayerElementsRef.current.get(textId);
+        if (!layer || !element) return;
+        try {
+          const width = Math.max(1, element.offsetWidth);
+          const height = Math.max(1, element.offsetHeight);
+          const snapshot = await toCanvas(element, {
+            width,
+            height,
+            pixelRatio: 1,
+            cacheBust: false,
+            skipFonts: true,
+            style: { transform: "none", left: "0", top: "0" },
+            filter: (node) => !(node instanceof HTMLElement) || !node.matches(".text-resize-handle"),
+          });
+          const context = snapshot.getContext("2d");
+          if (!context) return;
+          const pixels = context.getImageData(0, 0, snapshot.width, snapshot.height).data;
+          let minX = snapshot.width;
+          let minY = snapshot.height;
+          let maxX = -1;
+          let maxY = -1;
+          for (let y = 0; y < snapshot.height; y += 1) {
+            for (let x = 0; x < snapshot.width; x += 1) {
+              if (pixels[(y * snapshot.width + x) * 4 + 3] < 16) continue;
+              minX = Math.min(minX, x);
+              minY = Math.min(minY, y);
+              maxX = Math.max(maxX, x);
+              maxY = Math.max(maxY, y);
+            }
+          }
+          if (maxX < minX || maxY < minY) return;
+          const visibleCenterX = (minX + maxX + 1) / 2;
+          const visibleCenterY = (minY + maxY + 1) / 2;
+          const nextX = target.x + target.width / 2 - visibleCenterX;
+          const nextY = target.y + target.height / 2 - visibleCenterY;
+          syncLayers(layersRef.current.map((item) => item.id === textId ? {
+            ...item,
+            ...(axis === "horizontal" || axis === "both" ? { x: nextX } : {}),
+            ...(axis === "vertical" || axis === "both" ? { y: nextY } : {}),
+          } : item));
+        } catch {
+          // 無法建立文字快照時，保留前一步字型度量計算的定位。
+        }
+      })();
+    });
+  };
 
   const captureHistory = useCallback((guide = bleedGuide) => {
     const canvas = canvasRef.current;
@@ -2645,9 +2713,10 @@ export default function Home() {
     const nextLayer = {
       ...draftLayer,
       x: Math.max(24, (canvasSize.width - dimensions.width) / 2),
-      y: Math.max(24, (canvasSize.height - dimensions.height) / 2 - getTextVisualCenterOffset(draftLayer.fontSize)),
+      y: Math.max(24, (canvasSize.height - dimensions.height) / 2 - getTextVisualCenterOffset(draftLayer)),
     };
     syncLayers([...layersRef.current, nextLayer]);
+    centerTextLayerByVisibleBounds(nextLayer.id, { x: 0, y: 0, width: canvasSize.width, height: canvasSize.height });
     setSelectedTextId(nextLayer.id);
     setSelectedShapeId(null);
     setSelectedImageId(null);
@@ -2739,6 +2808,11 @@ export default function Home() {
       layer.id === selectedTextId ? { ...layer, ...patch } : layer,
     );
     syncLayers(nextLayers);
+    const updatedLayer = nextLayers.find((layer) => layer.id === selectedTextId);
+    const anchorShape = updatedLayer?.anchorShapeId ? shapesRef.current.find((shape) => shape.id === updatedLayer.anchorShapeId) : undefined;
+    if (updatedLayer && anchorShape && ("text" in patch || "fontFamily" in patch || "fontWeight" in patch || "fontSize" in patch)) {
+      centerTextLayerByVisibleBounds(updatedLayer.id, anchorShape);
+    }
   };
 
   const startImageEditing = () => {
@@ -2855,11 +2929,12 @@ export default function Home() {
       ? {
         ...draftLayer,
         x: anchorShape.x + (anchorShape.width - dimensions.width) / 2,
-        y: anchorShape.y + (anchorShape.height - dimensions.height) / 2 - getTextVisualCenterOffset(draftLayer.fontSize),
+        y: anchorShape.y + (anchorShape.height - dimensions.height) / 2 - getTextVisualCenterOffset(draftLayer),
       }
       : draftLayer;
     const nextLayers = [...layersRef.current, nextLayer];
     syncLayers(nextLayers);
+    if (anchorShape) centerTextLayerByVisibleBounds(nextLayer.id, anchorShape);
     setSelectedTextId(nextLayer.id);
     setSelectedShapeId(null);
     setSelectedImageId(null);
@@ -3025,8 +3100,9 @@ export default function Home() {
     const dimensions = getTextLayerDimensions(selectedText);
     updateTextLayer({
       ...(axis === "horizontal" || axis === "both" ? { x: target.x + (target.width - dimensions.width) / 2 } : {}),
-      ...(axis === "vertical" || axis === "both" ? { y: target.y + (target.height - dimensions.height) / 2 - getTextVisualCenterOffset(selectedText.fontSize) } : {}),
+      ...(axis === "vertical" || axis === "both" ? { y: target.y + (target.height - dimensions.height) / 2 - getTextVisualCenterOffset(selectedText) } : {}),
     });
+    centerTextLayerByVisibleBounds(selectedText.id, target, axis);
     captureHistory();
   };
 
