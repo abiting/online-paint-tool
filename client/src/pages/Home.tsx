@@ -1242,6 +1242,7 @@ export default function Home() {
   const imagesRef = useRef<ImageLayer[]>([]);
   const strokesRef = useRef<BrushStroke[]>([]);
   const textLayerElementsRef = useRef(new Map<string, HTMLDivElement>());
+  const textExportSnapshotCacheRef = useRef(new Map<string, { key: string; element: HTMLImageElement; width: number; height: number }>());
   const projectImportInputRef = useRef<HTMLInputElement>(null);
   const isProjectHydratedRef = useRef(false);
   const autosaveTimerRef = useRef<number | null>(null);
@@ -1252,6 +1253,7 @@ export default function Home() {
   const [canvasSize, setCanvasSize] = useState({ width: 960, height: 640 });
   const [bleedGuide, setBleedGuide] = useState<BleedGuide | null>(null);
   const [scaleImagesWithCanvas, setScaleImagesWithCanvas] = useState(false);
+
   const [tool, setTool] = useState<Tool>(() =>
     window.matchMedia("(max-width: 768px)").matches ? "move" : "brush",
   );
@@ -3488,10 +3490,14 @@ export default function Home() {
       try {
         const width = Math.max(1, element.offsetWidth);
         const height = Math.max(1, element.offsetHeight);
+        const snapshotKey = [layer.text, layer.fontFamily, layer.fontWeight, layer.fontSize, layer.color, layer.outlineColor, layer.outlineWidth, layer.outlineOpacity, width, height].join("|");
+        const cachedSnapshot = textExportSnapshotCacheRef.current.get(layer.id);
+        if (cachedSnapshot?.key === snapshotKey) return [layer.id, cachedSnapshot] as const;
         const svgDataUrl = await toSvg(element, {
           width,
           height,
-          cacheBust: true,
+          cacheBust: false,
+          fontEmbedCSS: "",
           style: {
             left: "0",
             top: "0",
@@ -3504,7 +3510,9 @@ export default function Home() {
           },
           filter: (node) => !(node instanceof HTMLElement) || !node.matches(".text-resize-handle"),
         });
-        return [layer.id, { element: await loadImageElement(svgDataUrl), width, height }] as const;
+        const snapshot = { key: snapshotKey, element: await loadImageElement(svgDataUrl), width, height };
+        textExportSnapshotCacheRef.current.set(layer.id, snapshot);
+        return [layer.id, snapshot] as const;
       } catch {
         return [layer.id, null] as const;
       }
