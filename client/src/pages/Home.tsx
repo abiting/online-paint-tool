@@ -3629,18 +3629,39 @@ export default function Home() {
     try {
       const output = await renderExportCanvas();
       const baseName = fileMeta.name.replace(/\.[^.]+$/, "") || "abipaint";
+      const isMobileExport = window.matchMedia("(max-width: 767px)").matches;
+      const shareOrDownload = async (blob: Blob, filename: string) => {
+        const file = new File([blob], filename, { type: blob.type });
+        if (isMobileExport && typeof navigator.share === "function" && (!navigator.canShare || navigator.canShare({ files: [file] }))) {
+          try {
+            await navigator.share({ files: [file], title: filename });
+            toast.success(tr("已開啟分享面板，可選擇儲存位置", "Share sheet opened. Choose where to save the file."));
+            return;
+          } catch (error) {
+            if (error instanceof DOMException && error.name === "AbortError") return;
+          }
+        }
+        const link = document.createElement("a");
+        link.download = filename;
+        link.href = URL.createObjectURL(blob);
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        window.setTimeout(() => URL.revokeObjectURL(link.href), 0);
+        toast.success(tr("檔案已下載，請查看瀏覽器下載項目", "File downloaded. Check your browser downloads."));
+      };
       if (format === "pdf") {
         const pdf = new jsPDF({ orientation: output.width >= output.height ? "landscape" : "portrait", unit: "px", format: [output.width, output.height], compress: true });
         pdf.addImage(output.toDataURL("image/jpeg", 0.94), "JPEG", 0, 0, output.width, output.height, undefined, "FAST");
-        pdf.save(`${baseName}.pdf`);
+        await shareOrDownload(pdf.output("blob"), `${baseName}.pdf`);
       } else {
         const extension = format === "jpeg" ? "jpg" : "png";
-        const link = document.createElement("a");
-        link.download = `${baseName}.${extension}`;
-        link.href = output.toDataURL(format === "jpeg" ? "image/jpeg" : "image/png", format === "jpeg" ? 0.92 : undefined);
-        link.click();
+        const mimeType = format === "jpeg" ? "image/jpeg" : "image/png";
+        const blob = await new Promise<Blob>((resolve, reject) => {
+          output.toBlob((result) => result ? resolve(result) : reject(new Error("Export image could not be created")), mimeType, format === "jpeg" ? 0.92 : undefined);
+        });
+        await shareOrDownload(blob, `${baseName}.${extension}`);
       }
-      toast.success(format === "pdf" ? tr("PDF 已匯出", "PDF exported") : tr(`${format === "jpeg" ? "JPG" : "PNG"} 已匯出`, `${format === "jpeg" ? "JPG" : "PNG"} exported`));
     } catch (error) {
       console.error("AbiPaint export preview render failed", error);
       toast.error(tr("無法建立匯出預覽，請再試一次", "Export preview could not be created. Please try again."));
@@ -4650,7 +4671,7 @@ export default function Home() {
                     <button type="button" className={`shape-choice ${shapeKind === "pentagon" ? "is-active" : ""}`} onClick={() => { setShapeKind("pentagon"); addShape("pentagon"); }}><Pentagon size={18} /><span>{tr("五邊形", "Pentagon")}</span></button>
                   </div>
                   <div className="color-row"><span className="field-label">{tr("顏色", "Color")}</span><label className="color-picker"><input type="color" value={shapeFill} onChange={(event) => { setShapeFill(event.target.value); if (selectedShape) updateShape({ fill: event.target.value }); }} aria-label={tr("圖形顏色", "Shape color")} /><span style={{ backgroundColor: shapeFill }} /></label></div>
-                  <RangeControl label={tr("圓角半徑", "Corner radius")} value={selectedShape?.kind === "rectangle" ? selectedShape.cornerRadius : shapeCornerRadius} min={0} max={72} suffix=" px" onChange={(value) => { setShapeCornerRadius(value); if (selectedShape?.kind === "rectangle") updateShape({ cornerRadius: value }); }} />
+                  {(selectedShape?.kind ?? shapeKind) === "rectangle" && <RangeControl label={tr("圓角半徑", "Corner radius")} value={selectedShape?.kind === "rectangle" ? selectedShape.cornerRadius : shapeCornerRadius} min={0} max={72} suffix=" px" onChange={(value) => { setShapeCornerRadius(value); if (selectedShape?.kind === "rectangle") updateShape({ cornerRadius: value }); }} />}
                   <RangeControl label={tr("不透明度", "Opacity")} value={selectedShape?.opacity ?? shapeOpacity} min={1} max={100} suffix="%" onChange={(value) => { setShapeOpacity(value); if (selectedShape) updateShape({ opacity: value }); }} />
                   <RangeControl label={tr("陰影強度", "Shadow")} value={selectedShape?.shadowOpacity ?? shapeShadowOpacity} min={0} max={100} suffix="%" onChange={(value) => { setShapeShadowOpacity(value); setShapeShadow(value > 0); if (selectedShape) updateShape({ shadow: value > 0, shadowOpacity: value, shadowX: 0, shadowY: 0 }); }} />
                 </div>
