@@ -468,7 +468,7 @@ const MAX_PAINT_LAYERS = 5;
 const MOBILE_VIEWPORT_MEDIA_QUERY = "(max-width: 960px), (pointer: coarse) and (max-height: 600px)";
 const TEXT_RASTER_VERSION = 4;
 const BASE_PAINT_LAYER_ID = "paint-layer-base";
-const U2NETP_MODEL_URL = "https://huggingface.co/Heliosoph/u2net-onnx/resolve/main/u2netp.onnx";
+const U2NETP_MODEL_URL = "/manus-storage/u2netp_27cab176.onnx";
 const BACKGROUND_REMOVAL_MAX_EDGE = 2560;
 const AUTOSAVE_DB_NAME = "abipaint-project-storage";
 const AUTOSAVE_DB_STORE = "projects";
@@ -4733,6 +4733,7 @@ export default function Home() {
             <ToolButton label={copy.text} active={activeDesktopTool === "text"} icon={<Type size={18} />} onClick={() => handleDesktopToolCreate("text")} onDoubleActivate={() => handleDesktopToolSettings("text")} />
             <ToolButton label={tr("輪廓", "Outline")} active={activeDesktopTool === "outline"} icon={<SquareDashed size={18} />} onClick={() => handleDesktopToolSettings("outline")} disabled={!hasSelectedObject} />
             <ToolButton label={cropDraft ? tr("套用裁切", "Apply crop") : tr("裁切", "Crop")} active={tool === "crop"} icon={<Crop size={18} />} onClick={handleCropTool} disabled={!isCropToolAvailable} />
+            <ToolButton label={tr("去背", "Remove BG")} icon={<WandSparkles size={18} />} onClick={() => void removeSelectedImageBackground()} disabled={!selectedImage || selectedMaterialIsLocked || backgroundRemovalImageId === selectedImage.id} />
             <button type="button" className="tool-button tool-settings-entry" onClick={handleSelectedObjectSettings} disabled={!hasSelectedObject} aria-label={copy.openSettings} title={copy.openSettings}><SlidersHorizontal size={18} /><span>{copy.settings}</span></button>
           </div>
           <div className="rail-support-group" aria-label={tr("輔助資訊", "Help and information")}>
@@ -4918,15 +4919,6 @@ export default function Home() {
                       <ArrowDown size={14} /> {tr("向後", "Backward")}
                     </button>
                   </div>
-                </div>
-              )}
-
-              {selectedImage && openDesktopTool !== "outline" && (
-                <div className="material-stack-controls background-removal-controls" aria-label={tr("主體去背", "Remove background")}>
-                  <span className="field-label">{tr("主體去背", "Remove background")}</span>
-                  <button type="button" className="secondary-button" disabled={backgroundRemovalImageId === selectedImage.id || Boolean(cropDraft)} onClick={() => void removeSelectedImageBackground()}>
-                    <WandSparkles size={14} /> {backgroundRemovalImageId === selectedImage.id ? tr("正在辨識…", "Detecting…") : tr("去背", "Remove")}
-                  </button>
                 </div>
               )}
 
@@ -5373,7 +5365,6 @@ export default function Home() {
                     >
                       <button type="button" onClick={duplicateSelectedMaterial} title={tr("在原物件旁建立相同素材", "Duplicate object")} aria-label={tr("複製目前素材", "Duplicate selected object")}><Copy size={23} /></button>
                       <button type="button" onClick={deleteSelectedMaterial} title={tr("刪除目前素材", "Delete object")} aria-label={tr("刪除目前素材", "Delete selected object")}><Trash2 size={24} /></button>
-                      {selectedImage && <button type="button" disabled={backgroundRemovalImageId === selectedImage.id || Boolean(cropDraft)} onClick={() => void removeSelectedImageBackground()} title={tr("主體去背", "Remove background")} aria-label={tr("主體去背", "Remove background")}><WandSparkles size={22} /></button>}
                       <button type="button" onClick={handleSelectedObjectSettings} title={tr("更多設定", "More settings")} aria-label={tr("更多設定", "More settings")}><MoreHorizontal size={25} /></button>
                     </div>
                   )}
@@ -5493,8 +5484,6 @@ export default function Home() {
               <div className="inspector-section image-inspector-section">
                 <SectionTitle eyebrow="IMAGE LAYER" title={tr("圖片素材", "Image layer")} action={<ImagePlus size={15} className="section-icon" />} />
                 <div className="image-layer-meta"><span>{tr("檔案", "File")}</span><strong>{selectedImage.name}</strong></div>
-                <button type="button" className="secondary-button full-width" disabled={backgroundRemovalImageId === selectedImage.id || Boolean(cropDraft)} onClick={() => void removeSelectedImageBackground()}><WandSparkles size={14} /> {backgroundRemovalImageId === selectedImage.id ? tr("正在辨識主體…", "Detecting subject…") : tr("主體去背", "Remove background")}</button>
-                <p className="field-help">{tr("人物、物品與寵物皆可使用；首次約下載 5 MB 模型，圖片不會上傳。", "Works with people, objects, and pets. First use downloads a ~5 MB model; images stay on your device.")}</p>
                 {!imageEditingId && <p className="empty-inspector">{tr("圖片目前鎖定，點擊下方按鈕後才可移動、縮放、旋轉或裁切。", "This image is locked. Start editing to move, resize, rotate, or crop it.")}</p>}
                 {imageEditingId === selectedImage.id && !cropDraft && <p className="empty-inspector">{tr("可在畫布上拖曳圖片移動，使用邊角控制點縮放，或開啟裁切模式保留所需範圍。", "Drag on the canvas to move it, use the corner handles to resize it, or crop it to keep the area you need.")}</p>}
                 {!imageEditingId && <button type="button" className="secondary-button full-width" onClick={startImageEditing}><ImagePlus size={14} /> {tr("開始編輯圖片", "Edit image")}</button>}
