@@ -279,6 +279,14 @@ kbd { min-width: 19px; padding: 3px 4px; text-align: center; color: #aab1aa; bac
 .canvas-viewport::before, .canvas-viewport::after { content: ""; position: absolute; width: 28px; height: 28px; border-color: rgba(227,213,187,0.25); pointer-events: none; }
 .canvas-viewport::before { top: 18px; left: 18px; border-top: 1px solid; border-left: 1px solid; }
 .canvas-viewport::after { right: 18px; bottom: 22px; border-right: 1px solid; border-bottom: 1px solid; }
+.background-removal-status { position: absolute; z-index: 500; top: 18px; left: 50%; display: inline-flex; align-items: center; gap: 8px; max-width: min(520px, calc(100% - 44px)); padding: 10px 14px; color: #f4eee2; border: 1px solid rgba(227,213,187,0.28); border-radius: 6px; background: rgba(28,33,31,0.96); box-shadow: 0 12px 28px rgba(8,12,13,0.34); font: 600 12px "Noto Sans TC", sans-serif; transform: translateX(-50%); pointer-events: none; }
+.background-removal-status svg { flex: 0 0 auto; color: #e7bd4e; }
+.background-removal-status.is-processing svg, .background-removal-status.is-loading svg { color: #e4513b; animation: background-removal-pulse 1.05s ease-in-out infinite; }
+.background-removal-status.is-success { border-color: rgba(103,169,126,0.56); }
+.background-removal-status.is-success svg { color: #80c39b; }
+.background-removal-status.is-error { border-color: rgba(228,81,59,0.74); color: #fff0e8; }
+.background-removal-status.is-error svg { color: #e4513b; }
+@keyframes background-removal-pulse { 50% { opacity: 0.42; transform: scale(0.88); } }
 .stage-notes { position: absolute; color: rgba(228,224,211,0.35); font: 9px "IBM Plex Mono", monospace; letter-spacing: 0.14em; }
 .stage-note-top { top: 25px; left: 28px; }
 .stage-note-bottom { right: 28px; bottom: 28px; }

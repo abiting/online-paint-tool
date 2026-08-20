@@ -468,7 +468,7 @@ const MAX_PAINT_LAYERS = 5;
 const MOBILE_VIEWPORT_MEDIA_QUERY = "(max-width: 960px), (pointer: coarse) and (max-height: 600px)";
 const TEXT_RASTER_VERSION = 4;
 const BASE_PAINT_LAYER_ID = "paint-layer-base";
-const U2NETP_MODEL_URL = "/manus-storage/u2netp_27cab176.onnx";
+const U2NETP_MODEL_URL = "https://cdn.jsdelivr.net/npm/modern-rembg@0.1.2/dist/u2netp.onnx";
 const BACKGROUND_REMOVAL_MAX_EDGE = 2560;
 const AUTOSAVE_DB_NAME = "abipaint-project-storage";
 const AUTOSAVE_DB_STORE = "projects";
@@ -1291,6 +1291,7 @@ export default function Home() {
   const [imageEditingId, setImageEditingId] = useState<string | null>(null);
   const [cropDraft, setCropDraft] = useState<(ImageCrop & { imageId: string }) | null>(null);
   const [backgroundRemovalImageId, setBackgroundRemovalImageId] = useState<string | null>(null);
+  const [backgroundRemovalNotice, setBackgroundRemovalNotice] = useState<{ kind: "loading" | "processing" | "success" | "error"; message: string } | null>(null);
   const [selectedStrokeId, setSelectedStrokeId] = useState<string | null>(null);
   const [resetWorkingFileDialogOpen, setResetWorkingFileDialogOpen] = useState(false);
   const [shapeKind, setShapeKind] = useState<ShapeKind>("rectangle");
@@ -3459,6 +3460,7 @@ export default function Home() {
     if (!image || backgroundRemovalImageId || isPaintLayerLocked(image.paintLayerId)) return;
 
     setBackgroundRemovalImageId(image.id);
+    setBackgroundRemovalNotice({ kind: "loading", message: tr("正在準備去背模型…", "Preparing background-removal model…") });
     try {
       const source = await loadImageElement(image.src);
       const sourceWidth = Math.max(1, source.naturalWidth || source.width);
@@ -3483,11 +3485,13 @@ export default function Home() {
         input[planeSize * 2 + index] = (pixels[offset + 2] / 255 - 0.406) / 0.225;
       }
 
+      setBackgroundRemovalNotice({ kind: "loading", message: tr("正在載入本機去背引擎…", "Loading local removal engine…") });
       const runtime = backgroundRemovalRuntimeRef.current ?? await import("onnxruntime-web");
       backgroundRemovalRuntimeRef.current = runtime;
       if (!backgroundRemovalSessionRef.current) {
         runtime.env.wasm.wasmPaths = "https://cdn.jsdelivr.net/npm/onnxruntime-web@1.27.0/dist/";
         runtime.env.wasm.numThreads = 1;
+        setBackgroundRemovalNotice({ kind: "loading", message: tr("正在下載主體辨識模型（約 5 MB）…", "Downloading subject model (~5 MB)…") });
         backgroundRemovalSessionRef.current = await runtime.InferenceSession.create(U2NETP_MODEL_URL, {
           executionProviders: ["wasm"],
           graphOptimizationLevel: "all",
@@ -3495,6 +3499,7 @@ export default function Home() {
       }
 
       const session = backgroundRemovalSessionRef.current;
+      setBackgroundRemovalNotice({ kind: "processing", message: tr("正在辨識人物或物品主體…", "Detecting the foreground subject…") });
       const results = await session.run({ [session.inputNames[0]]: new runtime.Tensor("float32", input, [1, 3, 320, 320]) });
       const output = results[session.outputNames.includes("d0") ? "d0" : session.outputNames[0]];
       if (!output?.data) throw new Error("Subject mask is unavailable");
@@ -3537,9 +3542,12 @@ export default function Home() {
       } : item));
       setHasArtwork(true);
       captureHistory();
+      setBackgroundRemovalNotice({ kind: "success", message: tr("去背完成，背景已透明", "Background removed — transparency applied") });
       toast.success(tr("主體已去背並保留透明背景", "Subject isolated with a transparent background"));
     } catch (error) {
       console.error("Background removal failed", error);
+      const reason = error instanceof Error && error.message ? error.message : tr("無法初始化本機模型", "Unable to initialize the local model");
+      setBackgroundRemovalNotice({ kind: "error", message: tr(`去背失敗：${reason}`, `Background removal failed: ${reason}`) });
       toast.error(tr("去背失敗，請確認網路後再試一次", "Background removal failed. Check your connection and try again"));
     } finally {
       setBackgroundRemovalImageId(null);
@@ -5031,6 +5039,12 @@ export default function Home() {
             onPointerUp={finishPan}
             onPointerCancel={finishPan}
           >
+            {backgroundRemovalNotice && (
+              <div className={`background-removal-status is-${backgroundRemovalNotice.kind}`} role="status" aria-live="polite">
+                <WandSparkles size={16} />
+                <span>{backgroundRemovalNotice.message}</span>
+              </div>
+            )}
             <div
               ref={mobileMiniToolRef}
               className={`mobile-mini-tools ${isMobileMiniToolDragging ? "is-dragging" : ""}`}
