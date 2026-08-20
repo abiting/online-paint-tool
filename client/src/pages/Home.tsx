@@ -3543,6 +3543,9 @@ export default function Home() {
       setHasArtwork(true);
       captureHistory();
       setBackgroundRemovalNotice({ kind: "success", message: tr("去背完成", "Background removed") });
+      window.setTimeout(() => {
+        setBackgroundRemovalNotice((current) => current?.kind === "success" ? null : current);
+      }, 2600);
       toast.success(tr("去背完成", "Background removed"));
     } catch (error) {
       console.error("Background removal failed", error);
