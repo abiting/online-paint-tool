@@ -4921,6 +4921,15 @@ export default function Home() {
                 </div>
               )}
 
+              {selectedImage && openDesktopTool !== "outline" && (
+                <div className="material-stack-controls background-removal-controls" aria-label={tr("主體去背", "Remove background")}>
+                  <span className="field-label">{tr("主體去背", "Remove background")}</span>
+                  <button type="button" className="secondary-button" disabled={backgroundRemovalImageId === selectedImage.id || Boolean(cropDraft)} onClick={() => void removeSelectedImageBackground()}>
+                    <WandSparkles size={14} /> {backgroundRemovalImageId === selectedImage.id ? tr("正在辨識…", "Detecting…") : tr("去背", "Remove")}
+                  </button>
+                </div>
+              )}
+
               {openDesktopTool === "object" && selectedStroke && (
                 <div className="desktop-tool-popover-content">
                   <p className="empty-inspector compact-object-note">{tr("筆觸樣式", "Stroke appearance")}</p>
@@ -5364,6 +5373,7 @@ export default function Home() {
                     >
                       <button type="button" onClick={duplicateSelectedMaterial} title={tr("在原物件旁建立相同素材", "Duplicate object")} aria-label={tr("複製目前素材", "Duplicate selected object")}><Copy size={23} /></button>
                       <button type="button" onClick={deleteSelectedMaterial} title={tr("刪除目前素材", "Delete object")} aria-label={tr("刪除目前素材", "Delete selected object")}><Trash2 size={24} /></button>
+                      {selectedImage && <button type="button" disabled={backgroundRemovalImageId === selectedImage.id || Boolean(cropDraft)} onClick={() => void removeSelectedImageBackground()} title={tr("主體去背", "Remove background")} aria-label={tr("主體去背", "Remove background")}><WandSparkles size={22} /></button>}
                       <button type="button" onClick={handleSelectedObjectSettings} title={tr("更多設定", "More settings")} aria-label={tr("更多設定", "More settings")}><MoreHorizontal size={25} /></button>
                     </div>
                   )}
