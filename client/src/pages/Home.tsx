@@ -1726,6 +1726,29 @@ export default function Home() {
     return { width, height: Math.ceil(layer.fontSize * 1.12) + 4 };
   }, []);
 
+  const mobileSelectionToolbar = useMemo(() => {
+    if (!isMobileViewport || selectedMaterialIsLocked) return null;
+    let bounds: { x: number; y: number; width: number; height: number } | null = null;
+    if (selectedImage) bounds = { x: selectedImage.x, y: selectedImage.y, width: selectedImage.width, height: selectedImage.height };
+    else if (selectedShape) bounds = { x: selectedShape.x, y: selectedShape.y, width: selectedShape.width, height: selectedShape.height };
+    else if (selectedText) {
+      const dimensions = getTextLayerDimensions(selectedText);
+      bounds = { x: selectedText.x, y: selectedText.y, ...dimensions };
+    } else if (selectedStroke && selectedStroke.points.length) {
+      const xValues = selectedStroke.points.map((point) => point.x + selectedStroke.x);
+      const yValues = selectedStroke.points.map((point) => point.y + selectedStroke.y);
+      const padding = Math.max(18, selectedStroke.size * 1.4);
+      const minX = Math.min(...xValues) - padding;
+      const minY = Math.min(...yValues) - padding;
+      bounds = { x: minX, y: minY, width: Math.max(1, Math.max(...xValues) - Math.min(...xValues) + padding * 2), height: Math.max(1, Math.max(...yValues) - Math.min(...yValues) + padding * 2) };
+    }
+    if (!bounds) return null;
+    return {
+      x: clamp(bounds.x + bounds.width / 2, 58, canvasSize.width - 58),
+      y: Math.max(10, bounds.y - 14),
+    };
+  }, [canvasSize.width, getTextLayerDimensions, isMobileViewport, selectedImage, selectedMaterialIsLocked, selectedShape, selectedStroke, selectedText]);
+
   const centerTextLayerByVisibleBounds = (textId: string, target: { x: number; y: number; width: number; height: number }, axis: "horizontal" | "vertical" | "both" = "both") => {
     window.requestAnimationFrame(() => {
       void (async () => {
@@ -5187,6 +5210,18 @@ export default function Home() {
                       )}
                     </div>
                   ))}
+                  {mobileSelectionToolbar && (
+                    <div
+                      className="mobile-object-toolbar"
+                      style={{ left: `${mobileSelectionToolbar.x}px`, top: `${mobileSelectionToolbar.y}px`, "--mobile-object-toolbar-scale": 100 / zoom } as CSSProperties}
+                      onPointerDown={(event) => event.stopPropagation()}
+                      aria-label={tr("素材操作", "Object actions")}
+                    >
+                      <button type="button" onClick={duplicateSelectedMaterial} title={tr("在原物件旁建立相同素材", "Duplicate object")} aria-label={tr("複製目前素材", "Duplicate selected object")}><Copy size={23} /></button>
+                      <button type="button" onClick={deleteSelectedMaterial} title={tr("刪除目前素材", "Delete object")} aria-label={tr("刪除目前素材", "Delete selected object")}><Trash2 size={24} /></button>
+                      <button type="button" onClick={handleSelectedObjectSettings} title={tr("更多設定", "More settings")} aria-label={tr("更多設定", "More settings")}><MoreHorizontal size={25} /></button>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
