@@ -465,7 +465,7 @@ const PAPER = "#FFFDF8";
 const GRAPHITE = "#1F2528";
 const MAX_PAINT_LAYERS = 5;
 const MOBILE_VIEWPORT_MEDIA_QUERY = "(max-width: 960px), (pointer: coarse) and (max-height: 600px)";
-const TEXT_RASTER_VERSION = 3;
+const TEXT_RASTER_VERSION = 4;
 const BASE_PAINT_LAYER_ID = "paint-layer-base";
 const AUTOSAVE_DB_NAME = "abipaint-project-storage";
 const AUTOSAVE_DB_STORE = "projects";
@@ -1842,7 +1842,7 @@ export default function Home() {
         minX = Math.min(minX, x); minY = Math.min(minY, y); maxX = Math.max(maxX, x); maxY = Math.max(maxY, y);
       }
       if (maxX < minX || maxY < minY) return;
-      const padding = 4 * scale;
+      const padding = 2 * scale;
       const visibleWidth = maxX - minX + 1;
       const visibleHeight = maxY - minY + 1;
       const cropped = document.createElement("canvas");
@@ -5238,7 +5238,7 @@ export default function Home() {
                         left: 0,
                         top: 0,
                         transform: `translate3d(${layer.x}px, ${layer.y}px, 0)`,
-                        ...(layer.rasterDataUrl && editingTextId !== layer.id ? { width: `${layer.rasterWidth ?? 0}px`, height: `${layer.rasterHeight ?? 0}px`, padding: 0 } : {}),
+                        ...(layer.rasterDataUrl && editingTextId !== layer.id ? { width: `${layer.rasterWidth ?? 0}px`, height: `${layer.rasterHeight ?? 0}px`, minWidth: 0, minHeight: 0, padding: 0, lineHeight: 1 } : {}),
                         zIndex: getMaterialStackOrder("text", layer, index),
                         color: hexToRgba(layer.color, layer.opacity / 100),
                         fontSize: `${layer.fontSize}px`,
