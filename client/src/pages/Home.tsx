@@ -3486,11 +3486,11 @@ export default function Home() {
       }
 
       setBackgroundRemovalNotice({ kind: "loading", message: tr("正在載入本機去背引擎…", "Loading local removal engine…") });
-      const runtime = backgroundRemovalRuntimeRef.current ?? await import("onnxruntime-web");
+      const runtime = backgroundRemovalRuntimeRef.current ?? await import("onnxruntime-web/wasm");
       backgroundRemovalRuntimeRef.current = runtime;
       if (!backgroundRemovalSessionRef.current) {
-        runtime.env.wasm.wasmPaths = "https://cdn.jsdelivr.net/npm/onnxruntime-web@1.27.0/dist/";
         runtime.env.wasm.numThreads = 1;
+        runtime.env.wasm.proxy = false;
         setBackgroundRemovalNotice({ kind: "loading", message: tr("正在下載主體辨識模型（約 5 MB）…", "Downloading subject model (~5 MB)…") });
         backgroundRemovalSessionRef.current = await runtime.InferenceSession.create(U2NETP_MODEL_URL, {
           executionProviders: ["wasm"],
