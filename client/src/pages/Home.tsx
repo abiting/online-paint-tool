@@ -1259,9 +1259,7 @@ export default function Home() {
   const [bleedGuide, setBleedGuide] = useState<BleedGuide | null>(null);
   const [scaleImagesWithCanvas, setScaleImagesWithCanvas] = useState(false);
 
-  const [tool, setTool] = useState<Tool>(() =>
-    window.matchMedia("(max-width: 768px)").matches ? "move" : "brush",
-  );
+  const [tool, setTool] = useState<Tool>("move");
   const [brushKind, setBrushKind] = useState<BrushKind>("oil");
   const [brushColor, setBrushColor] = useState(BRAND_RED);
   const [brushSize, setBrushSize] = useState(18);
@@ -3281,38 +3279,43 @@ export default function Home() {
     temp.height = nextHeight;
     const tempContext = temp.getContext("2d");
     if (!tempContext) return;
+    const scaleX = nextWidth / canvasSize.width;
+    const scaleY = nextHeight / canvasSize.height;
+    const materialScale = Math.min(scaleX, scaleY);
+    const contentOffsetX = (nextWidth - canvasSize.width * materialScale) / 2;
+    const contentOffsetY = (nextHeight - canvasSize.height * materialScale) / 2;
     tempContext.fillStyle = PAPER;
     tempContext.fillRect(0, 0, nextWidth, nextHeight);
-    tempContext.drawImage(oldCanvas, 0, 0, nextWidth, nextHeight);
+    tempContext.drawImage(oldCanvas, contentOffsetX, contentOffsetY, canvasSize.width * materialScale, canvasSize.height * materialScale);
     oldCanvas.width = nextWidth;
     oldCanvas.height = nextHeight;
     oldCanvas.getContext("2d")?.drawImage(temp, 0, 0);
-    const scaleX = nextWidth / canvasSize.width;
-    const scaleY = nextHeight / canvasSize.height;
     syncLayers(
       layersRef.current.map((layer) => ({
         ...layer,
-        x: layer.x * scaleX,
-        y: layer.y * scaleY,
-        fontSize: layer.fontSize * Math.min(scaleX, scaleY),
+        x: layer.x * materialScale + contentOffsetX,
+        y: layer.y * materialScale + contentOffsetY,
+        fontSize: layer.fontSize * materialScale,
+        rasterWidth: layer.rasterWidth ? layer.rasterWidth * materialScale : undefined,
+        rasterHeight: layer.rasterHeight ? layer.rasterHeight * materialScale : undefined,
       })),
     );
     syncShapes(
       shapesRef.current.map((shape) => ({
         ...shape,
-        x: shape.x * scaleX,
-        y: shape.y * scaleY,
-        width: shape.width * scaleX,
-        height: shape.height * scaleY,
-        outlineWidth: shape.outlineWidth * Math.min(scaleX, scaleY),
-        shadowBlur: shape.shadowBlur * Math.min(scaleX, scaleY),
-        shadowX: shape.shadowX * scaleX,
-        shadowY: shape.shadowY * scaleY,
+        x: shape.x * materialScale + contentOffsetX,
+        y: shape.y * materialScale + contentOffsetY,
+        width: shape.width * materialScale,
+        height: shape.height * materialScale,
+        outlineWidth: shape.outlineWidth * materialScale,
+        shadowBlur: shape.shadowBlur * materialScale,
+        shadowX: shape.shadowX * materialScale,
+        shadowY: shape.shadowY * materialScale,
       })),
     );
-    const imageScale = scaleImagesWithCanvas ? Math.min(scaleX, scaleY) : 1;
-    const imageOffsetX = scaleImagesWithCanvas ? (nextWidth - canvasSize.width * imageScale) / 2 : 0;
-    const imageOffsetY = scaleImagesWithCanvas ? (nextHeight - canvasSize.height * imageScale) / 2 : 0;
+    const imageScale = scaleImagesWithCanvas ? materialScale : 1;
+    const imageOffsetX = scaleImagesWithCanvas ? contentOffsetX : 0;
+    const imageOffsetY = scaleImagesWithCanvas ? contentOffsetY : 0;
     syncImages(
       imagesRef.current.map((image) => ({
         ...image,
@@ -3320,6 +3323,16 @@ export default function Home() {
         y: scaleImagesWithCanvas ? image.y * imageScale + imageOffsetY : image.y,
         width: scaleImagesWithCanvas ? image.width * imageScale : image.width,
         height: scaleImagesWithCanvas ? image.height * imageScale : image.height,
+      })),
+    );
+    syncStrokes(
+      strokesRef.current.map((stroke) => ({
+        ...stroke,
+        x: stroke.x * materialScale + contentOffsetX,
+        y: stroke.y * materialScale + contentOffsetY,
+        size: stroke.size * materialScale,
+        outlineWidth: (stroke.outlineWidth ?? 0) * materialScale,
+        points: stroke.points.map((point) => ({ ...point, x: point.x * materialScale, y: point.y * materialScale })),
       })),
     );
     setCanvasSize({ width: nextWidth, height: nextHeight });
@@ -3771,7 +3784,7 @@ export default function Home() {
         if (isMobileExport && typeof navigator.share === "function" && (!navigator.canShare || navigator.canShare({ files: [file] }))) {
           try {
             await navigator.share({ files: [file], title: filename });
-            toast.success(tr("已儲存", "Saved"));
+            toast.success(tr("已儲存", "Saved"), { className: "export-toast" });
             return;
           } catch (error) {
             if (error instanceof DOMException && error.name === "AbortError") return;
@@ -3784,7 +3797,7 @@ export default function Home() {
         link.click();
         link.remove();
         window.setTimeout(() => URL.revokeObjectURL(link.href), 0);
-        toast.success(tr("檔案已下載", "File downloaded"));
+        toast.success(tr("檔案已下載", "File downloaded"), { className: "export-toast" });
       };
       if (format === "pdf") {
         const pdf = new jsPDF({ orientation: output.width >= output.height ? "landscape" : "portrait", unit: "px", format: [output.width, output.height], compress: true });
@@ -3800,7 +3813,7 @@ export default function Home() {
       }
     } catch (error) {
       console.error("AbiPaint export preview render failed", error);
-      toast.error(tr("無法建立匯出預覽，請再試一次", "Export preview could not be created. Please try again."));
+      toast.error(tr("無法建立匯出預覽，請再試一次", "Export preview could not be created. Please try again."), { className: "export-toast" });
     } finally {
       setIsExportRendering(false);
     }
@@ -3818,14 +3831,14 @@ export default function Home() {
       });
       pdf.addImage(exportPreview.url, "PNG", 0, 0, exportPreview.width, exportPreview.height, undefined, "FAST");
       pdf.save(`${baseName}.pdf`);
-      toast.success(tr("PDF 已匯出", "PDF exported"));
+      toast.success(tr("PDF 已匯出", "PDF exported"), { className: "export-toast" });
     } else {
       const link = document.createElement("a");
       const extension = exportPreview.format === "jpeg" ? "jpg" : "png";
       link.download = `${baseName}.${extension}`;
       link.href = exportPreview.url;
       link.click();
-      toast.success(tr(`${extension.toUpperCase()} 已匯出`, `${extension.toUpperCase()} exported`));
+      toast.success(tr(`${extension.toUpperCase()} 已匯出`, `${extension.toUpperCase()} exported`), { className: "export-toast" });
     }
     setExportPreview(null);
   };

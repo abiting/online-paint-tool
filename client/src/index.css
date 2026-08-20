@@ -111,6 +111,7 @@
 :root { color-scheme: dark; }
 button, input, textarea, select { font: inherit; }
 button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-visible, [role="button"]:focus-visible { outline: 2px solid #e4513b; outline-offset: 3px; }
+[data-sonner-toaster] [data-sonner-toast]:not(.export-toast) { display: none !important; }
 
 .studio-app {
   min-height: 100vh;
@@ -273,7 +274,7 @@ kbd { min-width: 19px; padding: 3px 4px; text-align: center; color: #aab1aa; bac
 .ghost-button { display: grid; place-items: center; width: 28px; height: 28px; color: #929b96; background: transparent; border-radius: 5px; }
 .ghost-button:hover { color: #f3ede0; background: rgba(245,240,229,0.08); }
 .zoom-value { min-width: 39px; text-align: center; color: #c7c7bd; font: 11px "IBM Plex Mono", monospace; }
-.canvas-viewport { position: relative; flex: 1; min-height: 0; display: block; padding: 0; overflow: hidden; cursor: grab; touch-action: none; background-color: rgba(55,53,45,0.72); background-image: linear-gradient(rgba(238,222,190,0.052) 1px, transparent 1px), linear-gradient(90deg, rgba(238,222,190,0.052) 1px, transparent 1px), linear-gradient(rgba(228,81,59,0.035) 1px, transparent 1px), linear-gradient(90deg, rgba(228,81,59,0.035) 1px, transparent 1px), radial-gradient(circle at 25% 20%, rgba(255,247,226,0.04), transparent 34%); background-size: 20px 20px, 20px 20px, 100px 100px, 100px 100px, auto; }
+.canvas-viewport { position: relative; flex: 1; min-height: 0; display: block; padding: 0; overflow: hidden; cursor: default; touch-action: none; background-color: rgba(55,53,45,0.72); background-image: linear-gradient(rgba(238,222,190,0.052) 1px, transparent 1px), linear-gradient(90deg, rgba(238,222,190,0.052) 1px, transparent 1px), linear-gradient(rgba(228,81,59,0.035) 1px, transparent 1px), linear-gradient(90deg, rgba(228,81,59,0.035) 1px, transparent 1px), radial-gradient(circle at 25% 20%, rgba(255,247,226,0.04), transparent 34%); background-size: 20px 20px, 20px 20px, 100px 100px, 100px 100px, auto; }
 .canvas-viewport.is-panning { cursor: grabbing; }
 .canvas-viewport::before, .canvas-viewport::after { content: ""; position: absolute; width: 28px; height: 28px; border-color: rgba(227,213,187,0.25); pointer-events: none; }
 .canvas-viewport::before { top: 18px; left: 18px; border-top: 1px solid; border-left: 1px solid; }
