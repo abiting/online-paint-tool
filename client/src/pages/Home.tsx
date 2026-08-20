@@ -463,6 +463,7 @@ const BRAND_RED = "#E4513B";
 const PAPER = "#FFFDF8";
 const GRAPHITE = "#1F2528";
 const MAX_PAINT_LAYERS = 5;
+const MOBILE_VIEWPORT_MEDIA_QUERY = "(max-width: 960px), (pointer: coarse) and (max-height: 600px)";
 const BASE_PAINT_LAYER_ID = "paint-layer-base";
 const AUTOSAVE_DB_NAME = "abipaint-project-storage";
 const AUTOSAVE_DB_STORE = "projects";
@@ -1317,7 +1318,7 @@ export default function Home() {
   const [isEasterEggOpen, setIsEasterEggOpen] = useState(false);
   const [mobileMiniToolPosition, setMobileMiniToolPosition] = useState({ x: 14, y: 14 });
   const [isMobileMiniToolDragging, setIsMobileMiniToolDragging] = useState(false);
-  const [isMobileViewport, setIsMobileViewport] = useState(() => window.matchMedia("(max-width: 820px)").matches);
+  const [isMobileViewport, setIsMobileViewport] = useState(() => window.matchMedia(MOBILE_VIEWPORT_MEDIA_QUERY).matches);
   const [isExportRendering, setIsExportRendering] = useState(false);
   const [exportPreview, setExportPreview] = useState<{ url: string; format: ExportFormat; width: number; height: number } | null>(null);
   const objectClipboardRef = useRef<ObjectClipboard | null>(null);
@@ -1344,7 +1345,7 @@ export default function Home() {
   const hasInitializedPanRef = useRef(false);
 
   useEffect(() => {
-    const mobileQuery = window.matchMedia("(max-width: 820px)");
+    const mobileQuery = window.matchMedia(MOBILE_VIEWPORT_MEDIA_QUERY);
     const updateMobileViewport = () => setIsMobileViewport(mobileQuery.matches);
     updateMobileViewport();
     mobileQuery.addEventListener("change", updateMobileViewport);
@@ -4224,8 +4225,22 @@ export default function Home() {
   useEffect(() => {
     if (!isMobileViewport) return;
     const frame = window.requestAnimationFrame(fitCanvasToViewport);
-    const refit = () => window.requestAnimationFrame(fitCanvasToViewport);
-    const refitAfterRotation = () => window.setTimeout(refit, 180);
+    const resetPageScroll = () => {
+      window.scrollTo({ top: 0, left: 0, behavior: "auto" });
+      document.documentElement.scrollTop = 0;
+      document.body.scrollTop = 0;
+    };
+    const refit = () => {
+      resetPageScroll();
+      return window.requestAnimationFrame(() => {
+        resetPageScroll();
+        fitCanvasToViewport();
+      });
+    };
+    const refitAfterRotation = () => {
+      resetPageScroll();
+      return window.setTimeout(refit, 220);
+    };
     window.addEventListener("resize", refit);
     window.addEventListener("orientationchange", refitAfterRotation);
     window.visualViewport?.addEventListener("resize", refit);
