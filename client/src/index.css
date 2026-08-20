@@ -120,11 +120,12 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 }
 .topbar { height: 74px; display: flex; align-items: center; justify-content: space-between; gap: 24px; padding: 0 24px 0 22px; border-bottom: 1px solid rgba(227, 213, 187, 0.17); background: linear-gradient(90deg, rgba(42,39,32,0.96), rgba(33,32,27,0.93)), repeating-linear-gradient(90deg, rgba(255,255,255,0.012) 0 1px, transparent 1px 5px); backdrop-filter: blur(18px); }
 .brand-lockup, .top-actions, .document-meta, .workspace-actions, .active-tool-name, .brush-context, .footer-note, .color-row, .range-heading, .canvas-meta, .remove-bg-heading, .select-row { display: flex; align-items: center; }
-.brand-lockup { gap: 10px; min-width: 220px; }
+.brand-lockup { position: relative; gap: 10px; min-width: 220px; }
+.brand-lockup::after { content: ""; width: 15px; height: 7px; margin-left: 1px; border-top: 2px solid #e4513b; border-right: 2px solid #e4513b; transform: skewX(-28deg); opacity: 0.92; }
 .brand-mark { width: 36px; height: 36px; display: grid; place-items: center; border: 1px solid rgba(255,255,255,0.25); background: #f5eee0; border-radius: 100%; overflow: hidden; box-shadow: 0 7px 18px rgba(0,0,0,0.2); }
 .brand-mark img { width: 100%; height: 100%; object-fit: cover; }
 .brand-copy { display: grid; gap: 1px; }
-.brand-name { font-family: "DM Sans", sans-serif; font-weight: 700; font-size: 14px; letter-spacing: 0.04em; }
+.brand-name { font-family: "DM Sans", sans-serif; font-weight: 700; font-size: 14px; letter-spacing: 0.065em; }
 .brand-status { color: #9da5a0; font-size: 10px; letter-spacing: 0.08em; }
 .status-dot { display: inline-block; width: 6px; height: 6px; background: #82a480; border-radius: 50%; margin-right: 4px; box-shadow: 0 0 0 3px rgba(130, 164, 128, 0.12); }
 .document-meta { gap: 9px; min-width: 0; margin-left: 24px; flex: 1; }
@@ -285,7 +286,7 @@ kbd { min-width: 19px; padding: 3px 4px; text-align: center; color: #aab1aa; bac
 .canvas-shell { position: absolute; left: 0; top: 0; transform-origin: top left; box-shadow: 0 16px 30px rgba(9,13,14,0.28), 0 3px 8px rgba(9,13,14,0.14); }
 .canvas-shell::before { content: ""; position: absolute; z-index: 7; inset: -9px; pointer-events: none; background: linear-gradient(#d9d0bd,#d9d0bd) left top / 25px 1px no-repeat, linear-gradient(#d9d0bd,#d9d0bd) left top / 1px 25px no-repeat, linear-gradient(#d9d0bd,#d9d0bd) right top / 25px 1px no-repeat, linear-gradient(#d9d0bd,#d9d0bd) right top / 1px 25px no-repeat, linear-gradient(#d9d0bd,#d9d0bd) left bottom / 25px 1px no-repeat, linear-gradient(#d9d0bd,#d9d0bd) left bottom / 1px 25px no-repeat, linear-gradient(#d9d0bd,#d9d0bd) right bottom / 25px 1px no-repeat, linear-gradient(#d9d0bd,#d9d0bd) right bottom / 1px 25px no-repeat; opacity: 0.62; }
 .canvas-content { position: relative; width: 100%; height: 100%; transform-origin: center; }
-.canvas-content canvas { display: block; width: 100%; height: 100%; cursor: crosshair; touch-action: none; background: #fffcf4; }
+.canvas-content canvas { display: block; width: 100%; height: 100%; cursor: crosshair; touch-action: none; background: #fffaf0; }
 .text-layer { position: absolute; min-width: 48px; min-height: 1.2em; padding: 2px 4px; white-space: pre-wrap; line-height: 1.12; cursor: move; user-select: none; transform-origin: top left; will-change: transform; contain: layout paint; backface-visibility: hidden; }
 .text-layer-raster { display: block; width: 100%; height: 100%; object-fit: fill; pointer-events: none; user-select: none; -webkit-user-drag: none; }
 .shape-layer { user-select: none; -webkit-user-select: none; touch-action: none; cursor: move; will-change: transform; contain: layout paint; backface-visibility: hidden; }
@@ -365,6 +366,9 @@ kbd { min-width: 19px; padding: 3px 4px; text-align: center; color: #aab1aa; bac
 .material-stack-controls { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 0 0 14px; padding: 9px 10px; border: 1px solid rgba(227, 213, 187, 0.15); background: rgba(255, 253, 248, 0.04); }
 .material-stack-actions { display: flex; gap: 7px; }
 .material-stack-actions .secondary-button { min-height: 30px; padding: 6px 9px; font-size: 10px; }
+.desktop-tool-popover-header-actions { display: flex; align-items: center; gap: 5px; }
+.material-delete-icon-button { color: #dca79b; }
+.material-delete-icon-button:hover:not(:disabled) { color: #fff4e8; background: rgba(228,81,59,0.15); }
 .desktop-tool-popover .range-control { margin: 16px 0; }
 .floating-swatch-row { flex-wrap: wrap; gap: 7px; margin-top: 14px; }
 .floating-shape-grid { grid-template-columns: repeat(6, 1fr); margin: 2px 0 18px; }
@@ -377,21 +381,21 @@ kbd { min-width: 19px; padding: 3px 4px; text-align: center; color: #aab1aa; bac
   .faq-panel { display: none !important; }
 }
 
-.inspector { min-height: 0; border-left: 1px solid rgba(227,213,187,0.17); background: linear-gradient(90deg, rgba(228,81,59,0.16) 0 2px, transparent 2px), rgba(35,33,29,0.95); }
+.inspector { min-height: 0; border-left: 1px solid rgba(227,213,187,0.17); background: linear-gradient(90deg, rgba(228,81,59,0.16) 0 2px, transparent 2px), repeating-linear-gradient(0deg, rgba(255,253,248,0.012) 0 1px, transparent 1px 6px), rgba(35,33,29,0.95); }
 .inspector-scroll { height: 100%; overflow: auto; padding: 24px 20px 28px; }
 .section-title { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 16px; }
 .section-title-emphasis .eyebrow { color: #c4c9c1; font-size: 11px; letter-spacing: 0.12em; }
 .section-title h2, .remove-bg-heading h3 { margin: 4px 0 0; color: #f1ecdf; font-family: "DM Sans", "Noto Sans TC", sans-serif; font-size: 16px; font-weight: 700; letter-spacing: -0.01em; }
 .section-icon { color: #7d8983; }
-.inspector-section { position: relative; padding: 2px 0 19px; margin-bottom: 20px; border-bottom: 1px solid rgba(227,213,187,0.11); }
-.field-label { display: block; margin-bottom: 6px; color: #cbc8bd; font-size: 10px; font-weight: 500; }
+.inspector-section { position: relative; padding: 11px 10px 15px; margin-bottom: 16px; border: 1px solid rgba(227,213,187,0.1); border-left-color: rgba(228,81,59,0.34); background: rgba(255,253,248,0.018); }
+.field-label { display: block; margin-bottom: 6px; color: #cbc8bd; font: 500 10px "IBM Plex Mono", "Noto Sans TC", monospace; letter-spacing: 0.045em; }
 .field-help, .empty-inspector { margin: 4px 0 0; color: #75807b; font-size: 10px; line-height: 1.65; }
 .color-row { justify-content: space-between; gap: 14px; margin-bottom: 18px; }
 .color-picker { position: relative; display: block; width: 42px; height: 32px; padding: 4px; border: 1px solid rgba(227,213,187,0.22); border-radius: 5px; background: rgba(245,240,229,0.05); cursor: pointer; }
 .color-picker input { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; }
 .color-picker span { display: block; width: 100%; height: 100%; border-radius: 3px; border: 1px solid rgba(0,0,0,0.2); }
 .range-control { display: block; margin: 18px 0; }
-.range-heading { justify-content: space-between; margin-bottom: 10px; color: #b8b8af; font-size: 10px; }
+.range-heading { justify-content: space-between; margin-bottom: 10px; color: #c7c5bb; font: 500 10px "IBM Plex Mono", "Noto Sans TC", monospace; letter-spacing: 0.03em; }
 .shadow-control-hint { opacity: .72; }
 .shadow-control-hint p { margin: -2px 0 0; color: #777167; font: 10px/1.5 "Noto Sans TC", "DM Sans", sans-serif; }
 .range-number-field { display: inline-flex; align-items: center; gap: 2px; color: #c2c7bc; font: 10px "IBM Plex Mono", monospace; }
@@ -469,7 +473,8 @@ input[type="range"]::-moz-range-thumb { width: 11px; height: 11px; border: 2px s
   .inspector-scroll > .section-title { grid-column: 1 / -1; }
   .inspector-scroll > .inspector-divider { display: none; }
   .remove-bg-section, .inspector-tip { display: none; }
-  .canvas-viewport { padding-bottom: calc(min(43vh, 390px) + 24px); }
+  .canvas-viewport { padding-bottom: calc(min(43vh, 390px) + 24px); cursor: default; }
+  .workspace-actions { display: none; }
   .paint-layer-panel { top: 65px; right: 12px; width: 145px; }
   .workspace-footer { padding-left: 14px; padding-right: 14px; }
   .footer-note { display: none; }

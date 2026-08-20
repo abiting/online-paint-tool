@@ -16,6 +16,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Circle,
+  Copy,
   Crop,
   Download,
   Eraser,
@@ -1316,6 +1317,7 @@ export default function Home() {
   const [isEasterEggOpen, setIsEasterEggOpen] = useState(false);
   const [mobileMiniToolPosition, setMobileMiniToolPosition] = useState({ x: 14, y: 14 });
   const [isMobileMiniToolDragging, setIsMobileMiniToolDragging] = useState(false);
+  const [isMobileViewport, setIsMobileViewport] = useState(() => window.matchMedia("(max-width: 820px)").matches);
   const [isExportRendering, setIsExportRendering] = useState(false);
   const [exportPreview, setExportPreview] = useState<{ url: string; format: ExportFormat; width: number; height: number } | null>(null);
   const objectClipboardRef = useRef<ObjectClipboard | null>(null);
@@ -1339,6 +1341,14 @@ export default function Home() {
   const mobileMiniToolRef = useRef<HTMLDivElement>(null);
   const mobileMiniToolDragRef = useRef<{ startX: number; startY: number; originX: number; originY: number } | null>(null);
   const hasInitializedPanRef = useRef(false);
+
+  useEffect(() => {
+    const mobileQuery = window.matchMedia("(max-width: 820px)");
+    const updateMobileViewport = () => setIsMobileViewport(mobileQuery.matches);
+    updateMobileViewport();
+    mobileQuery.addEventListener("change", updateMobileViewport);
+    return () => mobileQuery.removeEventListener("change", updateMobileViewport);
+  }, []);
 
   const selectedText = useMemo(
     () => layers.find((layer) => layer.id === selectedTextId) ?? null,
@@ -3160,6 +3170,59 @@ export default function Home() {
     toast.success("圖片素材已移除");
   };
 
+  const deleteSelectedMaterial = () => {
+    if (selectedTextId) {
+      deleteSelectedText();
+      return;
+    }
+    if (selectedShapeId) {
+      deleteSelectedShape();
+      return;
+    }
+    if (selectedImageId) {
+      deleteSelectedImage();
+      return;
+    }
+    if (!selectedStrokeId) return;
+    const selectedLayer = strokesRef.current.find((stroke) => stroke.id === selectedStrokeId);
+    if (!selectedLayer || isPaintLayerLocked(selectedLayer.paintLayerId)) return;
+    syncStrokes(strokesRef.current.filter((stroke) => stroke.id !== selectedStrokeId));
+    setSelectedStrokeId(null);
+    captureHistory();
+    toast.success(tr("筆觸已移除", "Brush stroke removed"));
+  };
+
+  const duplicateSelectedMaterial = () => {
+    const offset = 24;
+    if (selectedShape && !isPaintLayerLocked(selectedShape.paintLayerId)) {
+      const nextShape: ShapeLayer = { ...selectedShape, id: makeId("shape"), stackOrder: getNextMaterialStackOrder(), x: selectedShape.x + offset, y: selectedShape.y + offset };
+      syncShapes([...shapesRef.current, nextShape]);
+      setSelectedShapeId(nextShape.id); setSelectedTextId(null); setSelectedImageId(null); setSelectedStrokeId(null);
+      setTool("move"); captureHistory(); toast.success(tr("圖形已複製", "Shape duplicated"));
+      return;
+    }
+    if (selectedImage && !isPaintLayerLocked(selectedImage.paintLayerId)) {
+      const nextImage: ImageLayer = { ...selectedImage, id: makeId("image"), stackOrder: getNextMaterialStackOrder(), x: selectedImage.x + offset, y: selectedImage.y + offset, crop: selectedImage.crop ? { ...selectedImage.crop } : undefined };
+      syncImages([...imagesRef.current, nextImage]);
+      setSelectedImageId(nextImage.id); setSelectedTextId(null); setSelectedShapeId(null); setSelectedStrokeId(null);
+      setImageEditingId(nextImage.id); setTool("move"); captureHistory(); toast.success(tr("圖片已複製", "Image duplicated"));
+      return;
+    }
+    if (selectedStroke && !isPaintLayerLocked(selectedStroke.paintLayerId)) {
+      const nextStroke: BrushStroke = { ...selectedStroke, id: makeId("stroke"), stackOrder: getNextMaterialStackOrder(), x: selectedStroke.x + offset, y: selectedStroke.y + offset, points: selectedStroke.points.map((point) => ({ ...point })) };
+      syncStrokes([...strokesRef.current, nextStroke]);
+      setSelectedStrokeId(nextStroke.id); setSelectedTextId(null); setSelectedShapeId(null); setSelectedImageId(null);
+      setTool("move"); captureHistory(); toast.success(tr("筆觸已複製", "Brush stroke duplicated"));
+      return;
+    }
+    if (selectedText && !isPaintLayerLocked(selectedText.paintLayerId)) {
+      const nextText: TextLayer = { ...selectedText, id: makeId("text"), stackOrder: getNextMaterialStackOrder(), x: selectedText.x + offset, y: selectedText.y + offset, anchorShapeId: undefined };
+      syncLayers([...layersRef.current, nextText]);
+      setSelectedTextId(nextText.id); setSelectedShapeId(null); setSelectedImageId(null); setSelectedStrokeId(null);
+      setTool("move"); captureHistory(); toast.success(tr("文字已複製", "Text duplicated"));
+    }
+  };
+
   const alignSelected = (axis: "horizontal" | "vertical" | "both") => {
     if (selectedShape) {
       updateShape({
@@ -4012,6 +4075,7 @@ export default function Home() {
     const target = event.target as HTMLElement;
     if (target.closest("canvas, .canvas-content, .canvas-shell, .image-layer, .shape-layer, .text-layer, .stroke-layer")) return;
     clearSelectedObjects();
+    if (event.pointerType === "touch" && isMobileViewport) return;
     if (event.pointerType === "touch") {
       touchPointsRef.current.set(event.pointerId, { x: event.clientX, y: event.clientY });
       event.currentTarget.setPointerCapture(event.pointerId);
@@ -4102,21 +4166,33 @@ export default function Home() {
   };
 
   const currentZoomLabel = `${zoom}%`;
-  const fitCanvasToViewport = () => {
+  const fitCanvasToViewport = useCallback(() => {
     const viewport = viewportRef.current;
     if (!viewport) return;
     const bounds = viewport.getBoundingClientRect();
+    const bottomInset = Number.parseFloat(window.getComputedStyle(viewport).paddingBottom) || 0;
     const availableWidth = Math.max(120, bounds.width - 32);
-    const availableHeight = Math.max(120, bounds.height - 32);
+    const availableHeight = Math.max(120, bounds.height - bottomInset - 32);
     const nextZoom = clamp(Math.floor(Math.min(availableWidth / canvasSize.width, availableHeight / canvasSize.height) * 100), 25, 150);
     const displayWidth = canvasSize.width * (nextZoom / 100);
     const displayHeight = canvasSize.height * (nextZoom / 100);
     setZoom(nextZoom);
     setPan({
       x: Math.max(16, (bounds.width - displayWidth) / 2),
-      y: Math.max(16, (bounds.height - displayHeight) / 2),
+      y: Math.max(16, (availableHeight - displayHeight) / 2),
     });
-  };
+  }, [canvasSize.height, canvasSize.width]);
+
+  useEffect(() => {
+    if (!isMobileViewport) return;
+    const frame = window.requestAnimationFrame(fitCanvasToViewport);
+    const refit = () => window.requestAnimationFrame(fitCanvasToViewport);
+    window.addEventListener("resize", refit);
+    return () => {
+      window.cancelAnimationFrame(frame);
+      window.removeEventListener("resize", refit);
+    };
+  }, [fitCanvasToViewport, isMobileViewport, mobileDrawerHeight]);
   const resetCanvasView = () => {
     const viewport = viewportRef.current;
     const nextZoom = 68;
@@ -4657,7 +4733,15 @@ export default function Home() {
                   <span className="eyebrow">CREATIVE TOOL</span>
                   <h2>{desktopToolPanelTitle}</h2>
                 </div>
-                <button type="button" className="icon-button subtle" onClick={() => setOpenDesktopTool(null)} title={tr("完成設定", "Done")} aria-label={tr("完成設定", "Done")}><Check size={16} /></button>
+                <div className="desktop-tool-popover-header-actions">
+                  {selectedMaterialStackEntry && openDesktopTool !== "outline" && (
+                    <>
+                      <button type="button" className="icon-button subtle" onClick={duplicateSelectedMaterial} disabled={selectedMaterialIsLocked} title={tr("在原物件旁建立相同素材", "Duplicate object")} aria-label={tr("複製目前素材", "Duplicate selected object")}><Copy size={15} /></button>
+                      <button type="button" className="icon-button subtle material-delete-icon-button" onClick={deleteSelectedMaterial} disabled={selectedMaterialIsLocked} title={tr("刪除目前素材", "Delete object")} aria-label={tr("刪除目前素材", "Delete selected object")}><Trash2 size={15} /></button>
+                    </>
+                  )}
+                  <button type="button" className="icon-button subtle" onClick={() => setOpenDesktopTool(null)} title={tr("完成設定", "Done")} aria-label={tr("完成設定", "Done")}><Check size={16} /></button>
+                </div>
               </div>
 
               {selectedMaterialStackEntry && openDesktopTool !== "outline" && (
