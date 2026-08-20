@@ -2337,12 +2337,16 @@ export default function Home() {
           const heightScale = (textResize.startHeight + (textResize.axis.includes("top") ? -deltaY : deltaY)) / Math.max(1, textResize.startHeight);
           const dominantScale = Math.abs(deltaX / Math.max(1, textResize.startWidth)) >= Math.abs(deltaY / Math.max(1, textResize.startHeight)) ? widthScale : heightScale;
           const nextFontSize = clamp(Math.round(textResize.startFontSize * Math.max(0.2, dominantScale)), 12, 360);
-          const nextDimensions = getTextLayerDimensions({ ...layer, id: "", fontSize: nextFontSize });
+          const nextWidth = textResize.startWidth * Math.max(0.2, dominantScale);
+          const nextHeight = textResize.startHeight * Math.max(0.2, dominantScale);
           return {
             ...layer,
             fontSize: nextFontSize,
-            x: textResize.axis.includes("left") ? textResize.startX + textResize.startWidth - nextDimensions.width : textResize.startX,
-            y: textResize.axis.includes("top") ? textResize.startY + textResize.startHeight - nextDimensions.height : textResize.startY,
+            x: textResize.axis.includes("left") ? textResize.startX + textResize.startWidth - nextWidth : textResize.startX,
+            y: textResize.axis.includes("top") ? textResize.startY + textResize.startHeight - nextHeight : textResize.startY,
+            rasterDataUrl: undefined,
+            rasterWidth: undefined,
+            rasterHeight: undefined,
           };
         });
         scheduleLayers(nextLayers);
@@ -2465,6 +2469,14 @@ export default function Home() {
           };
         });
         scheduleShapes(nextShapes);
+        if (layersRef.current.some((layer) => layer.anchorShapeId === resize.id)) {
+          scheduleLayers(layersRef.current.map((layer) => layer.anchorShapeId === resize.id ? {
+            ...layer,
+            rasterDataUrl: undefined,
+            rasterWidth: undefined,
+            rasterHeight: undefined,
+          } : layer));
+        }
         return;
       }
       if (drag) {
@@ -3296,8 +3308,9 @@ export default function Home() {
         x: layer.x * materialScale + contentOffsetX,
         y: layer.y * materialScale + contentOffsetY,
         fontSize: layer.fontSize * materialScale,
-        rasterWidth: layer.rasterWidth ? layer.rasterWidth * materialScale : undefined,
-        rasterHeight: layer.rasterHeight ? layer.rasterHeight * materialScale : undefined,
+        rasterDataUrl: undefined,
+        rasterWidth: undefined,
+        rasterHeight: undefined,
       })),
     );
     syncShapes(
@@ -3873,7 +3886,9 @@ export default function Home() {
     if (isPaintLayerLocked(layer.paintLayerId) || editingTextId === layer.id) return;
     event.currentTarget.setPointerCapture(event.pointerId);
     const point = getCanvasPoint(event.clientX, event.clientY, true);
-    const dimensions = getTextLayerDimensions(layer);
+    const dimensions = layer.rasterDataUrl && layer.rasterWidth && layer.rasterHeight
+      ? { width: layer.rasterWidth, height: layer.rasterHeight }
+      : getTextLayerDimensions(layer);
     setSelectedTextId(layer.id);
     setSelectedShapeId(null);
     setSelectedImageId(null);
