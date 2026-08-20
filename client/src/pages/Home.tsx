@@ -4272,30 +4272,32 @@ export default function Home() {
   useEffect(() => {
     if (!isMobileViewport) return;
     const frame = window.requestAnimationFrame(fitCanvasToViewport);
-    const resetPageScroll = () => {
-      window.scrollTo({ top: 0, left: 0, behavior: "auto" });
-      document.documentElement.scrollTop = 0;
-      document.body.scrollTop = 0;
-    };
+    let refitFrame: number | null = null;
+    let rotationTimer: number | null = null;
     const refit = () => {
-      resetPageScroll();
-      return window.requestAnimationFrame(() => {
-        resetPageScroll();
+      if (refitFrame !== null) window.cancelAnimationFrame(refitFrame);
+      refitFrame = window.requestAnimationFrame(() => {
+        refitFrame = null;
         fitCanvasToViewport();
       });
     };
     const refitAfterRotation = () => {
-      resetPageScroll();
-      return window.setTimeout(refit, 220);
+      if (rotationTimer !== null) window.clearTimeout(rotationTimer);
+      rotationTimer = window.setTimeout(() => {
+        window.scrollTo({ top: 0, left: 0, behavior: "auto" });
+        document.documentElement.scrollTop = 0;
+        document.body.scrollTop = 0;
+        refit();
+      }, 220);
     };
     window.addEventListener("resize", refit);
     window.addEventListener("orientationchange", refitAfterRotation);
-    window.visualViewport?.addEventListener("resize", refit);
     return () => {
       window.cancelAnimationFrame(frame);
+      if (refitFrame !== null) window.cancelAnimationFrame(refitFrame);
+      if (rotationTimer !== null) window.clearTimeout(rotationTimer);
       window.removeEventListener("resize", refit);
       window.removeEventListener("orientationchange", refitAfterRotation);
-      window.visualViewport?.removeEventListener("resize", refit);
     };
   }, [fitCanvasToViewport, isMobileViewport, mobileDrawerHeight]);
   const resetCanvasView = () => {
