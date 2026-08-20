@@ -53,6 +53,7 @@ import {
 import { toast } from "sonner";
 import { jsPDF } from "jspdf";
 import { toCanvas } from "html-to-image";
+import type * as Ort from "onnxruntime-web";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 
@@ -467,6 +468,8 @@ const MAX_PAINT_LAYERS = 5;
 const MOBILE_VIEWPORT_MEDIA_QUERY = "(max-width: 960px), (pointer: coarse) and (max-height: 600px)";
 const TEXT_RASTER_VERSION = 4;
 const BASE_PAINT_LAYER_ID = "paint-layer-base";
+const U2NETP_MODEL_URL = "https://huggingface.co/Heliosoph/u2net-onnx/resolve/main/u2netp.onnx";
+const BACKGROUND_REMOVAL_MAX_EDGE = 2560;
 const AUTOSAVE_DB_NAME = "abipaint-project-storage";
 const AUTOSAVE_DB_STORE = "projects";
 const AUTOSAVE_PROJECT_KEY = "current-project";
@@ -1287,6 +1290,7 @@ export default function Home() {
   const [selectedImageId, setSelectedImageId] = useState<string | null>(null);
   const [imageEditingId, setImageEditingId] = useState<string | null>(null);
   const [cropDraft, setCropDraft] = useState<(ImageCrop & { imageId: string }) | null>(null);
+  const [backgroundRemovalImageId, setBackgroundRemovalImageId] = useState<string | null>(null);
   const [selectedStrokeId, setSelectedStrokeId] = useState<string | null>(null);
   const [resetWorkingFileDialogOpen, setResetWorkingFileDialogOpen] = useState(false);
   const [shapeKind, setShapeKind] = useState<ShapeKind>("rectangle");
@@ -1322,6 +1326,8 @@ export default function Home() {
   const [isExportRendering, setIsExportRendering] = useState(false);
   const [exportPreview, setExportPreview] = useState<{ url: string; format: ExportFormat; width: number; height: number } | null>(null);
   const objectClipboardRef = useRef<ObjectClipboard | null>(null);
+  const backgroundRemovalSessionRef = useRef<Ort.InferenceSession | null>(null);
+  const backgroundRemovalRuntimeRef = useRef<typeof import("onnxruntime-web") | null>(null);
   const panDragRef = useRef<{ startX: number; startY: number; originX: number; originY: number } | null>(null);
   const touchPointsRef = useRef(new Map<number, { x: number; y: number }>());
   const pinchPanRef = useRef<{ startDistance: number; startCenterX: number; startCenterY: number; startZoom: number; originX: number; originY: number } | null>(null);
@@ -3448,47 +3454,96 @@ export default function Home() {
     toast.success(tr(`${templateName} 已套用`, `${templateName} applied`));
   };
 
-  const removeBackground = () => {
-    const canvas = canvasRef.current;
-    const context = canvas?.getContext("2d");
-    if (!canvas || !context) return;
-    const image = context.getImageData(0, 0, canvas.width, canvas.height);
-    const target = {
-      r: image.data[0],
-      g: image.data[1],
-      b: image.data[2],
-    };
-    const threshold = 32;
-    const matches = (index: number) =>
-      Math.abs(image.data[index] - target.r) <= threshold &&
-      Math.abs(image.data[index + 1] - target.g) <= threshold &&
-      Math.abs(image.data[index + 2] - target.b) <= threshold;
-    const stack: number[] = [];
-    const visited = new Uint8Array(canvas.width * canvas.height);
-    for (let x = 0; x < canvas.width; x += 1) {
-      stack.push(x, (canvas.height - 1) * canvas.width + x);
+  const removeSelectedImageBackground = async () => {
+    const image = selectedImage;
+    if (!image || backgroundRemovalImageId || isPaintLayerLocked(image.paintLayerId)) return;
+
+    setBackgroundRemovalImageId(image.id);
+    try {
+      const source = await loadImageElement(image.src);
+      const sourceWidth = Math.max(1, source.naturalWidth || source.width);
+      const sourceHeight = Math.max(1, source.naturalHeight || source.height);
+      const scale = Math.min(1, BACKGROUND_REMOVAL_MAX_EDGE / Math.max(sourceWidth, sourceHeight));
+      const outputWidth = Math.max(1, Math.round(sourceWidth * scale));
+      const outputHeight = Math.max(1, Math.round(sourceHeight * scale));
+
+      const modelCanvas = document.createElement("canvas");
+      modelCanvas.width = 320;
+      modelCanvas.height = 320;
+      const modelContext = modelCanvas.getContext("2d", { willReadFrequently: true });
+      if (!modelContext) throw new Error("Canvas is unavailable");
+      modelContext.drawImage(source, 0, 0, 320, 320);
+      const pixels = modelContext.getImageData(0, 0, 320, 320).data;
+      const input = new Float32Array(1 * 3 * 320 * 320);
+      const planeSize = 320 * 320;
+      for (let index = 0; index < planeSize; index += 1) {
+        const offset = index * 4;
+        input[index] = (pixels[offset] / 255 - 0.485) / 0.229;
+        input[planeSize + index] = (pixels[offset + 1] / 255 - 0.456) / 0.224;
+        input[planeSize * 2 + index] = (pixels[offset + 2] / 255 - 0.406) / 0.225;
+      }
+
+      const runtime = backgroundRemovalRuntimeRef.current ?? await import("onnxruntime-web");
+      backgroundRemovalRuntimeRef.current = runtime;
+      if (!backgroundRemovalSessionRef.current) {
+        runtime.env.wasm.wasmPaths = "https://cdn.jsdelivr.net/npm/onnxruntime-web@1.27.0/dist/";
+        runtime.env.wasm.numThreads = 1;
+        backgroundRemovalSessionRef.current = await runtime.InferenceSession.create(U2NETP_MODEL_URL, {
+          executionProviders: ["wasm"],
+          graphOptimizationLevel: "all",
+        });
+      }
+
+      const session = backgroundRemovalSessionRef.current;
+      const results = await session.run({ [session.inputNames[0]]: new runtime.Tensor("float32", input, [1, 3, 320, 320]) });
+      const output = results[session.outputNames.includes("d0") ? "d0" : session.outputNames[0]];
+      if (!output?.data) throw new Error("Subject mask is unavailable");
+
+      const values = output.data as Float32Array;
+      let min = Number.POSITIVE_INFINITY;
+      let max = Number.NEGATIVE_INFINITY;
+      for (let index = 0; index < planeSize; index += 1) {
+        min = Math.min(min, values[index]);
+        max = Math.max(max, values[index]);
+      }
+      const range = Math.max(0.00001, max - min);
+      const mask = modelContext.createImageData(320, 320);
+      for (let index = 0; index < planeSize; index += 1) {
+        const alpha = Math.round(clamp((values[index] - min) / range, 0, 1) * 255);
+        const offset = index * 4;
+        mask.data[offset] = 255;
+        mask.data[offset + 1] = 255;
+        mask.data[offset + 2] = 255;
+        mask.data[offset + 3] = alpha;
+      }
+      modelContext.putImageData(mask, 0, 0);
+
+      const resultCanvas = document.createElement("canvas");
+      resultCanvas.width = outputWidth;
+      resultCanvas.height = outputHeight;
+      const resultContext = resultCanvas.getContext("2d");
+      if (!resultContext) throw new Error("Canvas is unavailable");
+      resultContext.drawImage(source, 0, 0, outputWidth, outputHeight);
+      resultContext.globalCompositeOperation = "destination-in";
+      resultContext.imageSmoothingEnabled = true;
+      resultContext.drawImage(modelCanvas, 0, 0, outputWidth, outputHeight);
+      resultContext.globalCompositeOperation = "source-over";
+
+      const transparentSource = resultCanvas.toDataURL("image/png");
+      syncImages(imagesRef.current.map((item) => item.id === image.id ? {
+        ...item,
+        src: transparentSource,
+        crop: FULL_IMAGE_CROP,
+      } : item));
+      setHasArtwork(true);
+      captureHistory();
+      toast.success(tr("主體已去背並保留透明背景", "Subject isolated with a transparent background"));
+    } catch (error) {
+      console.error("Background removal failed", error);
+      toast.error(tr("去背失敗，請確認網路後再試一次", "Background removal failed. Check your connection and try again"));
+    } finally {
+      setBackgroundRemovalImageId(null);
     }
-    for (let y = 1; y < canvas.height - 1; y += 1) {
-      stack.push(y * canvas.width, y * canvas.width + canvas.width - 1);
-    }
-    while (stack.length) {
-      const pixel = stack.pop();
-      if (pixel === undefined || visited[pixel]) continue;
-      visited[pixel] = 1;
-      const index = pixel * 4;
-      if (!matches(index)) continue;
-      image.data[index + 3] = 0;
-      const x = pixel % canvas.width;
-      const y = Math.floor(pixel / canvas.width);
-      if (x > 0) stack.push(pixel - 1);
-      if (x < canvas.width - 1) stack.push(pixel + 1);
-      if (y > 0) stack.push(pixel - canvas.width);
-      if (y < canvas.height - 1) stack.push(pixel + canvas.width);
-    }
-    context.putImageData(image, 0, 0);
-    setHasArtwork(true);
-    captureHistory();
-    toast.success("已移除與左上角相近的背景色");
   };
 
   const resetAdjustments = () => {
@@ -4990,7 +5045,6 @@ export default function Home() {
               <button type="button" className={`mobile-mini-tool ${activeDesktopTool === "text" ? "is-active" : ""}`} onClick={() => handleMobileMiniToolCreate("text")} aria-label="新增文字" title="新增文字"><Type size={16} /></button>
               <button type="button" className={`mobile-mini-tool ${activeDesktopTool === "outline" ? "is-active" : ""}`} onClick={() => handleDesktopToolSettings("outline")} disabled={!hasSelectedObject} aria-label="輪廓" title="輪廓"><SquareDashed size={16} /></button>
               <button type="button" className={`mobile-mini-tool ${tool === "crop" ? "is-active" : ""}`} onClick={handleCropTool} disabled={!isCropToolAvailable} aria-label="裁切" title="裁切"><Crop size={16} /></button>
-              <button type="button" className={`mobile-mini-tool ${isEasterEggOpen ? "is-active" : ""}`} onClick={() => { setIsEasterEggOpen((open) => !open); setIsFaqOpen(false); setIsDeveloperOpen(false); }} aria-label="彩蛋" title="彩蛋"><WandSparkles size={16} /></button>
               <span className="mobile-mini-separator" />
               <button type="button" className="mobile-mini-tool mobile-mini-settings" onClick={hasSelectedObject ? handleSelectedObjectSettings : handleMobileMiniToolSettings} disabled={!hasSelectedObject && !activeDesktopTool} aria-label="開啟工具設定" title="開啟工具設定"><SlidersHorizontal size={16} /></button>
             </div>
@@ -5429,6 +5483,8 @@ export default function Home() {
               <div className="inspector-section image-inspector-section">
                 <SectionTitle eyebrow="IMAGE LAYER" title={tr("圖片素材", "Image layer")} action={<ImagePlus size={15} className="section-icon" />} />
                 <div className="image-layer-meta"><span>{tr("檔案", "File")}</span><strong>{selectedImage.name}</strong></div>
+                <button type="button" className="secondary-button full-width" disabled={backgroundRemovalImageId === selectedImage.id || Boolean(cropDraft)} onClick={() => void removeSelectedImageBackground()}><WandSparkles size={14} /> {backgroundRemovalImageId === selectedImage.id ? tr("正在辨識主體…", "Detecting subject…") : tr("主體去背", "Remove background")}</button>
+                <p className="field-help">{tr("人物、物品與寵物皆可使用；首次約下載 5 MB 模型，圖片不會上傳。", "Works with people, objects, and pets. First use downloads a ~5 MB model; images stay on your device.")}</p>
                 {!imageEditingId && <p className="empty-inspector">{tr("圖片目前鎖定，點擊下方按鈕後才可移動、縮放、旋轉或裁切。", "This image is locked. Start editing to move, resize, rotate, or crop it.")}</p>}
                 {imageEditingId === selectedImage.id && !cropDraft && <p className="empty-inspector">{tr("可在畫布上拖曳圖片移動，使用邊角控制點縮放，或開啟裁切模式保留所需範圍。", "Drag on the canvas to move it, use the corner handles to resize it, or crop it to keep the area you need.")}</p>}
                 {!imageEditingId && <button type="button" className="secondary-button full-width" onClick={startImageEditing}><ImagePlus size={14} /> {tr("開始編輯圖片", "Edit image")}</button>}
