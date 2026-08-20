@@ -465,7 +465,7 @@ const PAPER = "#FFFDF8";
 const GRAPHITE = "#1F2528";
 const MAX_PAINT_LAYERS = 5;
 const MOBILE_VIEWPORT_MEDIA_QUERY = "(max-width: 960px), (pointer: coarse) and (max-height: 600px)";
-const TEXT_RASTER_VERSION = 2;
+const TEXT_RASTER_VERSION = 3;
 const BASE_PAINT_LAYER_ID = "paint-layer-base";
 const AUTOSAVE_DB_NAME = "abipaint-project-storage";
 const AUTOSAVE_DB_STORE = "projects";
@@ -1841,17 +1841,33 @@ export default function Home() {
         if (imageData[(y * raster.width + x) * 4 + 3] < 16) continue;
         minX = Math.min(minX, x); minY = Math.min(minY, y); maxX = Math.max(maxX, x); maxY = Math.max(maxY, y);
       }
+      if (maxX < minX || maxY < minY) return;
+      const padding = 4 * scale;
+      const visibleWidth = maxX - minX + 1;
+      const visibleHeight = maxY - minY + 1;
+      const cropped = document.createElement("canvas");
+      cropped.width = visibleWidth + padding * 2;
+      cropped.height = visibleHeight + padding * 2;
+      const croppedContext = cropped.getContext("2d");
+      if (!croppedContext) return;
+      croppedContext.drawImage(raster, minX, minY, visibleWidth, visibleHeight, padding, padding, visibleWidth, visibleHeight);
+      const croppedWidth = cropped.width / scale;
+      const croppedHeight = cropped.height / scale;
       const anchorShape = layer.anchorShapeId ? shapesRef.current.find((shape) => shape.id === layer.anchorShapeId) : undefined;
-      const nextX = anchorShape && maxX >= minX ? anchorShape.x + anchorShape.width / 2 - (minX + maxX + 1) / (2 * scale) : layer.x;
-      const nextY = anchorShape && maxY >= minY ? anchorShape.y + anchorShape.height / 2 - (minY + maxY + 1) / (2 * scale) : layer.y;
-      const dataUrl = raster.toDataURL("image/png");
+      const nextX = anchorShape
+        ? anchorShape.x + (anchorShape.width - croppedWidth) / 2
+        : layer.x + minX / scale - padding / scale;
+      const nextY = anchorShape
+        ? anchorShape.y + (anchorShape.height - croppedHeight) / 2
+        : layer.y + minY / scale - padding / scale;
+      const dataUrl = cropped.toDataURL("image/png");
       syncLayers(layersRef.current.map((item) => item.id === textId ? {
         ...item,
         x: nextX,
         y: nextY,
         rasterDataUrl: dataUrl,
-        rasterWidth: width,
-        rasterHeight: height,
+        rasterWidth: croppedWidth,
+        rasterHeight: croppedHeight,
         rasterVersion: TEXT_RASTER_VERSION,
       } : item));
     }, 80);
