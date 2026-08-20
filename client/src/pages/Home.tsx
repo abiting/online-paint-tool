@@ -4225,10 +4225,15 @@ export default function Home() {
     if (!isMobileViewport) return;
     const frame = window.requestAnimationFrame(fitCanvasToViewport);
     const refit = () => window.requestAnimationFrame(fitCanvasToViewport);
+    const refitAfterRotation = () => window.setTimeout(refit, 180);
     window.addEventListener("resize", refit);
+    window.addEventListener("orientationchange", refitAfterRotation);
+    window.visualViewport?.addEventListener("resize", refit);
     return () => {
       window.cancelAnimationFrame(frame);
       window.removeEventListener("resize", refit);
+      window.removeEventListener("orientationchange", refitAfterRotation);
+      window.visualViewport?.removeEventListener("resize", refit);
     };
   }, [fitCanvasToViewport, isMobileViewport, mobileDrawerHeight]);
   const resetCanvasView = () => {

@@ -462,10 +462,12 @@ input[type="range"]::-moz-range-thumb { width: 11px; height: 11px; border: 2px s
   .mobile-mini-tool:disabled:active { transform: none; }
   .mobile-mini-tool:active, .mobile-mini-drag-handle:active { transform: scale(0.94); }
   .mobile-mini-separator { width: 1px; height: 20px; margin: 0 2px; background: rgba(227,213,187,0.16); }
-  .topbar { height: 64px; }
+  .studio-app { min-height: 100svh; }
+  .topbar { position: sticky; top: 0; z-index: 60; height: 64px; }
   .brand-lockup { min-width: 0; }
   .document-meta { display: none; }
-  .top-actions .secondary-button { display: none; }
+  .top-actions { margin-left: auto; }
+  .top-actions .icon-button, .top-actions .top-divider, .top-actions .language-switch, .top-actions .secondary-button { display: none !important; }
   .studio-layout { min-height: calc(100vh - 64px); grid-template-columns: minmax(0, 1fr); }
   .desktop-creative-rail { display: none; }
   .inspector { position: fixed; z-index: 10; right: 0; bottom: 0; left: 0; height: min(43vh, 390px); border-top: 1px solid rgba(227,213,187,0.16); box-shadow: 0 -18px 38px rgba(8,12,13,0.25); }
@@ -476,6 +478,7 @@ input[type="range"]::-moz-range-thumb { width: 11px; height: 11px; border: 2px s
   .canvas-viewport { padding-bottom: calc(min(43vh, 390px) + 24px); cursor: default; }
   .workspace-actions { display: none; }
   .paint-layer-panel { display: none; }
+  .stage-notes, .workspace-footer { display: none; }
   .mobile-object-toolbar { position: absolute; z-index: 30000; display: flex; align-items: center; gap: 5px; padding: 8px 10px; border: 1px solid rgba(255,255,255,0.09); border-radius: 999px; background: rgba(29,29,27,0.96); box-shadow: 0 10px 25px rgba(0,0,0,0.36); transform: translate(-50%, -100%) scale(var(--mobile-object-toolbar-scale, 1)); transform-origin: center bottom; pointer-events: auto; }
   .mobile-object-toolbar button { display: grid; place-items: center; width: 42px; height: 42px; color: #eee9df; border: 0; border-radius: 50%; background: transparent; transition: transform 140ms ease-out, color 140ms ease-out, background 140ms ease-out; }
   .mobile-object-toolbar button:active { transform: scale(0.9); }
