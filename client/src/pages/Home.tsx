@@ -279,6 +279,7 @@ type TextLayer = OutlineAdjustments & {
   rasterDataUrl?: string;
   rasterWidth?: number;
   rasterHeight?: number;
+  rasterVersion?: number;
 };
 
 type ShapeLayer = OutlineAdjustments & {
@@ -464,6 +465,7 @@ const PAPER = "#FFFDF8";
 const GRAPHITE = "#1F2528";
 const MAX_PAINT_LAYERS = 5;
 const MOBILE_VIEWPORT_MEDIA_QUERY = "(max-width: 960px), (pointer: coarse) and (max-height: 600px)";
+const TEXT_RASTER_VERSION = 2;
 const BASE_PAINT_LAYER_ID = "paint-layer-base";
 const AUTOSAVE_DB_NAME = "abipaint-project-storage";
 const AUTOSAVE_DB_STORE = "projects";
@@ -1827,7 +1829,7 @@ export default function Home() {
       const ascent = metrics.fontBoundingBoxAscent || layer.fontSize * 0.82;
       const descent = metrics.fontBoundingBoxDescent || layer.fontSize * 0.18;
       const lineHeight = layer.fontSize * 1.12;
-      const firstBaseline = 2 + (lineHeight - ascent - descent) / 2 + ascent;
+      const firstBaseline = (lineHeight - ascent - descent) / 2 + ascent;
       layer.text.split("\n").forEach((line, index) => {
         const baselineY = firstBaseline + lineHeight * index;
         if ((layer.outlineWidth ?? 0) > 0) rasterContext.strokeText(line, 4, baselineY);
@@ -1850,6 +1852,7 @@ export default function Home() {
         rasterDataUrl: dataUrl,
         rasterWidth: width,
         rasterHeight: height,
+        rasterVersion: TEXT_RASTER_VERSION,
       } : item));
     }, 80);
     textRasterTimersRef.current.set(textId, timer);
@@ -1857,7 +1860,7 @@ export default function Home() {
 
   useEffect(() => {
     layers.forEach((layer) => {
-      if (!layer.rasterDataUrl && editingTextId !== layer.id) rasterizeTextLayer(layer.id);
+      if ((!layer.rasterDataUrl || layer.rasterVersion !== TEXT_RASTER_VERSION) && editingTextId !== layer.id) rasterizeTextLayer(layer.id);
     });
   }, [layers, editingTextId, rasterizeTextLayer]);
 
