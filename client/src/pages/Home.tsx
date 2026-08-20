@@ -5246,6 +5246,7 @@ export default function Home() {
                       onDoubleClick={(event) => {
                         event.stopPropagation();
                         if (isPaintLayerLocked(layer.paintLayerId)) return;
+                        const textElement = event.currentTarget;
                         setSelectedTextId(layer.id);
                         setSelectedShapeId(null);
                         setSelectedImageId(null);
@@ -5253,7 +5254,9 @@ export default function Home() {
                         setActiveDesktopTool("text");
                         setOpenDesktopTool("text");
                         setEditingTextId(layer.id);
-                        window.requestAnimationFrame(() => event.currentTarget.focus());
+                        window.requestAnimationFrame(() => {
+                          if (textElement.isConnected) textElement.focus();
+                        });
                       }}
                       onInput={(event) => updateTextLayer({ text: event.currentTarget.textContent ?? "" })}
                       onBlur={() => setEditingTextId(null)}
