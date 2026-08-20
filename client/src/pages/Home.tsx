@@ -1340,6 +1340,7 @@ export default function Home() {
   const drawerDragRef = useRef<{ startY: number; startHeight: number } | null>(null);
   const mobileMiniToolRef = useRef<HTMLDivElement>(null);
   const mobileMiniToolDragRef = useRef<{ startX: number; startY: number; originX: number; originY: number } | null>(null);
+  const mobileMiniToolHasCustomPositionRef = useRef(false);
   const hasInitializedPanRef = useRef(false);
 
   useEffect(() => {
@@ -4196,15 +4197,29 @@ export default function Home() {
     const bottomInset = Number.parseFloat(window.getComputedStyle(viewport).paddingBottom) || 0;
     const availableWidth = Math.max(120, bounds.width - 32);
     const availableHeight = Math.max(120, bounds.height - bottomInset - 32);
-    const nextZoom = clamp(Math.floor(Math.min(availableWidth / canvasSize.width, availableHeight / canvasSize.height) * 100), 25, 150);
+    const mobileToolbarReserve = isMobileViewport ? 60 : 0;
+    const canvasAvailableHeight = Math.max(120, availableHeight - mobileToolbarReserve);
+    const nextZoom = clamp(Math.floor(Math.min(availableWidth / canvasSize.width, canvasAvailableHeight / canvasSize.height) * 100), 25, 150);
     const displayWidth = canvasSize.width * (nextZoom / 100);
     const displayHeight = canvasSize.height * (nextZoom / 100);
-    setZoom(nextZoom);
-    setPan({
+    const nextPan = {
       x: Math.max(16, (bounds.width - displayWidth) / 2),
-      y: Math.max(16, (availableHeight - displayHeight) / 2),
-    });
-  }, [canvasSize.height, canvasSize.width]);
+      y: mobileToolbarReserve + Math.max(8, (canvasAvailableHeight - displayHeight) / 2),
+    };
+    setZoom(nextZoom);
+    setPan(nextPan);
+    if (isMobileViewport && !mobileMiniToolHasCustomPositionRef.current) {
+      const toolbarWidth = 226;
+      const toolbarHeight = 44;
+      const canSitAboveCanvas = nextPan.y >= toolbarHeight + 14;
+      const belowCanvasY = nextPan.y + displayHeight + 8;
+      const canSitBelowCanvas = belowCanvasY + toolbarHeight <= availableHeight;
+      setMobileMiniToolPosition({
+        x: clamp(nextPan.x + (displayWidth - toolbarWidth) / 2, 8, Math.max(8, bounds.width - toolbarWidth - 8)),
+        y: canSitAboveCanvas ? nextPan.y - toolbarHeight - 8 : canSitBelowCanvas ? belowCanvasY : 8,
+      });
+    }
+  }, [canvasSize.height, canvasSize.width, isMobileViewport]);
 
   useEffect(() => {
     if (!isMobileViewport) return;
@@ -4341,6 +4356,7 @@ export default function Home() {
       originX: toolBounds.left - viewportBounds.left,
       originY: toolBounds.top - viewportBounds.top,
     };
+    mobileMiniToolHasCustomPositionRef.current = true;
     setIsMobileMiniToolDragging(true);
   };
 
