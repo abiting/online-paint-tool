@@ -224,6 +224,11 @@ export default defineConfig({
         main: path.resolve(import.meta.dirname, "client", "index.html"),
         en: path.resolve(import.meta.dirname, "client", "en", "index.html"),
       },
+      output: {
+        entryFileNames: "assets/[name].js",
+        chunkFileNames: "assets/chunk-[name].js",
+        assetFileNames: "assets/[name][extname]",
+      },
     },
   },
   server: {

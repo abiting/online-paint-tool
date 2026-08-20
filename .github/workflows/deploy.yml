@@ -33,6 +33,11 @@ jobs:
       # 若 vite.config.ts 裡 build.outDir 已經固定,可以拿掉 --base 以外的參數
       - run: pnpm exec vite build --base=/
 
+      # 保留上一版首頁可能仍在 Chrome 快取中的資源路徑，避免新版部署替換檔案後舊首頁載入失敗。
+      - run: |
+          cp dist/public/assets/chunk-main.js dist/public/assets/main-D3x_yA1H.js
+          cp dist/public/assets/main.css dist/public/assets/main-Dbp6QP71.css
+
       # 讓 GitHub Pages 找不到子路徑(如 /converter)時,改回傳 index.html
       # 交給前端路由自己判斷要顯示哪一頁,SPA 深連結才不會 404
       - run: cp dist/public/index.html dist/public/404.html
