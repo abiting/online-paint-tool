@@ -3542,8 +3542,8 @@ export default function Home() {
       } : item));
       setHasArtwork(true);
       captureHistory();
-      setBackgroundRemovalNotice({ kind: "success", message: tr("去背完成，背景已透明", "Background removed — transparency applied") });
-      toast.success(tr("主體已去背並保留透明背景", "Subject isolated with a transparent background"));
+      setBackgroundRemovalNotice({ kind: "success", message: tr("去背完成", "Background removed") });
+      toast.success(tr("去背完成", "Background removed"));
     } catch (error) {
       console.error("Background removal failed", error);
       const reason = error instanceof Error && error.message ? error.message : tr("無法初始化本機模型", "Unable to initialize the local model");
