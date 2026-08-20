@@ -4952,6 +4952,9 @@ export default function Home() {
               <button type="button" className={`mobile-mini-tool ${activeDesktopTool === "brush" ? "is-active" : ""}`} onClick={() => handleMobileMiniToolCreate("brush")} aria-label="畫筆" title="畫筆"><Pencil size={16} /></button>
               <button type="button" className={`mobile-mini-tool ${activeDesktopTool === "shape" ? "is-active" : ""}`} onClick={() => handleMobileMiniToolCreate("shape")} aria-label="新增圖形" title="新增圖形"><Shapes size={16} /></button>
               <button type="button" className={`mobile-mini-tool ${activeDesktopTool === "text" ? "is-active" : ""}`} onClick={() => handleMobileMiniToolCreate("text")} aria-label="新增文字" title="新增文字"><Type size={16} /></button>
+              <button type="button" className={`mobile-mini-tool ${activeDesktopTool === "outline" ? "is-active" : ""}`} onClick={() => handleDesktopToolSettings("outline")} disabled={!hasSelectedObject} aria-label="輪廓" title="輪廓"><SquareDashed size={16} /></button>
+              <button type="button" className={`mobile-mini-tool ${tool === "crop" ? "is-active" : ""}`} onClick={handleCropTool} disabled={!isCropToolAvailable} aria-label="裁切" title="裁切"><Crop size={16} /></button>
+              <button type="button" className={`mobile-mini-tool ${isEasterEggOpen ? "is-active" : ""}`} onClick={() => { setIsEasterEggOpen((open) => !open); setIsFaqOpen(false); setIsDeveloperOpen(false); }} aria-label="彩蛋" title="彩蛋"><WandSparkles size={16} /></button>
               <span className="mobile-mini-separator" />
               <button type="button" className="mobile-mini-tool mobile-mini-settings" onClick={hasSelectedObject ? handleSelectedObjectSettings : handleMobileMiniToolSettings} disabled={!hasSelectedObject && !activeDesktopTool} aria-label="開啟工具設定" title="開啟工具設定"><SlidersHorizontal size={16} /></button>
             </div>
@@ -5285,8 +5288,8 @@ export default function Home() {
             </div>
             <div className="product-footer-meta">
               <p className="product-copyright">Copyright © 2026 <a href={isEnglish ? "/en" : "/"}>AbiPaint</a></p>
-              <div className="product-build-meta" aria-label="AbiPaint version 1.0.1">
-                <a className="product-version-label" href="https://abiting.cc/abipaint" target="_blank" rel="noopener noreferrer">v1.0.1</a>
+              <div className="product-build-meta" aria-label="AbiPaint version 1.0.2">
+                <a className="product-version-label" href="https://abiting.cc/abipaint" target="_blank" rel="noopener noreferrer">v1.0.2</a>
                 <a
                   className="startupbase-badge"
                   href="https://startupbase.io/products/abipaint?utm_source=startupbase&utm_medium=badge&utm_campaign=launch-badge-light"
