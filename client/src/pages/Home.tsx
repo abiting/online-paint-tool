@@ -471,6 +471,7 @@ const BASE_PAINT_LAYER_ID = "paint-layer-base";
 const U2NETP_MODEL_URL = "https://cdn.jsdelivr.net/npm/modern-rembg@0.1.2/dist/u2netp.onnx";
 const BACKGROUND_REMOVAL_MAX_EDGE = 2560;
 const BACKGROUND_REMOVAL_MASK_THRESHOLD = 0.25;
+const BACKGROUND_REMOVAL_DETAIL_THRESHOLD = 0.14;
 const AUTOSAVE_DB_NAME = "abipaint-project-storage";
 const AUTOSAVE_DB_STORE = "projects";
 const AUTOSAVE_PROJECT_KEY = "current-project";
@@ -521,6 +522,53 @@ const fillEnclosedMaskHoles = (mask: Uint8Array, width: number, height: number) 
   for (let index = 0; index < mask.length; index += 1) {
     if (!mask[index] && !reachableBackground[index]) mask[index] = 1;
   }
+};
+
+const preserveConnectedMaskDetails = (mask: Uint8Array, confidence: Float32Array, width: number, height: number) => {
+  const queue = new Int32Array(mask.length);
+  let head = 0;
+  let tail = 0;
+  for (let index = 0; index < mask.length; index += 1) {
+    if (mask[index]) {
+      queue[tail] = index;
+      tail += 1;
+    }
+  }
+  const addDetail = (index: number) => {
+    if (mask[index] || confidence[index] < BACKGROUND_REMOVAL_DETAIL_THRESHOLD) return;
+    mask[index] = 1;
+    queue[tail] = index;
+    tail += 1;
+  };
+  while (head < tail) {
+    const index = queue[head];
+    head += 1;
+    const x = index % width;
+    const y = Math.floor(index / width);
+    if (x > 0) addDetail(index - 1);
+    if (x < width - 1) addDetail(index + 1);
+    if (y > 0) addDetail(index - width);
+    if (y < height - 1) addDetail(index + width);
+  }
+};
+
+const expandForegroundMask = (mask: Uint8Array, width: number, height: number) => {
+  const expanded = new Uint8Array(mask);
+  for (let index = 0; index < mask.length; index += 1) {
+    if (!mask[index]) continue;
+    const x = index % width;
+    const y = Math.floor(index / width);
+    for (let offsetY = -1; offsetY <= 1; offsetY += 1) {
+      for (let offsetX = -1; offsetX <= 1; offsetX += 1) {
+        const nextX = x + offsetX;
+        const nextY = y + offsetY;
+        if (nextX >= 0 && nextX < width && nextY >= 0 && nextY < height) {
+          expanded[nextY * width + nextX] = 1;
+        }
+      }
+    }
+  }
+  mask.set(expanded);
 };
 
 const normalizeProjectSaturation = (value: unknown, version: AbiPaintProject["version"]) => {
@@ -3552,11 +3600,15 @@ export default function Home() {
       const range = Math.max(0.00001, max - min);
       const mask = modelContext.createImageData(320, 320);
       const foregroundMask = new Uint8Array(planeSize);
+      const confidenceMask = new Float32Array(planeSize);
       for (let index = 0; index < planeSize; index += 1) {
         const confidence = clamp((values[index] - min) / range, 0, 1);
+        confidenceMask[index] = confidence;
         foregroundMask[index] = confidence >= BACKGROUND_REMOVAL_MASK_THRESHOLD ? 1 : 0;
       }
+      preserveConnectedMaskDetails(foregroundMask, confidenceMask, 320, 320);
       fillEnclosedMaskHoles(foregroundMask, 320, 320);
+      expandForegroundMask(foregroundMask, 320, 320);
       for (let index = 0; index < planeSize; index += 1) {
         const offset = index * 4;
         mask.data[offset] = 255;
@@ -5677,14 +5729,14 @@ export default function Home() {
         </aside>
       </div>
       <AlertDialog open={resetWorkingFileDialogOpen} onOpenChange={setResetWorkingFileDialogOpen}>
-        <AlertDialogContent className="border-[rgba(228,81,59,0.56)] bg-[#24221d] text-[#f5f0e5]">
+        <AlertDialogContent className="reset-working-file-dialog max-h-[calc(100dvh-2rem)] w-[calc(100vw-2rem)] border-[rgba(228,81,59,0.56)] bg-[#24221d] text-[#f5f0e5] sm:w-full">
           <AlertDialogHeader>
             <AlertDialogTitle>{copy.resetWorkingFileTitle}</AlertDialogTitle>
             {copy.resetWorkingFileDescription && <AlertDialogDescription className="text-[#b8b8af]">{copy.resetWorkingFileDescription}</AlertDialogDescription>}
           </AlertDialogHeader>
-          <AlertDialogFooter className="gap-3">
-            <AlertDialogCancel className="w-[108px] justify-center">{copy.cancel}</AlertDialogCancel>
-            <AlertDialogAction className="w-[108px] justify-center bg-[#b72f34] text-white hover:bg-[#d54045]" onClick={() => void resetCurrentWorkingFile()}>{copy.confirmResetWorkingFile}</AlertDialogAction>
+          <AlertDialogFooter className="reset-working-file-footer flex-row justify-end gap-3 sm:justify-end">
+            <AlertDialogCancel className="h-12 flex-1 justify-center sm:w-[108px] sm:flex-none">{copy.cancel}</AlertDialogCancel>
+            <AlertDialogAction className="h-12 flex-1 justify-center bg-[#b72f34] text-white hover:bg-[#d54045] sm:w-[108px] sm:flex-none" onClick={() => void resetCurrentWorkingFile()}>{copy.confirmResetWorkingFile}</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
