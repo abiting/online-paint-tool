@@ -470,6 +470,7 @@ const TEXT_RASTER_VERSION = 4;
 const BASE_PAINT_LAYER_ID = "paint-layer-base";
 const U2NETP_MODEL_URL = "https://cdn.jsdelivr.net/npm/modern-rembg@0.1.2/dist/u2netp.onnx";
 const BACKGROUND_REMOVAL_MAX_EDGE = 2560;
+const BACKGROUND_REMOVAL_MASK_THRESHOLD = 0.5;
 const AUTOSAVE_DB_NAME = "abipaint-project-storage";
 const AUTOSAVE_DB_STORE = "projects";
 const AUTOSAVE_PROJECT_KEY = "current-project";
@@ -3514,7 +3515,8 @@ export default function Home() {
       const range = Math.max(0.00001, max - min);
       const mask = modelContext.createImageData(320, 320);
       for (let index = 0; index < planeSize; index += 1) {
-        const alpha = Math.round(clamp((values[index] - min) / range, 0, 1) * 255);
+        const confidence = clamp((values[index] - min) / range, 0, 1);
+        const alpha = confidence >= BACKGROUND_REMOVAL_MASK_THRESHOLD ? 255 : 0;
         const offset = index * 4;
         mask.data[offset] = 255;
         mask.data[offset + 1] = 255;
