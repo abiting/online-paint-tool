@@ -1393,6 +1393,8 @@ export default function Home() {
     startWidth: number;
     startHeight: number;
   } | null>(null);
+  const cropUpdateFrameRef = useRef<number | null>(null);
+  const pendingCropDraftRef = useRef<(ImageCrop & { imageId: string }) | null>(null);
   const strokeDragRef = useRef<{ id: string; offsetX: number; offsetY: number } | null>(null);
   const drawingStrokeRef = useRef<BrushStroke | null>(null);
   const historyRef = useRef<HistoryItem[]>([]);
@@ -3055,6 +3057,10 @@ export default function Home() {
   const handleCanvasBlankPointerDown = (event: ReactPointerEvent<HTMLDivElement>) => {
     const target = event.target as HTMLElement;
     if (target.closest(".image-layer, .shape-layer, .stroke-layer, .text-layer, .shape-control-layer, .text-resize-handle, .image-resize-handle, .image-rotation-handle, .shape-control-handle, .shape-control-rotation-handle")) return;
+    if (cropDraft) {
+      void applyImageCrop();
+      return;
+    }
     clearSelectedObjects();
   };
 
@@ -3194,6 +3200,19 @@ export default function Home() {
       toast.error(tr("圖片裁切失敗，請再試一次", "Image crop failed. Please try again"));
     }
   };
+
+  useEffect(() => {
+    const applyCropOnEnter = (event: KeyboardEvent) => {
+      const target = event.target as HTMLElement | null;
+      if (target?.tagName === "INPUT" || target?.tagName === "TEXTAREA" || target?.tagName === "SELECT" || target?.isContentEditable) return;
+      if (event.key === "Enter" && cropDraft) {
+        event.preventDefault();
+        void applyImageCrop();
+      }
+    };
+    window.addEventListener("keydown", applyCropOnEnter);
+    return () => window.removeEventListener("keydown", applyCropOnEnter);
+  }, [cropDraft]);
 
   const addTextCard = () => {
     if (activePaintLayer?.locked) {
@@ -4358,6 +4377,12 @@ export default function Home() {
   };
 
   useEffect(() => {
+    const flushCropDraft = () => {
+      cropUpdateFrameRef.current = null;
+      const next = pendingCropDraftRef.current;
+      pendingCropDraftRef.current = null;
+      if (next) setCropDraft(next);
+    };
     const handleCropMove = (event: PointerEvent) => {
       const drag = cropDragRef.current;
       if (!drag) return;
@@ -4382,22 +4407,31 @@ export default function Home() {
         if (drag.axis.includes("top")) top = clamp(drag.startY + deltaY, 0, bottom - minimum);
         if (drag.axis.includes("bottom")) bottom = clamp(drag.startY + drag.startHeight + deltaY, top + minimum, 1);
       }
-      setCropDraft({
+      pendingCropDraftRef.current = {
         imageId: image.id,
         x: left,
         y: top,
         width: right - left,
         height: bottom - top,
-      });
+      };
+      if (cropUpdateFrameRef.current === null) cropUpdateFrameRef.current = window.requestAnimationFrame(flushCropDraft);
     };
     const handleCropUp = () => {
       cropDragRef.current = null;
+      if (cropUpdateFrameRef.current !== null) {
+        window.cancelAnimationFrame(cropUpdateFrameRef.current);
+        flushCropDraft();
+      }
     };
     window.addEventListener("pointermove", handleCropMove);
     window.addEventListener("pointerup", handleCropUp);
     return () => {
       window.removeEventListener("pointermove", handleCropMove);
       window.removeEventListener("pointerup", handleCropUp);
+      if (cropUpdateFrameRef.current !== null) {
+        window.cancelAnimationFrame(cropUpdateFrameRef.current);
+        cropUpdateFrameRef.current = null;
+      }
     };
   }, [getCanvasPoint]);
 
@@ -4410,6 +4444,10 @@ export default function Home() {
   const handleViewportPointerDown = (event: ReactPointerEvent<HTMLDivElement>) => {
     event.preventDefault();
     const target = event.target as HTMLElement;
+    if (cropDraft && !target.closest(".image-layer, .image-crop-preview, .crop-handle")) {
+      void applyImageCrop();
+      return;
+    }
     if (target.closest("canvas, .canvas-content, .canvas-shell, .image-layer, .shape-layer, .text-layer, .stroke-layer")) return;
     clearSelectedObjects();
     if (event.pointerType === "touch" && isMobileViewport) return;
