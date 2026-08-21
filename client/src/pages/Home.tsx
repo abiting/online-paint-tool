@@ -486,6 +486,43 @@ const MATERIAL_STACK_BASE: Record<MaterialType, number> = {
 const clamp = (value: number, min: number, max: number) =>
   Math.min(max, Math.max(min, value));
 
+const fillEnclosedMaskHoles = (mask: Uint8Array, width: number, height: number) => {
+  const reachableBackground = new Uint8Array(mask.length);
+  const queue = new Int32Array(mask.length);
+  let head = 0;
+  let tail = 0;
+  const enqueueBackground = (index: number) => {
+    if (mask[index] || reachableBackground[index]) return;
+    reachableBackground[index] = 1;
+    queue[tail] = index;
+    tail += 1;
+  };
+
+  for (let x = 0; x < width; x += 1) {
+    enqueueBackground(x);
+    enqueueBackground((height - 1) * width + x);
+  }
+  for (let y = 1; y < height - 1; y += 1) {
+    enqueueBackground(y * width);
+    enqueueBackground(y * width + width - 1);
+  }
+
+  while (head < tail) {
+    const index = queue[head];
+    head += 1;
+    const x = index % width;
+    const y = Math.floor(index / width);
+    if (x > 0) enqueueBackground(index - 1);
+    if (x < width - 1) enqueueBackground(index + 1);
+    if (y > 0) enqueueBackground(index - width);
+    if (y < height - 1) enqueueBackground(index + width);
+  }
+
+  for (let index = 0; index < mask.length; index += 1) {
+    if (!mask[index] && !reachableBackground[index]) mask[index] = 1;
+  }
+};
+
 const normalizeProjectSaturation = (value: unknown, version: AbiPaintProject["version"]) => {
   const rawValue = typeof value === "number" ? value : version <= 2 ? 100 : 0;
   if (version <= 2) return clamp(rawValue - 100, -100, 100);
@@ -3514,16 +3551,36 @@ export default function Home() {
       }
       const range = Math.max(0.00001, max - min);
       const mask = modelContext.createImageData(320, 320);
+      const foregroundMask = new Uint8Array(planeSize);
       for (let index = 0; index < planeSize; index += 1) {
         const confidence = clamp((values[index] - min) / range, 0, 1);
-        const alpha = confidence >= BACKGROUND_REMOVAL_MASK_THRESHOLD ? 255 : 0;
+        foregroundMask[index] = confidence >= BACKGROUND_REMOVAL_MASK_THRESHOLD ? 1 : 0;
+      }
+      fillEnclosedMaskHoles(foregroundMask, 320, 320);
+      for (let index = 0; index < planeSize; index += 1) {
         const offset = index * 4;
         mask.data[offset] = 255;
         mask.data[offset + 1] = 255;
         mask.data[offset + 2] = 255;
-        mask.data[offset + 3] = alpha;
+        mask.data[offset + 3] = foregroundMask[index] ? 255 : 0;
       }
       modelContext.putImageData(mask, 0, 0);
+
+      const scaledMaskCanvas = document.createElement("canvas");
+      scaledMaskCanvas.width = outputWidth;
+      scaledMaskCanvas.height = outputHeight;
+      const scaledMaskContext = scaledMaskCanvas.getContext("2d", { willReadFrequently: true });
+      if (!scaledMaskContext) throw new Error("Canvas is unavailable");
+      scaledMaskContext.imageSmoothingEnabled = true;
+      scaledMaskContext.drawImage(modelCanvas, 0, 0, outputWidth, outputHeight);
+      const scaledMask = scaledMaskContext.getImageData(0, 0, outputWidth, outputHeight);
+      for (let index = 0; index < scaledMask.data.length; index += 4) {
+        scaledMask.data[index] = 255;
+        scaledMask.data[index + 1] = 255;
+        scaledMask.data[index + 2] = 255;
+        scaledMask.data[index + 3] = scaledMask.data[index + 3] >= 128 ? 255 : 0;
+      }
+      scaledMaskContext.putImageData(scaledMask, 0, 0);
 
       const resultCanvas = document.createElement("canvas");
       resultCanvas.width = outputWidth;
@@ -3532,8 +3589,7 @@ export default function Home() {
       if (!resultContext) throw new Error("Canvas is unavailable");
       resultContext.drawImage(source, 0, 0, outputWidth, outputHeight);
       resultContext.globalCompositeOperation = "destination-in";
-      resultContext.imageSmoothingEnabled = true;
-      resultContext.drawImage(modelCanvas, 0, 0, outputWidth, outputHeight);
+      resultContext.drawImage(scaledMaskCanvas, 0, 0);
       resultContext.globalCompositeOperation = "source-over";
 
       const transparentSource = resultCanvas.toDataURL("image/png");
