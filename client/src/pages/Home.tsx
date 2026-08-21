@@ -469,6 +469,7 @@ const MOBILE_VIEWPORT_MEDIA_QUERY = "(max-width: 960px), (pointer: coarse) and (
 const TEXT_RASTER_VERSION = 4;
 const BASE_PAINT_LAYER_ID = "paint-layer-base";
 const U2NETP_MODEL_URL = "https://cdn.jsdelivr.net/npm/modern-rembg@0.1.2/dist/u2netp.onnx";
+const ONNX_RUNTIME_WASM_URL = "https://cdn.jsdelivr.net/npm/onnxruntime-web@1.27.0/dist/";
 const BACKGROUND_REMOVAL_MAX_EDGE = 2560;
 const BACKGROUND_REMOVAL_MASK_THRESHOLD = 0.25;
 const BACKGROUND_REMOVAL_DETAIL_THRESHOLD = 0.14;
@@ -3577,6 +3578,7 @@ export default function Home() {
       if (!backgroundRemovalSessionRef.current) {
         runtime.env.wasm.numThreads = 1;
         runtime.env.wasm.proxy = false;
+        runtime.env.wasm.wasmPaths = ONNX_RUNTIME_WASM_URL;
         setBackgroundRemovalNotice({ kind: "loading", message: tr("正在下載主體辨識模型（約 5 MB）…", "Downloading subject model (~5 MB)…") });
         backgroundRemovalSessionRef.current = await runtime.InferenceSession.create(U2NETP_MODEL_URL, {
           executionProviders: ["wasm"],
