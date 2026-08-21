@@ -472,7 +472,7 @@ const U2NETP_MODEL_URL = "https://cdn.jsdelivr.net/npm/modern-rembg@0.1.2/dist/u
 const ONNX_RUNTIME_WASM_URL = "https://cdn.jsdelivr.net/npm/onnxruntime-web@1.27.0/dist/";
 const BACKGROUND_REMOVAL_MAX_EDGE = 2560;
 const BACKGROUND_REMOVAL_MASK_THRESHOLD = 0.25;
-const BACKGROUND_REMOVAL_DETAIL_THRESHOLD = 0.14;
+const BACKGROUND_REMOVAL_DETAIL_THRESHOLD = 0.1;
 const AUTOSAVE_DB_NAME = "abipaint-project-storage";
 const AUTOSAVE_DB_STORE = "projects";
 const AUTOSAVE_PROJECT_KEY = "current-project";
@@ -551,25 +551,6 @@ const preserveConnectedMaskDetails = (mask: Uint8Array, confidence: Float32Array
     if (y > 0) addDetail(index - width);
     if (y < height - 1) addDetail(index + width);
   }
-};
-
-const expandForegroundMask = (mask: Uint8Array, width: number, height: number) => {
-  const expanded = new Uint8Array(mask);
-  for (let index = 0; index < mask.length; index += 1) {
-    if (!mask[index]) continue;
-    const x = index % width;
-    const y = Math.floor(index / width);
-    for (let offsetY = -1; offsetY <= 1; offsetY += 1) {
-      for (let offsetX = -1; offsetX <= 1; offsetX += 1) {
-        const nextX = x + offsetX;
-        const nextY = y + offsetY;
-        if (nextX >= 0 && nextX < width && nextY >= 0 && nextY < height) {
-          expanded[nextY * width + nextX] = 1;
-        }
-      }
-    }
-  }
-  mask.set(expanded);
 };
 
 const normalizeProjectSaturation = (value: unknown, version: AbiPaintProject["version"]) => {
@@ -3610,7 +3591,6 @@ export default function Home() {
       }
       preserveConnectedMaskDetails(foregroundMask, confidenceMask, 320, 320);
       fillEnclosedMaskHoles(foregroundMask, 320, 320);
-      expandForegroundMask(foregroundMask, 320, 320);
       for (let index = 0; index < planeSize; index += 1) {
         const offset = index * 4;
         mask.data[offset] = 255;
