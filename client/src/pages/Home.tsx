@@ -569,6 +569,72 @@ const closeThinMaskGaps = (mask: Uint8Array, width: number, height: number) => {
   mask.set(repaired);
 };
 
+const refineMaskAgainstUniformBackground = (source: ImageData, mask: ImageData, width: number, height: number) => {
+  const sampleIndices: number[] = [];
+  const step = Math.max(1, Math.floor(Math.min(width, height) / 48));
+  for (let x = 0; x < width; x += step) {
+    sampleIndices.push(x, (height - 1) * width + x);
+  }
+  for (let y = step; y < height - 1; y += step) {
+    sampleIndices.push(y * width, y * width + width - 1);
+  }
+  if (!sampleIndices.length) return;
+  const background = [0, 0, 0];
+  for (const index of sampleIndices) {
+    const offset = index * 4;
+    background[0] += source.data[offset];
+    background[1] += source.data[offset + 1];
+    background[2] += source.data[offset + 2];
+  }
+  background[0] /= sampleIndices.length;
+  background[1] /= sampleIndices.length;
+  background[2] /= sampleIndices.length;
+  let deviation = 0;
+  for (const index of sampleIndices) {
+    const offset = index * 4;
+    deviation += Math.abs(source.data[offset] - background[0]) + Math.abs(source.data[offset + 1] - background[1]) + Math.abs(source.data[offset + 2] - background[2]);
+  }
+  deviation /= sampleIndices.length * 3;
+  if (deviation > 16) return;
+  const distanceLimit = Math.max(38, deviation * 5);
+  const isBackgroundLike = (index: number) => {
+    const offset = index * 4;
+    const distance = Math.abs(source.data[offset] - background[0]) + Math.abs(source.data[offset + 1] - background[1]) + Math.abs(source.data[offset + 2] - background[2]);
+    return distance <= distanceLimit;
+  };
+  const reachable = new Uint8Array(width * height);
+  const queue = new Int32Array(width * height);
+  let head = 0;
+  let tail = 0;
+  const enqueue = (index: number) => {
+    if (reachable[index] || !isBackgroundLike(index)) return;
+    reachable[index] = 1;
+    queue[tail] = index;
+    tail += 1;
+  };
+  for (let x = 0; x < width; x += 1) {
+    enqueue(x);
+    enqueue((height - 1) * width + x);
+  }
+  for (let y = 1; y < height - 1; y += 1) {
+    enqueue(y * width);
+    enqueue(y * width + width - 1);
+  }
+  while (head < tail) {
+    const index = queue[head];
+    head += 1;
+    const x = index % width;
+    const y = Math.floor(index / width);
+    if (x > 0) enqueue(index - 1);
+    if (x < width - 1) enqueue(index + 1);
+    if (y > 0) enqueue(index - width);
+    if (y < height - 1) enqueue(index + width);
+  }
+  for (let index = 0; index < reachable.length; index += 1) {
+    if (reachable[index]) mask.data[index * 4 + 3] = 0;
+  }
+};
+
 const normalizeProjectSaturation = (value: unknown, version: AbiPaintProject["version"]) => {
   const rawValue = typeof value === "number" ? value : version <= 2 ? 100 : 0;
   if (version <= 2) return clamp(rawValue - 100, -100, 100);
@@ -3631,6 +3697,13 @@ export default function Home() {
         scaledMask.data[index + 2] = 255;
         scaledMask.data[index + 3] = scaledMask.data[index + 3] >= 128 ? 255 : 0;
       }
+      const sourceRefineCanvas = document.createElement("canvas");
+      sourceRefineCanvas.width = outputWidth;
+      sourceRefineCanvas.height = outputHeight;
+      const sourceRefineContext = sourceRefineCanvas.getContext("2d", { willReadFrequently: true });
+      if (!sourceRefineContext) throw new Error("Canvas is unavailable");
+      sourceRefineContext.drawImage(source, 0, 0, outputWidth, outputHeight);
+      refineMaskAgainstUniformBackground(sourceRefineContext.getImageData(0, 0, outputWidth, outputHeight), scaledMask, outputWidth, outputHeight);
       scaledMaskContext.putImageData(scaledMask, 0, 0);
 
       const resultCanvas = document.createElement("canvas");
