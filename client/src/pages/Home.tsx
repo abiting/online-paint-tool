@@ -26,6 +26,7 @@ import {
   ImagePlus,
   Layers,
   Lock,
+  Fullscreen,
   Maximize2,
   Move,
   Minus,
@@ -109,7 +110,7 @@ const localeCopy = {
     canvasWorkspace: "畫布工作區",
     resolution: "解析度調整",
     workspaceSignature: "本工具由阿比丁開發製作",
-    fit: "符合",
+    fit: "展開",
     reset: "重設",
     canvasSize: "畫布尺寸",
     width: "寬度",
@@ -177,7 +178,7 @@ const localeCopy = {
     canvasWorkspace: "Canvas workspace",
     resolution: "Resolution",
     workspaceSignature: "Developed by Abiting",
-    fit: "Fit",
+    fit: "Expand",
     reset: "Reset",
     canvasSize: "Canvas size",
     width: "Width",
@@ -5107,7 +5108,7 @@ export default function Home() {
               </button>
               <span className="top-divider" />
               <button type="button" className="ghost-button view-action-button" onClick={fitCanvasToViewport} title={copy.fit}>
-                <Maximize2 size={15} />
+                <Fullscreen size={15} />
                 <span>{copy.fit}</span>
               </button>
               <button type="button" className="ghost-button view-action-button" onClick={resetCanvasView} title={copy.reset}>
