@@ -553,6 +553,22 @@ const preserveConnectedMaskDetails = (mask: Uint8Array, confidence: Float32Array
   }
 };
 
+const closeThinMaskGaps = (mask: Uint8Array, width: number, height: number) => {
+  const repaired = new Uint8Array(mask);
+  for (let y = 1; y < height - 1; y += 1) {
+    for (let x = 1; x < width - 1; x += 1) {
+      const index = y * width + x;
+      if (mask[index]) continue;
+      const horizontal = mask[index - 1] && mask[index + 1];
+      const vertical = mask[index - width] && mask[index + width];
+      const diagonalDown = mask[index - width - 1] && mask[index + width + 1];
+      const diagonalUp = mask[index - width + 1] && mask[index + width - 1];
+      if (horizontal || vertical || diagonalDown || diagonalUp) repaired[index] = 1;
+    }
+  }
+  mask.set(repaired);
+};
+
 const normalizeProjectSaturation = (value: unknown, version: AbiPaintProject["version"]) => {
   const rawValue = typeof value === "number" ? value : version <= 2 ? 100 : 0;
   if (version <= 2) return clamp(rawValue - 100, -100, 100);
@@ -3590,6 +3606,7 @@ export default function Home() {
         foregroundMask[index] = confidence >= BACKGROUND_REMOVAL_MASK_THRESHOLD ? 1 : 0;
       }
       preserveConnectedMaskDetails(foregroundMask, confidenceMask, 320, 320);
+      closeThinMaskGaps(foregroundMask, 320, 320);
       fillEnclosedMaskHoles(foregroundMask, 320, 320);
       for (let index = 0; index < planeSize; index += 1) {
         const offset = index * 4;
@@ -3625,6 +3642,23 @@ export default function Home() {
       resultContext.globalCompositeOperation = "destination-in";
       resultContext.drawImage(scaledMaskCanvas, 0, 0);
       resultContext.globalCompositeOperation = "source-over";
+      const composited = resultContext.getImageData(0, 0, outputWidth, outputHeight);
+      const alpha = new Uint8Array(outputWidth * outputHeight);
+      for (let index = 0; index < alpha.length; index += 1) alpha[index] = composited.data[index * 4 + 3];
+      for (let y = 1; y < outputHeight - 1; y += 1) {
+        for (let x = 1; x < outputWidth - 1; x += 1) {
+          const index = y * outputWidth + x;
+          if (!alpha[index]) continue;
+          const touchesTransparent = !alpha[index - 1] || !alpha[index + 1] || !alpha[index - outputWidth] || !alpha[index + outputWidth];
+          if (!touchesTransparent) continue;
+          const offset = index * 4;
+          const red = composited.data[offset];
+          const green = composited.data[offset + 1];
+          const blue = composited.data[offset + 2];
+          if (blue > red + 16 && blue > green + 6) composited.data[offset + 3] = 0;
+        }
+      }
+      resultContext.putImageData(composited, 0, 0);
 
       const transparentSource = resultCanvas.toDataURL("image/png");
       syncImages(imagesRef.current.map((item) => item.id === image.id ? {
@@ -5155,6 +5189,7 @@ export default function Home() {
               <button type="button" className={`mobile-mini-tool ${activeDesktopTool === "text" ? "is-active" : ""}`} onClick={() => handleMobileMiniToolCreate("text")} aria-label="新增文字" title="新增文字"><Type size={16} /></button>
               <button type="button" className={`mobile-mini-tool ${activeDesktopTool === "outline" ? "is-active" : ""}`} onClick={() => handleDesktopToolSettings("outline")} disabled={!hasSelectedObject} aria-label="輪廓" title="輪廓"><SquareDashed size={16} /></button>
               <button type="button" className={`mobile-mini-tool ${tool === "crop" ? "is-active" : ""}`} onClick={handleCropTool} disabled={!isCropToolAvailable} aria-label="裁切" title="裁切"><Crop size={16} /></button>
+              <button type="button" className="mobile-mini-tool mobile-mini-background-remove" onClick={() => void removeSelectedImageBackground()} disabled={!selectedImage || selectedMaterialIsLocked || backgroundRemovalImageId === selectedImage.id} aria-label={tr("去背", "Remove background")} title={tr("去背", "Remove background")}><WandSparkles size={16} /></button>
               <span className="mobile-mini-separator" />
               <button type="button" className="mobile-mini-tool mobile-mini-settings" onClick={hasSelectedObject ? handleSelectedObjectSettings : handleMobileMiniToolSettings} disabled={!hasSelectedObject && !activeDesktopTool} aria-label="開啟工具設定" title="開啟工具設定"><SlidersHorizontal size={16} /></button>
             </div>
