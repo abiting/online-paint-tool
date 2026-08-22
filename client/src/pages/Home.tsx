@@ -4224,7 +4224,7 @@ export default function Home() {
         if (shape.outlineWidth > 0) { const inset = shape.outlineWidth / 2; context.beginPath(); context.roundRect(-shape.width / 2 + inset, -shape.height / 2 + inset, Math.max(0, shape.width - shape.outlineWidth), Math.max(0, shape.height - shape.outlineWidth), Math.max(0, radius - inset)); context.stroke(); }
       } else {
         context.beginPath();
-        if (shape.kind === "circle") context.ellipse(0, 0, shape.width / 2, shape.height / 2, 0, 0, Math.PI * 2);
+        if (shape.kind === "circle") context.ellipse(0, 0, shape.width * 0.42, shape.height * 0.42, 0, 0, Math.PI * 2);
         else if (shape.kind === "heart") {
           const w = shape.width;
           const h = shape.height;
@@ -5673,7 +5673,7 @@ export default function Home() {
                           vectorEffect="non-scaling-stroke"
                         />
                       )}
-                      {shape.kind === "circle" && <circle cx="50" cy="50" r="50" fill={shape.fill} stroke={makeOutlineColor(shape.outline, shape.outlineExposure, shape.outlineContrast, shape.outlineSaturation, shape.outlineVibrancy, shape.outlineOpacity)} strokeWidth={shape.outlineWidth * 0.8} vectorEffect="non-scaling-stroke" />}
+                      {shape.kind === "circle" && <circle cx="50" cy="50" r="42" fill={shape.fill} stroke={makeOutlineColor(shape.outline, shape.outlineExposure, shape.outlineContrast, shape.outlineSaturation, shape.outlineVibrancy, shape.outlineOpacity)} strokeWidth={shape.outlineWidth * 0.8} vectorEffect="non-scaling-stroke" />}
                       {shape.kind === "star" && <polygon points={STAR_POINTS} fill={shape.fill} stroke={makeOutlineColor(shape.outline, shape.outlineExposure, shape.outlineContrast, shape.outlineSaturation, shape.outlineVibrancy, shape.outlineOpacity)} strokeWidth={shape.outlineWidth * 0.8} vectorEffect="non-scaling-stroke" strokeLinejoin="round" />}
                       {shape.kind === "heart" && <path d="M50 88 C44 82 15 65 15 38 C15 18 39 14 50 33 C61 14 85 18 85 38 C85 65 56 82 50 88Z" fill={shape.fill} stroke={makeOutlineColor(shape.outline, shape.outlineExposure, shape.outlineContrast, shape.outlineSaturation, shape.outlineVibrancy, shape.outlineOpacity)} strokeWidth={shape.outlineWidth * 0.8} vectorEffect="non-scaling-stroke" strokeLinejoin="round" />}
                       {shape.kind === "triangle" && <polygon points={TRIANGLE_POINTS} fill={shape.fill} stroke={makeOutlineColor(shape.outline, shape.outlineExposure, shape.outlineContrast, shape.outlineSaturation, shape.outlineVibrancy, shape.outlineOpacity)} strokeWidth={shape.outlineWidth * 0.8} vectorEffect="non-scaling-stroke" strokeLinejoin="round" />}
