@@ -317,6 +317,7 @@ type ImageLayer = OutlineAdjustments & {
   stackOrder?: number;
   name: string;
   src: string;
+  backgroundSource?: string;
   x: number;
   y: number;
   width: number;
@@ -337,6 +338,12 @@ type ImageCrop = {
   y: number;
   width: number;
   height: number;
+};
+
+type BackgroundRepairState = {
+  imageId: string;
+  mode: "keep" | "remove";
+  brushSize: number;
 };
 
 type BrushStroke = {
@@ -1445,6 +1452,7 @@ export default function Home() {
   const [cropDraft, setCropDraft] = useState<(ImageCrop & { imageId: string }) | null>(null);
   const [backgroundRemovalImageId, setBackgroundRemovalImageId] = useState<string | null>(null);
   const [backgroundRemovalNotice, setBackgroundRemovalNotice] = useState<{ kind: "loading" | "processing" | "success" | "error"; message: string } | null>(null);
+  const [backgroundRepair, setBackgroundRepair] = useState<BackgroundRepairState | null>(null);
   const [selectedStrokeId, setSelectedStrokeId] = useState<string | null>(null);
   const [resetWorkingFileDialogOpen, setResetWorkingFileDialogOpen] = useState(false);
   const [shapeKind, setShapeKind] = useState<ShapeKind>("rectangle");
@@ -1482,6 +1490,9 @@ export default function Home() {
   const objectClipboardRef = useRef<ObjectClipboard | null>(null);
   const backgroundRemovalSessionRef = useRef<Ort.InferenceSession | null>(null);
   const backgroundRemovalRuntimeRef = useRef<typeof import("onnxruntime-web") | null>(null);
+  const backgroundRepairSessionRef = useRef<{ imageId: string; source: HTMLImageElement; current: HTMLImageElement } | null>(null);
+  const backgroundRepairPointerRef = useRef<{ imageId: string; pointerId: number; x: number; y: number } | null>(null);
+  const backgroundRepairCanvasRefs = useRef(new Map<string, HTMLCanvasElement>());
   const panDragRef = useRef<{ startX: number; startY: number; originX: number; originY: number } | null>(null);
   const touchPointsRef = useRef(new Map<number, { x: number; y: number }>());
   const pinchPanRef = useRef<{ startDistance: number; startCenterX: number; startCenterY: number; startZoom: number; originX: number; originY: number } | null>(null);
@@ -1511,6 +1522,22 @@ export default function Home() {
     mobileQuery.addEventListener("change", updateMobileViewport);
     return () => mobileQuery.removeEventListener("change", updateMobileViewport);
   }, []);
+
+  useEffect(() => {
+    const repair = backgroundRepair;
+    const session = backgroundRepairSessionRef.current;
+    if (!repair || !session || repair.imageId !== session.imageId) return;
+    const canvas = backgroundRepairCanvasRefs.current.get(repair.imageId);
+    if (!canvas) return;
+    const width = Math.max(1, session.current.naturalWidth || session.current.width);
+    const height = Math.max(1, session.current.naturalHeight || session.current.height);
+    canvas.width = width;
+    canvas.height = height;
+    const context = canvas.getContext("2d");
+    if (!context) return;
+    context.clearRect(0, 0, width, height);
+    context.drawImage(session.current, 0, 0, width, height);
+  }, [backgroundRepair?.imageId]);
 
   const selectedText = useMemo(
     () => layers.find((layer) => layer.id === selectedTextId) ?? null,
@@ -3757,6 +3784,7 @@ export default function Home() {
       syncImages(imagesRef.current.map((item) => item.id === image.id ? {
         ...item,
         src: transparentSource,
+        backgroundSource: item.backgroundSource ?? image.src,
         crop: FULL_IMAGE_CROP,
       } : item));
       setHasArtwork(true);
@@ -3774,6 +3802,106 @@ export default function Home() {
     } finally {
       setBackgroundRemovalImageId(null);
     }
+  };
+
+  const startBackgroundRepair = async () => {
+    const image = selectedImage;
+    if (!image?.backgroundSource || isPaintLayerLocked(image.paintLayerId)) return;
+    try {
+      const [source, current] = await Promise.all([loadImageElement(image.backgroundSource), loadImageElement(image.src)]);
+      backgroundRepairSessionRef.current = { imageId: image.id, source, current };
+      setCropDraft(null);
+      setImageEditingId(image.id);
+      setBackgroundRepair({ imageId: image.id, mode: "keep", brushSize: 24 });
+      toast.info(tr("使用保留筆補回主體，移除筆清除殘留背景", "Use Keep to restore the subject and Remove to erase leftover background"));
+    } catch {
+      toast.error(tr("無法準備去背修補畫布", "Unable to prepare the background repair canvas"));
+    }
+  };
+
+  const paintBackgroundRepair = (canvas: HTMLCanvasElement, from: { x: number; y: number }, to: { x: number; y: number }) => {
+    const repair = backgroundRepair;
+    const session = backgroundRepairSessionRef.current;
+    if (!repair || !session || repair.imageId !== session.imageId) return;
+    const context = canvas.getContext("2d");
+    if (!context) return;
+    const radius = Math.max(2, repair.brushSize);
+    const deltaX = to.x - from.x;
+    const deltaY = to.y - from.y;
+    const length = Math.hypot(deltaX, deltaY);
+    const angle = length > 0.001 ? Math.atan2(deltaY, deltaX) : 0;
+    context.save();
+    context.beginPath();
+    context.moveTo(from.x + Math.cos(angle + Math.PI / 2) * radius, from.y + Math.sin(angle + Math.PI / 2) * radius);
+    context.lineTo(to.x + Math.cos(angle + Math.PI / 2) * radius, to.y + Math.sin(angle + Math.PI / 2) * radius);
+    context.arc(to.x, to.y, radius, angle + Math.PI / 2, angle - Math.PI / 2, false);
+    context.lineTo(from.x + Math.cos(angle - Math.PI / 2) * radius, from.y + Math.sin(angle - Math.PI / 2) * radius);
+    context.arc(from.x, from.y, radius, angle - Math.PI / 2, angle + Math.PI / 2, false);
+    context.closePath();
+    if (repair.mode === "keep") {
+      context.clip();
+      context.drawImage(session.source, 0, 0, canvas.width, canvas.height);
+    } else {
+      context.globalCompositeOperation = "destination-out";
+      context.strokeStyle = "#000";
+      context.fill();
+    }
+    context.restore();
+  };
+
+  const getBackgroundRepairPoint = (event: ReactPointerEvent<HTMLCanvasElement>) => {
+    const canvas = event.currentTarget;
+    const bounds = canvas.getBoundingClientRect();
+    return {
+      x: clamp(((event.clientX - bounds.left) / Math.max(1, bounds.width)) * canvas.width, 0, canvas.width),
+      y: clamp(((event.clientY - bounds.top) / Math.max(1, bounds.height)) * canvas.height, 0, canvas.height),
+    };
+  };
+
+  const handleBackgroundRepairPointerDown = (event: ReactPointerEvent<HTMLCanvasElement>, image: ImageLayer) => {
+    if (!backgroundRepair || backgroundRepair.imageId !== image.id || event.button !== 0) return;
+    event.stopPropagation();
+    event.currentTarget.setPointerCapture(event.pointerId);
+    const point = getBackgroundRepairPoint(event);
+    backgroundRepairPointerRef.current = { imageId: image.id, pointerId: event.pointerId, ...point };
+    paintBackgroundRepair(event.currentTarget, point, point);
+  };
+
+  const handleBackgroundRepairPointerMove = (event: ReactPointerEvent<HTMLCanvasElement>, image: ImageLayer) => {
+    const drag = backgroundRepairPointerRef.current;
+    if (!drag || drag.imageId !== image.id || drag.pointerId !== event.pointerId) return;
+    const point = getBackgroundRepairPoint(event);
+    paintBackgroundRepair(event.currentTarget, drag, point);
+    backgroundRepairPointerRef.current = { ...drag, ...point };
+  };
+
+  const finishBackgroundRepairStroke = (event?: ReactPointerEvent<HTMLCanvasElement>) => {
+    if (event && backgroundRepairPointerRef.current?.pointerId !== event.pointerId) return;
+    backgroundRepairPointerRef.current = null;
+  };
+
+  const commitBackgroundRepair = async () => {
+    const repair = backgroundRepair;
+    const session = backgroundRepairSessionRef.current;
+    if (!repair || !session || repair.imageId !== session.imageId) return;
+    const canvas = document.querySelector<HTMLCanvasElement>(`canvas[data-background-repair-id="${repair.imageId}"]`);
+    if (!canvas) return;
+    const nextSource = canvas.toDataURL("image/png");
+    try {
+      session.current = await loadImageElement(nextSource);
+      syncImages(imagesRef.current.map((image) => image.id === repair.imageId ? { ...image, src: nextSource } : image));
+      captureHistory();
+      setBackgroundRepair(null);
+      backgroundRepairPointerRef.current = null;
+      toast.success(tr("去背修補已完成", "Background repair applied"));
+    } catch {
+      toast.error(tr("無法儲存去背修補", "Unable to save background repair"));
+    }
+  };
+
+  const cancelBackgroundRepair = () => {
+    setBackgroundRepair(null);
+    backgroundRepairPointerRef.current = null;
   };
 
   const resetAdjustments = () => {
@@ -4081,7 +4209,19 @@ export default function Home() {
       } else {
         context.beginPath();
         if (shape.kind === "circle") context.ellipse(0, 0, shape.width / 2, shape.height / 2, 0, 0, Math.PI * 2);
-        else if (shape.kind === "heart") { const w = shape.width; const h = shape.height; const x = -w / 2; const y = -h / 2; context.moveTo(0, y + h * 0.9); context.bezierCurveTo(x + w * 0.06, y + h * 0.62, x + w * 0.12, y + h * 0.16, x + w * 0.34, y + h * 0.2); context.bezierCurveTo(x + w * 0.45, y + h * 0.22, x + w * 0.49, y + h * 0.34, 0, y + h * 0.42); context.bezierCurveTo(x + w * 0.51, y + h * 0.34, x + w * 0.55, y + h * 0.22, x + w * 0.66, y + h * 0.2); context.bezierCurveTo(x + w * 0.88, y + h * 0.16, x + w * 0.94, y + h * 0.62, 0, y + h * 0.9); context.closePath(); }
+        else if (shape.kind === "heart") {
+          const w = shape.width;
+          const h = shape.height;
+          const x = -w / 2;
+          const y = -h / 2;
+          // 與工作台 SVG 的 M50 88 C44 82… 路徑一一對應，避免輸出使用不同的愛心比例。
+          context.moveTo(x + w * 0.5, y + h * 0.88);
+          context.bezierCurveTo(x + w * 0.44, y + h * 0.82, x + w * 0.15, y + h * 0.65, x + w * 0.15, y + h * 0.38);
+          context.bezierCurveTo(x + w * 0.15, y + h * 0.18, x + w * 0.39, y + h * 0.14, x + w * 0.5, y + h * 0.33);
+          context.bezierCurveTo(x + w * 0.61, y + h * 0.14, x + w * 0.85, y + h * 0.18, x + w * 0.85, y + h * 0.38);
+          context.bezierCurveTo(x + w * 0.85, y + h * 0.65, x + w * 0.56, y + h * 0.82, x + w * 0.5, y + h * 0.88);
+          context.closePath();
+        }
         else { const sides = shape.kind === "triangle" ? 3 : shape.kind === "pentagon" ? 5 : 10; for (let index = 0; index < sides; index += 1) { const angle = -Math.PI / 2 + (index * Math.PI * 2) / sides; const radius = shape.kind === "star" ? (index % 2 === 0 ? 0.48 : 0.22) : 0.46; const x = Math.cos(angle) * shape.width * radius; const y = Math.sin(angle) * shape.height * radius; if (index === 0) context.moveTo(x, y); else context.lineTo(x, y); } context.closePath(); }
         context.fill(); if (shape.outlineWidth > 0) context.stroke();
       }
@@ -5417,6 +5557,21 @@ export default function Home() {
                       aria-label={`圖片素材：${image.name}`}
                     >
                       <img className="image-layer-content" src={image.src} alt={image.name} draggable={false} />
+                      {backgroundRepair?.imageId === image.id && (
+                        <canvas
+                          ref={(node) => {
+                            if (node) backgroundRepairCanvasRefs.current.set(image.id, node);
+                            else backgroundRepairCanvasRefs.current.delete(image.id);
+                          }}
+                          className={`background-repair-canvas is-${backgroundRepair.mode}`}
+                          data-background-repair-id={image.id}
+                          onPointerDown={(event) => handleBackgroundRepairPointerDown(event, image)}
+                          onPointerMove={(event) => handleBackgroundRepairPointerMove(event, image)}
+                          onPointerUp={finishBackgroundRepairStroke}
+                          onPointerCancel={finishBackgroundRepairStroke}
+                          aria-label={backgroundRepair.mode === "keep" ? tr("保留筆修補遮罩", "Keep brush mask repair") : tr("移除筆修補遮罩", "Remove brush mask repair")}
+                        />
+                      )}
                       {cropDraft?.imageId === image.id && (
                         <div
                           className="image-crop-preview"
@@ -5454,7 +5609,7 @@ export default function Home() {
                   {shapes.map((shape, index) => (
                     <svg
                       key={shape.id}
-                      className={`shape-layer ${selectedShapeId === shape.id ? "is-selected" : ""} ${isPaintLayerLocked(shape.paintLayerId) ? "is-locked" : ""}`}
+                      className={`shape-layer ${selectedShapeId === shape.id ? "is-selected" : ""} ${shape.kind === "circle" ? "is-circle" : ""} ${isPaintLayerLocked(shape.paintLayerId) ? "is-locked" : ""}`}
                       viewBox="0 0 100 100"
                       preserveAspectRatio="none"
                       style={{
@@ -5511,7 +5666,7 @@ export default function Home() {
                   {shapes.filter((shape) => shape.id === selectedShapeId && !isPaintLayerLocked(shape.paintLayerId)).map((shape) => (
                     <div
                       key={`${shape.id}-controls`}
-                      className="shape-control-layer"
+                      className={`shape-control-layer ${shape.kind === "circle" ? "is-circle" : ""}`}
                       style={{
                         left: 0,
                         top: 0,
@@ -5745,6 +5900,18 @@ export default function Home() {
                 {!imageEditingId && <button type="button" className="secondary-button full-width" onClick={startImageEditing}><ImagePlus size={14} /> {tr("開始編輯圖片", "Edit image")}</button>}
                 {imageEditingId === selectedImage.id && !cropDraft && <><button type="button" className="secondary-button full-width" onClick={beginImageCrop}><Crop size={14} /> {tr("裁切圖片", "Crop image")}</button><button type="button" className="secondary-button full-width" onClick={() => setImageEditingId(null)}><Lock size={14} /> {tr("完成編輯並鎖定", "Finish editing & lock")}</button></>}
                 {cropDraft?.imageId === selectedImage.id && <><RangeControl label={tr("裁切左側", "Crop left")} value={Math.round(cropDraft.x * 100)} min={0} max={90} suffix="%" onChange={(value) => updateCropDraft({ x: value / 100 })} /><RangeControl label={tr("裁切上方", "Crop top")} value={Math.round(cropDraft.y * 100)} min={0} max={90} suffix="%" onChange={(value) => updateCropDraft({ y: value / 100 })} /><RangeControl label={tr("裁切寬度", "Crop width")} value={Math.round(cropDraft.width * 100)} min={10} max={Math.max(10, Math.round((1 - cropDraft.x) * 100))} suffix="%" onChange={(value) => updateCropDraft({ width: value / 100 })} /><RangeControl label={tr("裁切高度", "Crop height")} value={Math.round(cropDraft.height * 100)} min={10} max={Math.max(10, Math.round((1 - cropDraft.y) * 100))} suffix="%" onChange={(value) => updateCropDraft({ height: value / 100 })} /><button type="button" className="primary-button full-width" onClick={() => void applyImageCrop()}><Check size={14} /> {tr("套用裁切", "Apply crop")}</button><button type="button" className="secondary-button full-width" onClick={cancelImageCrop}>{tr("取消裁切", "Cancel crop")}</button></>}
+                {selectedImage.backgroundSource && !backgroundRepair && <button type="button" className="secondary-button full-width" onClick={() => void startBackgroundRepair()}><Pencil size={14} /> {tr("修補去背", "Repair background")}</button>}
+                {backgroundRepair?.imageId === selectedImage.id && (
+                  <div className="background-repair-controls">
+                    <div className="background-repair-mode-row">
+                      <button type="button" className={`secondary-button ${backgroundRepair.mode === "keep" ? "is-active" : ""}`} onClick={() => setBackgroundRepair((current) => current ? { ...current, mode: "keep" } : current)}><Pencil size={14} /> {tr("保留筆", "Keep")}</button>
+                      <button type="button" className={`secondary-button ${backgroundRepair.mode === "remove" ? "is-active" : ""}`} onClick={() => setBackgroundRepair((current) => current ? { ...current, mode: "remove" } : current)}><Eraser size={14} /> {tr("移除筆", "Remove")}</button>
+                    </div>
+                    <RangeControl label={tr("筆刷大小", "Brush size")} value={backgroundRepair.brushSize} min={4} max={120} suffix=" px" onChange={(value) => setBackgroundRepair((current) => current ? { ...current, brushSize: value } : current)} />
+                    <button type="button" className="primary-button full-width" onClick={() => void commitBackgroundRepair()}><Check size={14} /> {tr("完成修補", "Apply repair")}</button>
+                    <button type="button" className="secondary-button full-width" onClick={cancelBackgroundRepair}>{tr("取消修補", "Cancel repair")}</button>
+                  </div>
+                )}
                 <button type="button" className="secondary-button full-width" onClick={deleteSelectedImage}><Trash2 size={14} /> {tr("移除圖片", "Remove image")}</button>
               </div>
             )}

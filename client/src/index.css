@@ -531,6 +531,7 @@ input[type="range"]::-moz-range-thumb { width: 11px; height: 11px; border: 2px s
 .document-name-input:hover, .document-name-input:focus { background: rgba(245,240,229,0.06); border-color: rgba(227,213,187,0.22); }
 .shape-layer { position: absolute; display: block; overflow: visible; cursor: move; user-select: none; -webkit-user-select: none; transform-origin: center; }
 .shape-layer.is-selected { outline: 1px dashed #e4513b; outline-offset: 7px; }
+.shape-layer.is-circle.is-selected { outline: none; }
 .shape-resize-handle { fill: #fff8ec; stroke: #e4513b; stroke-width: 1.6; vector-effect: non-scaling-stroke; pointer-events: auto; }
 .shape-resize-handle-left, .shape-resize-handle-right { cursor: ew-resize; }
 .shape-resize-handle-top, .shape-resize-handle-bottom { cursor: ns-resize; }
@@ -544,6 +545,11 @@ input[type="range"]::-moz-range-thumb { width: 11px; height: 11px; border: 2px s
 .shape-rotation-handle:active { cursor: grabbing; }
 .shape-rotation-label { fill: #1f2528; font: 700 8px "DM Sans", sans-serif; paint-order: stroke; stroke: #fff8ec; stroke-width: 3px; pointer-events: none; }
 .shape-control-layer { position: absolute; z-index: 8; overflow: visible; user-select: none; -webkit-user-select: none; touch-action: none; transform-origin: center; pointer-events: none; will-change: transform; contain: layout paint; backface-visibility: hidden; }
+.shape-control-layer.is-circle::before { content: ""; position: absolute; inset: -7px; border: 1px dashed #e4513b; border-radius: 50%; pointer-events: none; }
+.shape-control-layer.is-circle .shape-control-handle-top-left,
+.shape-control-layer.is-circle .shape-control-handle-top-right,
+.shape-control-layer.is-circle .shape-control-handle-bottom-left,
+.shape-control-layer.is-circle .shape-control-handle-bottom-right { display: none; }
 .shape-control-handle { position: absolute; z-index: 2; width: 12px; height: 12px; margin: -6px; border: 1.5px solid #e4513b; background: #fff8ec; box-sizing: border-box; pointer-events: auto; transform: scale(var(--shape-control-scale, 1)); transform-origin: center; }
 .shape-control-handle-left, .shape-control-handle-right { top: 50%; cursor: ew-resize; }
 .shape-control-handle-left { left: 0; }
@@ -570,6 +576,12 @@ input[type="range"]::-moz-range-thumb { width: 11px; height: 11px; border: 2px s
 .snap-guide-vertical { top: 0; bottom: 0; width: 1px; transform: translateX(-0.5px); }
 .snap-guide-horizontal { right: 0; left: 0; height: 1px; transform: translateY(-0.5px); }
 .image-layer-content { display: block; width: 100%; height: 100%; object-fit: fill; pointer-events: none; user-select: none; }
+.background-repair-canvas { position: absolute; inset: 0; width: 100%; height: 100%; cursor: crosshair; touch-action: none; }
+.background-repair-canvas.is-keep { cursor: copy; }
+.background-repair-canvas.is-remove { cursor: crosshair; }
+.background-repair-controls { display: grid; gap: 8px; margin-top: 10px; padding-top: 10px; border-top: 1px solid rgba(231, 218, 190, 0.14); }
+.background-repair-mode-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.background-repair-mode-row .secondary-button.is-active { border-color: rgba(228, 81, 59, 0.86); background: rgba(228, 81, 59, 0.16); color: #fff8ec; }
 .image-crop-preview { position: absolute; z-index: 4; box-sizing: border-box; display: flex; align-items: flex-start; justify-content: flex-start; border: 2px solid #e4513b; box-shadow: 0 0 0 9999px rgba(25, 31, 30, 0.42); cursor: move; touch-action: none; }
 .image-crop-preview span { margin: 5px; padding: 2px 4px; color: #1f2528; background: #fff8ec; border: 1px solid rgba(228,81,59,0.7); font: 700 9px "DM Sans", "Noto Sans TC", sans-serif; pointer-events: none; white-space: nowrap; }
 .crop-handle { position: absolute; z-index: 5; width: 12px; height: 12px; margin: -6px; box-sizing: border-box; border: 1.5px solid #e4513b; background: #fff8ec; transform: scale(var(--image-control-scale, 1)); transform-origin: center; touch-action: none; }
