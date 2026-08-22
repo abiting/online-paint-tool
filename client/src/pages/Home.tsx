@@ -2643,6 +2643,22 @@ export default function Home() {
           const movesRight = resize.axis.includes("right");
           const movesTop = resize.axis.includes("top");
           const movesBottom = resize.axis.includes("bottom");
+          if (shape.kind === "circle") {
+            const centerX = resize.startX + resize.startWidth / 2;
+            const centerY = resize.startY + resize.startHeight / 2;
+            const startingDiameter = (resize.startWidth + resize.startHeight) / 2;
+            const radialDelta = movesLeft ? -deltaX : movesRight ? deltaX : movesTop ? -deltaY : deltaY;
+            const maxMaterialSize = Math.max(6000, canvasSize.width * 4, canvasSize.height * 4);
+            const diameter = clamp(startingDiameter + radialDelta * 2, 60, maxMaterialSize);
+            return {
+              ...shape,
+              width: diameter,
+              height: diameter,
+              x: centerX - diameter / 2,
+              y: centerY - diameter / 2,
+              cornerRadius: 0,
+            };
+          }
           let nextWidth = movesLeft ? resize.startWidth - deltaX : movesRight ? resize.startWidth + deltaX : resize.startWidth;
           let nextHeight = movesTop ? resize.startHeight - deltaY : movesBottom ? resize.startHeight + deltaY : resize.startHeight;
           const isCorner = (movesLeft || movesRight) && (movesTop || movesBottom);
@@ -4402,6 +4418,7 @@ export default function Home() {
     event.stopPropagation();
     event.preventDefault();
     if (isPaintLayerLocked(shape.paintLayerId)) return;
+    if (shape.kind === "circle" && axis.includes("-")) return;
     event.currentTarget.setPointerCapture(event.pointerId);
     const point = getCanvasPoint(event.clientX, event.clientY);
     setSelectedShapeId(shape.id);
