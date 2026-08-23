@@ -1,0 +1,23 @@
+# AbiPaint
+
+> AbiPaint is a free, browser-based photo editor. No install, no sign-up required. Resize images, draw with brush and shape tools, add text, and adjust exposure, contrast, and saturation directly in the browser.
+
+Built by Abiting, who has run a Detective Conan fan site for years and needed
+a fast way to resize images and adjust colors without paying for Adobe or
+signing up for Canva.
+
+## Pages
+
+- [Traditional Chinese version](https://abipaint.abiting.cc/): Primary interface
+- [English version](https://abipaint.abiting.cc/en): English interface
+
+## Features
+
+- Resize images to custom or preset dimensions (business cards, social media, etc.)
+- Brush, shape, and text tools with up to 5 layers and undo/redo
+- Exposure, contrast, and saturation adjustment
+- Free export, no account required
+
+## Optional
+
+- [Sitemap](https://abipaint.abiting.cc/sitemap.xml)
