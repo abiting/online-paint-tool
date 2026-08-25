@@ -1431,7 +1431,7 @@ export default function Home() {
   const [brushOpacity, setBrushOpacity] = useState(100);
   const [openDesktopTool, setOpenDesktopTool] = useState<DesktopToolPanel | null>(null);
   const [activeDesktopTool, setActiveDesktopTool] = useState<DesktopCreativeTool | null>(null);
-  const [zoom, setZoom] = useState(68);
+  const [zoom, setZoom] = useState(58);
   const [pan, setPan] = useState({ x: 0, y: 0 });
   const [isPanning, setIsPanning] = useState(false);
   const [isDrawing, setIsDrawing] = useState(false);
@@ -4763,7 +4763,7 @@ export default function Home() {
   }, [fitCanvasToViewport, isMobileViewport, mobileDrawerHeight]);
   const resetCanvasView = () => {
     const viewport = viewportRef.current;
-    const nextZoom = 68;
+    const nextZoom = 58;
     if (!viewport) {
       setZoom(nextZoom);
       setPan({ x: 0, y: 0 });
