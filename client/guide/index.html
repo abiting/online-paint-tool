@@ -32,6 +32,14 @@
       a { color: #a83c2c; text-decoration-thickness: 1px; text-underline-offset: 3px; }
       .lead { max-width: 690px; margin: 16px 0; color: #4c514e; font-size: 1.08rem; }
       .links { display: flex; flex-wrap: wrap; gap: 8px 14px; margin: 18px 0 0; font: 500 11px "IBM Plex Mono", ui-monospace, monospace; }
+      .guide-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin: 22px 0 0; }
+      .cta-primary, .cta-secondary { display: inline-flex; align-items: center; min-height: 42px; padding: 0 16px; font: 700 11px "IBM Plex Mono", ui-monospace, monospace; letter-spacing: .04em; text-decoration: none; transition: transform 160ms cubic-bezier(.23,1,.32,1), box-shadow 160ms cubic-bezier(.23,1,.32,1); }
+      .cta-primary { color: #fffaf1; background: #e4513b; border: 1px solid #b33627; box-shadow: 4px 4px 0 #343833; }
+      .cta-primary::after { content: "↗"; margin-left: 9px; font-size: 14px; }
+      .cta-secondary { color: #343833; border: 1px solid #8e8a80; background: rgba(255,253,248,.6); }
+      .cta-primary:hover, .cta-secondary:hover { transform: translate(-1px, -1px); }
+      .cta-primary:hover { box-shadow: 5px 5px 0 #343833; }
+      .cta-primary:active, .cta-secondary:active { transform: scale(.97); }
       .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(205px, 1fr)); gap: 12px; }
       .card { position: relative; min-height: 190px; padding: 17px 18px; background: rgba(255,253,248,.72); border: 1px solid #b7b0a3; box-shadow: 4px 4px 0 rgba(52,56,51,.08); }
       .card::after { content: ""; position: absolute; right: 11px; top: 11px; width: 9px; height: 9px; border-top: 2px solid #e4513b; border-right: 2px solid #e4513b; }
@@ -40,7 +48,7 @@
       main > section:not(:first-child) { position: relative; }
       main > section:not(:first-child)::before { content: "ABIPAINT / 使用說明"; position: absolute; top: 23px; right: 0; color: #8e8a80; font: 9px "IBM Plex Mono", ui-monospace, monospace; letter-spacing: .08em; }
       footer { display: flex; justify-content: space-between; gap: 18px; border-top: 1px solid #343833; margin-top: 64px; padding-top: 17px; color: #666; font: 11px "IBM Plex Mono", ui-monospace, monospace; }
-      @media (max-width: 560px) { body { padding: 34px 18px 56px; background-size: 18px 18px; } header { margin-bottom: 35px; } h2 { margin-top: 42px; } main > section:not(:first-child)::before { display: none; } .card { min-height: 0; } footer { display: block; } }
+      @media (max-width: 560px) { body { padding: 34px 18px 56px; background-size: 18px 18px; } header { margin-bottom: 35px; } h2 { margin-top: 42px; } main > section:not(:first-child)::before { display: none; } .card { min-height: 0; } .guide-actions { align-items: stretch; } .cta-primary, .cta-secondary { justify-content: center; width: 100%; } footer { display: block; } }
     </style>
     <script type="application/ld+json">
       {"@context":"https://schema.org","@graph":[
@@ -62,7 +70,7 @@
       <span class="kicker">免費 · 免註冊 · 免安裝</span>
       <h1>AbiPaint 使用說明：免費線上圖片尺寸修改器</h1>
       <p class="lead">AbiPaint 是免費線上圖片尺寸修改器，不用安裝 Adobe 或註冊 Canva，直接在瀏覽器調整照片尺寸、像素與解析度。</p>
-      <p class="links"><a href="/">開啟 AbiPaint</a><span>·</span><a href="/en/guide/">English</a></p>
+      <p class="guide-actions"><a class="cta-primary" href="/">開啟 AbiPaint</a><a class="cta-secondary" href="/en/guide/">English</a></p>
     </header>
     <main>
       <section aria-labelledby="features">
@@ -87,6 +95,11 @@
         <h3>使用 AbiPaint 是否需要註冊帳號？</h3><p>完全不需要！AbiPaint 提供免費、免註冊與免安裝的修圖服務，打開網頁即可直接使用，適合所有電腦、平板與手機用戶。</p>
         <h3>AbiPaint 還有什麼功能？</h3><p>除了修改圖片尺寸，AbiPaint 也提供畫筆、圖形與文字等多種素材，適合學生、教師、設計師、行銷人員等各行各業使用。</p>
         <h3>發現錯誤資訊該怎麼辦？</h3><p>若發現錯誤資訊，歡迎透過 <a href="mailto:abiting.ct@gmail.com">abiting.ct@gmail.com</a> 聯繫開發人員。</p>
+      </section>
+      <section aria-labelledby="release-notes">
+        <h2 id="release-notes">版本更新日誌</h2>
+        <p>查看 AbiPaint 各版本的新功能與修正紀錄。</p>
+        <p><a class="cta-secondary" href="https://abiting.cc/abipaint" target="_blank" rel="noopener noreferrer">查看 AbiPaint 版本更新日誌</a></p>
       </section>
       <section aria-labelledby="developer">
         <h2 id="developer">阿比丁</h2>

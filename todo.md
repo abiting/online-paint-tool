@@ -371,4 +371,6 @@
 - [x] 加入中英文 WebApplication、FAQPage、Person 結構化資料與 sitemap
 - [ ] 發布後在 Google Search Console 提交 sitemap，並追蹤索引狀態與實際搜尋查詢
 - [x] 對照 FAQ／開發者彈出頁面，統一中英文指南與既有工作台的產品用詞
+- [ ] 評估部落格版本更新文章與使用指南的連結／內容分工，避免重複索引
+- [x] 在中英文 Guide 加入版本更新日誌連結，並強化開啟 AbiPaint 的主要 CTA
 - [ ] 移除手機版工具列的彩蛋入口，保留桌面版彩蛋

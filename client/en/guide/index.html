@@ -32,6 +32,14 @@
       a { color: #a83c2c; text-decoration-thickness: 1px; text-underline-offset: 3px; }
       .lead { max-width: 690px; margin: 16px 0; color: #4c514e; font-size: 1.08rem; }
       .links { display: flex; flex-wrap: wrap; gap: 8px 14px; margin: 18px 0 0; font: 500 11px "IBM Plex Mono", ui-monospace, monospace; }
+      .guide-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin: 22px 0 0; }
+      .cta-primary, .cta-secondary { display: inline-flex; align-items: center; min-height: 42px; padding: 0 16px; font: 700 11px "IBM Plex Mono", ui-monospace, monospace; letter-spacing: .04em; text-decoration: none; transition: transform 160ms cubic-bezier(.23,1,.32,1), box-shadow 160ms cubic-bezier(.23,1,.32,1); }
+      .cta-primary { color: #fffaf1; background: #e4513b; border: 1px solid #b33627; box-shadow: 4px 4px 0 #343833; }
+      .cta-primary::after { content: "↗"; margin-left: 9px; font-size: 14px; }
+      .cta-secondary { color: #343833; border: 1px solid #8e8a80; background: rgba(255,253,248,.6); }
+      .cta-primary:hover, .cta-secondary:hover { transform: translate(-1px, -1px); }
+      .cta-primary:hover { box-shadow: 5px 5px 0 #343833; }
+      .cta-primary:active, .cta-secondary:active { transform: scale(.97); }
       .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(205px, 1fr)); gap: 12px; }
       .card { position: relative; min-height: 190px; padding: 17px 18px; background: rgba(255,253,248,.72); border: 1px solid #b7b0a3; box-shadow: 4px 4px 0 rgba(52,56,51,.08); }
       .card::after { content: ""; position: absolute; right: 11px; top: 11px; width: 9px; height: 9px; border-top: 2px solid #e4513b; border-right: 2px solid #e4513b; }
@@ -40,7 +48,7 @@
       main > section:not(:first-child) { position: relative; }
       main > section:not(:first-child)::before { content: "ABIPAINT / HOW IT WORKS"; position: absolute; top: 23px; right: 0; color: #8e8a80; font: 9px "IBM Plex Mono", ui-monospace, monospace; letter-spacing: .08em; }
       footer { display: flex; justify-content: space-between; gap: 18px; border-top: 1px solid #343833; margin-top: 64px; padding-top: 17px; color: #666; font: 11px "IBM Plex Mono", ui-monospace, monospace; }
-      @media (max-width: 560px) { body { padding: 34px 18px 56px; background-size: 18px 18px; } header { margin-bottom: 35px; } h2 { margin-top: 42px; } main > section:not(:first-child)::before { display: none; } .card { min-height: 0; } footer { display: block; } }
+      @media (max-width: 560px) { body { padding: 34px 18px 56px; background-size: 18px 18px; } header { margin-bottom: 35px; } h2 { margin-top: 42px; } main > section:not(:first-child)::before { display: none; } .card { min-height: 0; } .guide-actions { align-items: stretch; } .cta-primary, .cta-secondary { justify-content: center; width: 100%; } footer { display: block; } }
     </style>
     <script type="application/ld+json">
       {"@context":"https://schema.org","@graph":[
@@ -62,7 +70,7 @@
       <span class="kicker">FREE · NO SIGN-UP · NO INSTALL</span>
       <h1>How it works: AbiPaint Online Image Resizer</h1>
       <p class="lead">AbiPaint is a free online image resizer. Resize photos, adjust pixels and resolution right in your browser—no Adobe installation or Canva account required.</p>
-      <p class="links"><a href="/en/">Open AbiPaint</a><span>·</span><a href="/guide/">繁體中文說明</a></p>
+      <p class="guide-actions"><a class="cta-primary" href="/en/">Open AbiPaint</a><a class="cta-secondary" href="/guide/">繁體中文說明</a></p>
     </header>
     <main>
       <section aria-labelledby="features">
@@ -87,6 +95,11 @@
         <h3>Do I need an account?</h3><p>No. AbiPaint is free, registration-free, and installation-free, so it works immediately on computers, tablets, and phones.</p>
         <h3>What else can AbiPaint do?</h3><p>Beyond resizing images, AbiPaint includes brush, shape, and text materials for students, teachers, designers, marketers, and everyday creators.</p>
         <h3>How do I report an issue?</h3><p>If you find an issue, contact the developer at <a href="mailto:abiting.ct@gmail.com">abiting.ct@gmail.com</a>.</p>
+      </section>
+      <section aria-labelledby="release-notes">
+        <h2 id="release-notes">Version updates</h2>
+        <p>View new features and fixes for each AbiPaint version.</p>
+        <p><a class="cta-secondary" href="https://abiting.cc/abipaint" target="_blank" rel="noopener noreferrer">View AbiPaint release notes</a></p>
       </section>
       <section aria-labelledby="developer">
         <h2 id="developer">Abiting</h2>
