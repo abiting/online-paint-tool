@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="zh-Hant">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>AbiPaint 使用說明｜免費線上修圖、去背與圖片尺寸調整工具</title>
+    <meta name="description" content="AbiPaint 使用說明：在瀏覽器中免費調整圖片尺寸、裁切、去背、調色、加入文字與圖形，並匯出 PNG、JPG 或 PDF。" />
+    <link rel="canonical" href="https://abipaint.abiting.cc/guide/" />
+    <link rel="alternate" hreflang="zh-Hant" href="https://abipaint.abiting.cc/guide/" />
+    <link rel="alternate" hreflang="en" href="https://abipaint.abiting.cc/en/guide/" />
+    <link rel="alternate" hreflang="x-default" href="https://abipaint.abiting.cc/guide/" />
+    <style>
+      /* 紙上工作室指南：象牙紙、石墨字、朱砂校準記號與等寬規格標籤。 */
+      :root { color: #252826; background: #efebe2; font-family: "Noto Sans TC", system-ui, sans-serif; }
+      * { box-sizing: border-box; }
+      body { max-width: 910px; margin: 0 auto; padding: 58px 28px 78px; line-height: 1.85; background: linear-gradient(rgba(54,50,42,.034) 1px, transparent 1px), linear-gradient(90deg, rgba(54,50,42,.028) 1px, transparent 1px), #f8f5ee; background-size: 24px 24px; }
+      header { position: relative; border-top: 1px solid #343833; border-bottom: 1px solid #343833; padding: 24px 0 27px; margin: 0 0 45px; }
+      header::before, header::after { content: ""; position: absolute; width: 20px; height: 20px; border-color: #e4513b; pointer-events: none; }
+      header::before { left: -10px; top: -10px; border-left: 2px solid; border-top: 2px solid; }
+      header::after { right: -10px; bottom: -10px; border-right: 2px solid; border-bottom: 2px solid; }
+      .brand-lockup { display: flex; align-items: center; gap: 10px; width: fit-content; color: #b53d2d; font: 700 11px "IBM Plex Mono", ui-monospace, monospace; letter-spacing: .12em; text-decoration: none; }
+      .brand-mark { position: relative; display: block; width: 32px; height: 32px; }
+      .brand-mark img { display: block; width: 100%; height: 100%; object-fit: cover; border: 1px solid #343833; border-radius: 50%; }
+      .brand-mark::after { content: ""; position: absolute; right: -4px; bottom: -2px; width: 10px; height: 10px; background: #e4513b; clip-path: polygon(0 0, 100% 100%, 0 100%); }
+      .kicker, .card-kicker { color: #8a4437; font: 700 10px "IBM Plex Mono", ui-monospace, monospace; letter-spacing: .1em; }
+      .kicker { display: block; margin: 24px 0 7px; }
+      h1, h2, h3 { font-family: "DM Sans", "Noto Sans TC", sans-serif; }
+      h1 { max-width: 760px; font-size: clamp(2rem, 5vw, 3.12rem); line-height: 1.22; margin: 0; letter-spacing: -.025em; }
+      h2 { position: relative; margin: 54px 0 23px; padding: 0 0 11px 28px; border-bottom: 1px solid #a9a397; font-size: 1.45rem; }
+      h2::before { content: ""; position: absolute; left: 0; top: .2em; width: 12px; height: 12px; background: #e4513b; clip-path: polygon(0 0, 100% 0, 0 100%); }
+      h3 { margin: 28px 0 7px; font-size: 1.06rem; }
+      a { color: #a83c2c; text-decoration-thickness: 1px; text-underline-offset: 3px; }
+      .lead { max-width: 690px; margin: 16px 0; color: #4c514e; font-size: 1.08rem; }
+      .links { display: flex; flex-wrap: wrap; gap: 8px 14px; margin: 18px 0 0; font: 500 11px "IBM Plex Mono", ui-monospace, monospace; }
+      .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(205px, 1fr)); gap: 12px; }
+      .card { position: relative; min-height: 190px; padding: 17px 18px; background: rgba(255,253,248,.72); border: 1px solid #b7b0a3; box-shadow: 4px 4px 0 rgba(52,56,51,.08); }
+      .card::after { content: ""; position: absolute; right: 11px; top: 11px; width: 9px; height: 9px; border-top: 2px solid #e4513b; border-right: 2px solid #e4513b; }
+      .card h3 { margin: 8px 0; font-size: 1rem; }
+      .card p { margin: 0; font-size: .94rem; color: #4f534e; }
+      main > section:not(:first-child) { position: relative; }
+      main > section:not(:first-child)::before { content: "REFERENCE / ABIPAINT"; position: absolute; top: 23px; right: 0; color: #8e8a80; font: 9px "IBM Plex Mono", ui-monospace, monospace; letter-spacing: .08em; }
+      footer { display: flex; justify-content: space-between; gap: 18px; border-top: 1px solid #343833; margin-top: 64px; padding-top: 17px; color: #666; font: 11px "IBM Plex Mono", ui-monospace, monospace; }
+      @media (max-width: 560px) { body { padding: 34px 18px 56px; background-size: 18px 18px; } header { margin-bottom: 35px; } h2 { margin-top: 42px; } main > section:not(:first-child)::before { display: none; } .card { min-height: 0; } footer { display: block; } }
+    </style>
+    <script type="application/ld+json">
+      {"@context":"https://schema.org","@graph":[
+        {"@type":"SoftwareApplication","name":"AbiPaint","applicationCategory":"DesignApplication","operatingSystem":"Web Browser","isAccessibleForFree":true,"url":"https://abipaint.abiting.cc/","inLanguage":"zh-Hant"},
+        {"@type":"FAQPage","mainEntity":[
+          {"@type":"Question","name":"AbiPaint 可以免費使用嗎？","acceptedAnswer":{"@type":"Answer","text":"可以。AbiPaint 可直接在瀏覽器中使用，不需要安裝或註冊。"}},
+          {"@type":"Question","name":"AbiPaint 可以做什麼？","acceptedAnswer":{"@type":"Answer","text":"可調整圖片尺寸、裁切、去背、調整影像色彩、繪圖、加入文字與圖形，並匯出 PNG、JPG 或 PDF。"}},
+          {"@type":"Question","name":"AbiPaint 的開發者是誰？","acceptedAnswer":{"@type":"Answer","text":"AbiPaint 由台灣開發者兼創作者阿比丁（Abiting）製作。"}}
+        ]},
+        {"@type":"Person","name":"阿比丁","alternateName":"Abiting","url":"https://abiting.cc/","sameAs":["https://www.facebook.com/shimokitazawa.news/","https://www.linkedin.com/in/abiting1998/"]}
+      ]}
+    </script>
+  </head>
+  <body>
+    <header>
+      <a class="brand-lockup" href="/"><span class="brand-mark"><img src="/favicon.webp" alt="" /></span>ABIPAINT / 工作台參考</a>
+      <span class="kicker">IMAGE EDITOR · BROWSER TOOL · FREE TO USE</span>
+      <h1>AbiPaint 使用說明：圖片尺寸、去背與修圖工作台</h1>
+      <p class="lead">AbiPaint 是免安裝、免註冊的瀏覽器修圖工具。你可以在同一個工作區調整圖片尺寸、去背、裁切、調色、繪圖、加入文字與圖形，再匯出成常用格式。</p>
+      <p class="links"><a href="/">開啟 AbiPaint 工作台</a><span>·</span><a href="/en/guide/">English guide</a></p>
+    </header>
+    <main>
+      <section aria-labelledby="features">
+        <h2 id="features">AbiPaint 可以做什麼？</h2>
+        <div class="grid">
+          <article class="card"><span class="card-kicker">01 / CANVAS</span><h3>圖片尺寸與裁切</h3><p>設定自訂畫布尺寸，使用常用尺寸範本，並以控制點裁切匯入圖片。</p></article>
+          <article class="card"><span class="card-kicker">02 / IMAGE</span><h3>影像調色與去背</h3><p>調整曝光度、對比度、飽和度、亮麗度與不透明度；也可對選取圖片執行主體去背並手動修補。</p></article>
+          <article class="card"><span class="card-kicker">03 / CREATE</span><h3>文字、圖形與筆刷</h3><p>加入可移動、縮放和排序的文字與圖形，或以筆刷直接創作。</p></article>
+          <article class="card"><span class="card-kicker">04 / OUTPUT</span><h3>匯出與工作檔</h3><p>匯出 PNG、JPG 或 PDF；桌面版可保留多個自動儲存的工作檔。</p></article>
+        </div>
+      </section>
+      <section aria-labelledby="how-to">
+        <h2 id="how-to">如何使用 AbiPaint？</h2>
+        <h3>1. 匯入圖片或建立空白畫布</h3><p>選擇「匯入影像」後，首張圖片可成為畫布尺寸基準；也可以直接設定寬度與高度，從空白畫布開始。</p>
+        <h3>2. 編輯素材</h3><p>選取圖片、文字、圖形或筆觸後，可拖曳移動、縮放、旋轉、複製、刪除與調整前後順序。選取圖片時也能裁切、去背與調色。</p>
+        <h3>3. 匯出完成檔案</h3><p>從「匯出影像」選擇 PNG、JPG 或 PDF。PNG 適合保留透明背景，JPG 適合一般圖片分享，PDF 適合文件列印。</p>
+      </section>
+      <section aria-labelledby="faq">
+        <h2 id="faq">常見問題</h2>
+        <h3>AbiPaint 需要安裝或註冊嗎？</h3><p>不需要。工具直接在瀏覽器中執行。</p>
+        <h3>去背功能適合哪些圖片？</h3><p>人物、物品與寵物都可處理。複雜背景或細髮絲等案例可在去背後使用保留筆與移除筆修補遮罩。</p>
+        <h3>可以在手機使用嗎？</h3><p>可以。手機版保留畫布、匯入、匯出與素材編輯等核心操作，並會依可用工作區自動安排畫布視角。</p>
+      </section>
+      <section aria-labelledby="developer">
+        <h2 id="developer">開發者：阿比丁</h2>
+        <p>AbiPaint 由台灣開發者兼創作者阿比丁製作。長期經營《名偵探柯南》相關網站，經常需要調整圖片尺寸、加註文字與微調色彩，因此打造這個不被大型軟體綁定的免費線上工具。</p>
+        <p><a href="https://abiting.cc/" target="_blank" rel="noopener noreferrer">認識阿比丁</a></p>
+      </section>
+    </main>
+    <footer>© 2026 AbiPaint · <a href="/">回到工具</a></footer>
+  </body>
+</html>

@@ -5028,7 +5028,7 @@ export default function Home() {
             <img src="/favicon.webp" alt="AbiPaint" />
           </span>
           <div className="brand-copy">
-            <span className="brand-name">AbiPaint</span>
+            <h1 className="brand-name">AbiPaint</h1>
           </div>
         </div>
 
@@ -5168,7 +5168,7 @@ export default function Home() {
               <div className="faq-list">
                 {copy.faq.map(([question, answer], index) => (
                   <details key={question} className="faq-item" open={index === 0}>
-                    <summary><span>{String(index + 1).padStart(2, "0")}</span>{question}</summary>
+                    <summary><span>{String(index + 1).padStart(2, "0")}</span><h3>{question}</h3></summary>
                     <div className="faq-answer">
                       {answer}
                       {index === 1 && <ul>{copy.faqList.map((item) => <li key={item}>{item}</li>)}</ul>}
@@ -5809,7 +5809,7 @@ export default function Home() {
                 : "阿比丁經營《名偵探柯南》相關網站多年，常需調整圖片尺寸、加註文字、微調色彩。不想被昂貴的 Adobe 綁架，也嫌 Canva 臃腫又要註冊，於是自行開發了 AbiPaint。免付費、免註冊、免安裝，直接在瀏覽器完成縮放、調色、設計與匯出。"}</p>
             </div>
             <div className="product-footer-meta">
-              <p className="product-copyright">Copyright © 2026 <a href={isEnglish ? "/en" : "/"}>AbiPaint</a></p>
+              <p className="product-copyright">Copyright © 2026 <a href={isEnglish ? "/en" : "/"}>AbiPaint</a> · <a href={isEnglish ? "/en/guide/" : "/guide/"}>{isEnglish ? "Guide" : "使用說明"}</a></p>
               <div className="product-build-meta" aria-label="AbiPaint version 1.0.2">
                 <a className="product-version-label" href="https://abiting.cc/abipaint" target="_blank" rel="noopener noreferrer">v1.0.2</a>
                 <a

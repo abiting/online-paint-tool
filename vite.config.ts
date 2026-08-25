@@ -223,6 +223,8 @@ export default defineConfig({
       input: {
         main: path.resolve(import.meta.dirname, "client", "index.html"),
         en: path.resolve(import.meta.dirname, "client", "en", "index.html"),
+        guide: path.resolve(import.meta.dirname, "client", "guide", "index.html"),
+        enGuide: path.resolve(import.meta.dirname, "client", "en", "guide", "index.html"),
       },
       output: {
         entryFileNames: "assets/[name].js",

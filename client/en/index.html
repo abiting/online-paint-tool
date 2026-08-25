@@ -25,6 +25,8 @@
     <link rel="icon" type="image/webp" href="/favicon.webp" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
     <meta name="keywords" content="free online photo editor, online image resizer, online drawing tool, photo color adjustment, no sign up photo editor, AbiPaint">
+    <meta name="robots" content="index, follow" />
+    <meta name="theme-color" content="#1f2528" />
     <meta name="msvalidate.01" content="2966AF8E9195E3C4A9A577BAAE651882" />
     <meta property="og:title" content="AbiPaint – Free Online Photo Editor | Resize, Draw & Color Adjust">
     <meta property="og:description" content="Resize, draw, add text, and adjust exposure or saturation — all free in your browser. No downloads, no sign-up required.">
@@ -40,17 +42,32 @@
     <script type="application/ld+json">
 {
   "@context": "https://schema.org",
-  "@type": "WebApplication",
-  "name": "AbiPaint Online Photo Editor",
-  "description": "AbiPaint lets you resize photos, draw, add text, and adjust exposure or saturation — all free in your browser. No downloads, no sign-up required.",
-  "url": "https://abipaint.abiting.cc/en",
-  "applicationCategory": "DesignApplication",
-  "operatingSystem": "Web Browser",
-  "offers": {
-    "@type": "Offer",
-    "price": "0",
-    "priceCurrency": "USD"
-  }
+  "@graph": [
+    {
+      "@type": "SoftwareApplication",
+      "name": "AbiPaint Online Photo Editor",
+      "alternateName": "AbiPaint",
+      "description": "AbiPaint is a free online photo editor for image resize, crop, background removal, color adjustment, drawing, text, shapes, and PNG, JPG or PDF export.",
+      "url": "https://abipaint.abiting.cc/en",
+      "applicationCategory": "DesignApplication",
+      "operatingSystem": "Web Browser",
+      "isAccessibleForFree": true,
+      "featureList": "Image resize, image crop, background removal, photo color adjustment, text and shapes, PNG JPG PDF export",
+      "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" }
+    },
+    {
+      "@type": "WebSite",
+      "name": "AbiPaint",
+      "url": "https://abipaint.abiting.cc/en",
+      "inLanguage": "en"
+    },
+    {
+      "@type": "Person",
+      "name": "Abiting",
+      "url": "https://abiting.cc/",
+      "sameAs": ["https://www.facebook.com/shimokitazawa.news/", "https://www.linkedin.com/in/abiting1998/"]
+    }
+  ]
 }
 </script>
     <link rel="preconnect" href="https://fonts.googleapis.com" />

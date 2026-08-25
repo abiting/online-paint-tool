@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>AbiPaint Guide | Free Online Photo Editor, Background Removal & Image Resize</title>
+    <meta name="description" content="Learn how to use AbiPaint to resize, crop, remove backgrounds, adjust photos, add text and shapes, and export PNG, JPG or PDF for free in your browser." />
+    <link rel="canonical" href="https://abipaint.abiting.cc/en/guide/" />
+    <link rel="alternate" hreflang="zh-Hant" href="https://abipaint.abiting.cc/guide/" />
+    <link rel="alternate" hreflang="en" href="https://abipaint.abiting.cc/en/guide/" />
+    <link rel="alternate" hreflang="x-default" href="https://abipaint.abiting.cc/guide/" />
+    <style>
+      /* Studio-reference guide: ivory paper, graphite type, vermilion calibration marks, mono specifications. */
+      :root { color: #252826; background: #efebe2; font-family: "DM Sans", system-ui, sans-serif; }
+      * { box-sizing: border-box; }
+      body { max-width: 910px; margin: 0 auto; padding: 58px 28px 78px; line-height: 1.85; background: linear-gradient(rgba(54,50,42,.034) 1px, transparent 1px), linear-gradient(90deg, rgba(54,50,42,.028) 1px, transparent 1px), #f8f5ee; background-size: 24px 24px; }
+      header { position: relative; border-top: 1px solid #343833; border-bottom: 1px solid #343833; padding: 24px 0 27px; margin: 0 0 45px; }
+      header::before, header::after { content: ""; position: absolute; width: 20px; height: 20px; border-color: #e4513b; pointer-events: none; }
+      header::before { left: -10px; top: -10px; border-left: 2px solid; border-top: 2px solid; }
+      header::after { right: -10px; bottom: -10px; border-right: 2px solid; border-bottom: 2px solid; }
+      .brand-lockup { display: flex; align-items: center; gap: 10px; width: fit-content; color: #b53d2d; font: 700 11px "IBM Plex Mono", ui-monospace, monospace; letter-spacing: .12em; text-decoration: none; }
+      .brand-mark { position: relative; display: block; width: 32px; height: 32px; }
+      .brand-mark img { display: block; width: 100%; height: 100%; object-fit: cover; border: 1px solid #343833; border-radius: 50%; }
+      .brand-mark::after { content: ""; position: absolute; right: -4px; bottom: -2px; width: 10px; height: 10px; background: #e4513b; clip-path: polygon(0 0, 100% 100%, 0 100%); }
+      .kicker, .card-kicker { color: #8a4437; font: 700 10px "IBM Plex Mono", ui-monospace, monospace; letter-spacing: .1em; }
+      .kicker { display: block; margin: 24px 0 7px; }
+      h1, h2, h3 { font-family: "DM Sans", system-ui, sans-serif; }
+      h1 { max-width: 760px; font-size: clamp(2rem, 5vw, 3.12rem); line-height: 1.22; margin: 0; letter-spacing: -.025em; }
+      h2 { position: relative; margin: 54px 0 23px; padding: 0 0 11px 28px; border-bottom: 1px solid #a9a397; font-size: 1.45rem; }
+      h2::before { content: ""; position: absolute; left: 0; top: .2em; width: 12px; height: 12px; background: #e4513b; clip-path: polygon(0 0, 100% 0, 0 100%); }
+      h3 { margin: 28px 0 7px; font-size: 1.06rem; }
+      a { color: #a83c2c; text-decoration-thickness: 1px; text-underline-offset: 3px; }
+      .lead { max-width: 690px; margin: 16px 0; color: #4c514e; font-size: 1.08rem; }
+      .links { display: flex; flex-wrap: wrap; gap: 8px 14px; margin: 18px 0 0; font: 500 11px "IBM Plex Mono", ui-monospace, monospace; }
+      .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(205px, 1fr)); gap: 12px; }
+      .card { position: relative; min-height: 190px; padding: 17px 18px; background: rgba(255,253,248,.72); border: 1px solid #b7b0a3; box-shadow: 4px 4px 0 rgba(52,56,51,.08); }
+      .card::after { content: ""; position: absolute; right: 11px; top: 11px; width: 9px; height: 9px; border-top: 2px solid #e4513b; border-right: 2px solid #e4513b; }
+      .card h3 { margin: 8px 0; font-size: 1rem; }
+      .card p { margin: 0; font-size: .94rem; color: #4f534e; }
+      main > section:not(:first-child) { position: relative; }
+      main > section:not(:first-child)::before { content: "REFERENCE / ABIPAINT"; position: absolute; top: 23px; right: 0; color: #8e8a80; font: 9px "IBM Plex Mono", ui-monospace, monospace; letter-spacing: .08em; }
+      footer { display: flex; justify-content: space-between; gap: 18px; border-top: 1px solid #343833; margin-top: 64px; padding-top: 17px; color: #666; font: 11px "IBM Plex Mono", ui-monospace, monospace; }
+      @media (max-width: 560px) { body { padding: 34px 18px 56px; background-size: 18px 18px; } header { margin-bottom: 35px; } h2 { margin-top: 42px; } main > section:not(:first-child)::before { display: none; } .card { min-height: 0; } footer { display: block; } }
+    </style>
+    <script type="application/ld+json">
+      {"@context":"https://schema.org","@graph":[
+        {"@type":"SoftwareApplication","name":"AbiPaint","applicationCategory":"DesignApplication","operatingSystem":"Web Browser","isAccessibleForFree":true,"url":"https://abipaint.abiting.cc/en","inLanguage":"en"},
+        {"@type":"FAQPage","mainEntity":[
+          {"@type":"Question","name":"Is AbiPaint free to use?","acceptedAnswer":{"@type":"Answer","text":"Yes. AbiPaint runs in your browser without installation or sign-up."}},
+          {"@type":"Question","name":"What can I do with AbiPaint?","acceptedAnswer":{"@type":"Answer","text":"You can resize, crop, remove backgrounds, adjust photos, draw, add text and shapes, and export PNG, JPG or PDF."}},
+          {"@type":"Question","name":"Who made AbiPaint?","acceptedAnswer":{"@type":"Answer","text":"AbiPaint was made by Abiting, a Taiwan-based developer and creator."}}
+        ]},
+        {"@type":"Person","name":"Abiting","url":"https://abiting.cc/","sameAs":["https://www.facebook.com/shimokitazawa.news/","https://www.linkedin.com/in/abiting1998/"]}
+      ]}
+    </script>
+  </head>
+  <body>
+    <header>
+      <a class="brand-lockup" href="/en/"><span class="brand-mark"><img src="/favicon.webp" alt="" /></span>ABIPAINT / STUDIO REFERENCE</a>
+      <span class="kicker">IMAGE EDITOR · BROWSER TOOL · FREE TO USE</span>
+      <h1>AbiPaint Studio Guide: Resize, Remove, Export</h1>
+      <p class="lead">AbiPaint is a free browser-based editor for resizing, cropping, background removal, color adjustment, drawing, text, shapes and export. No installation or account is required.</p>
+      <p class="links"><a href="/en/">Open AbiPaint</a><span>·</span><a href="/guide/">繁體中文說明</a></p>
+    </header>
+    <main>
+      <section aria-labelledby="features">
+        <h2 id="features">What can AbiPaint do?</h2>
+        <div class="grid">
+          <article class="card"><span class="card-kicker">01 / CANVAS</span><h3>Resize and crop images</h3><p>Set a custom canvas, use common size presets, and crop imported images with direct controls.</p></article>
+          <article class="card"><span class="card-kicker">02 / IMAGE</span><h3>Adjust photos and remove backgrounds</h3><p>Control exposure, contrast, saturation, vibrancy and opacity. Remove an image background and repair the mask when needed.</p></article>
+          <article class="card"><span class="card-kicker">03 / CREATE</span><h3>Add text, shapes and brush strokes</h3><p>Create movable, scalable and layerable text or shapes, or draw directly with brush tools.</p></article>
+          <article class="card"><span class="card-kicker">04 / OUTPUT</span><h3>Export and save working files</h3><p>Export PNG, JPG or PDF. Desktop users can retain multiple automatically saved working files.</p></article>
+        </div>
+      </section>
+      <section aria-labelledby="how-to">
+        <h2 id="how-to">How to use AbiPaint</h2>
+        <h3>1. Import an image or start with a blank canvas</h3><p>Choose Import Image to begin. Your first image can define the canvas size, or you can set the width and height before creating.</p>
+        <h3>2. Edit selected objects</h3><p>Select an image, text, shape or brush stroke to move, resize, rotate, duplicate, delete or reorder it. Selected images can also be cropped, adjusted or cleaned with background removal.</p>
+        <h3>3. Export your work</h3><p>Choose PNG, JPG or PDF from Export Image. PNG is useful for transparent backgrounds, JPG for everyday sharing and PDF for documents.</p>
+      </section>
+      <section aria-labelledby="faq">
+        <h2 id="faq">Frequently asked questions</h2>
+        <h3>Do I need to install or sign up?</h3><p>No. AbiPaint works directly in a web browser.</p>
+        <h3>What kind of images work with background removal?</h3><p>People, products and pets can be processed. For complex scenes or fine hair, use the keep and remove brushes after automatic removal.</p>
+        <h3>Can I use AbiPaint on a phone?</h3><p>Yes. The mobile workspace keeps the core canvas, import, export and object editing controls, and fits the canvas to the available workspace.</p>
+      </section>
+      <section aria-labelledby="developer">
+        <h2 id="developer">Developer: Abiting</h2>
+        <p>AbiPaint was created by Abiting, a Taiwan-based developer and creator who has run Detective Conan fan sites for years. The tool grew from recurring needs to resize images, add text and make quick color adjustments without a costly or account-bound editor.</p>
+        <p><a href="https://abiting.cc/" target="_blank" rel="noopener noreferrer">Learn about Abiting</a></p>
+      </section>
+    </main>
+    <footer>© 2026 AbiPaint · <a href="/en/">Back to the editor</a></footer>
+  </body>
+</html>

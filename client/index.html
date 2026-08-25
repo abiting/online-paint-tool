@@ -25,6 +25,8 @@
     <link rel="icon" type="image/webp" href="/favicon.webp" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
     <meta name="keywords" content="線上修圖神器, 免費修圖工具, 圖片調色, 圖片尺寸修改, 線上畫圖工具, AbiPaint">
+    <meta name="robots" content="index, follow" />
+    <meta name="theme-color" content="#1f2528" />
     <meta name="msvalidate.01" content="2966AF8E9195E3C4A9A577BAAE651882" />
     <meta property="og:title" content="AbiPaint 線上修圖神器｜圖片尺寸縮放・免費影像調色">
     <meta property="og:description" content="AbiPaint 整合尺寸縮放、畫筆繪圖、文字疊加與影像調色，免安裝、免註冊，直接在瀏覽器完成修圖。">
@@ -40,17 +42,33 @@
     <script type="application/ld+json">
 {
   "@context": "https://schema.org",
-  "@type": "WebApplication",
-  "name": "AbiPaint 線上修圖神器",
-  "description": "AbiPaint 是免費線上修圖工具，整合尺寸縮放、畫筆繪圖、文字疊加與曝光飽和度調色，不用安裝 Adobe 或註冊 Canva，直接在瀏覽器完成修圖。",
-  "url": "https://abipaint.abiting.cc",
-  "applicationCategory": "DesignApplication",
-  "operatingSystem": "Web Browser",
-  "offers": {
-    "@type": "Offer",
-    "price": "0",
-    "priceCurrency": "TWD"
-  }
+  "@graph": [
+    {
+      "@type": "SoftwareApplication",
+      "name": "AbiPaint 線上修圖工具",
+      "alternateName": "AbiPaint",
+      "description": "AbiPaint 是免費線上修圖工具，可在瀏覽器中調整圖片尺寸、裁切、去背、調色、繪圖、加入文字與圖形，並匯出 PNG、JPG 或 PDF。",
+      "url": "https://abipaint.abiting.cc/",
+      "applicationCategory": "DesignApplication",
+      "operatingSystem": "Web Browser",
+      "isAccessibleForFree": true,
+      "featureList": "圖片尺寸調整、圖片裁切、主體去背、影像調色、文字與圖形、PNG JPG PDF 匯出",
+      "offers": { "@type": "Offer", "price": "0", "priceCurrency": "TWD" }
+    },
+    {
+      "@type": "WebSite",
+      "name": "AbiPaint",
+      "url": "https://abipaint.abiting.cc/",
+      "inLanguage": "zh-Hant"
+    },
+    {
+      "@type": "Person",
+      "name": "阿比丁",
+      "alternateName": "Abiting",
+      "url": "https://abiting.cc/",
+      "sameAs": ["https://www.facebook.com/shimokitazawa.news/", "https://www.linkedin.com/in/abiting1998/"]
+    }
+  ]
 }
 </script>
     <link rel="preconnect" href="https://fonts.googleapis.com" />

@@ -125,7 +125,7 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 .brand-mark { width: 36px; height: 36px; display: grid; place-items: center; border: 1px solid rgba(255,255,255,0.25); background: #f5eee0; border-radius: 100%; overflow: hidden; box-shadow: 0 7px 18px rgba(0,0,0,0.2); }
 .brand-mark img { width: 100%; height: 100%; object-fit: cover; }
 .brand-copy { display: grid; gap: 1px; }
-.brand-name { font-family: "DM Sans", sans-serif; font-weight: 700; font-size: 14px; letter-spacing: 0.065em; }
+.brand-name { margin: 0; font-family: "DM Sans", sans-serif; font-weight: 700; font-size: 14px; letter-spacing: 0.065em; }
 .brand-status { color: #9da5a0; font-size: 10px; letter-spacing: 0.08em; }
 .status-dot { display: inline-block; width: 6px; height: 6px; background: #82a480; border-radius: 50%; margin-right: 4px; box-shadow: 0 0 0 3px rgba(130, 164, 128, 0.12); }
 .document-meta { gap: 9px; min-width: 0; margin-left: 24px; flex: 1; }
@@ -195,6 +195,7 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 .faq-item { border-bottom: 1px solid rgba(227,213,187,0.11); }
 .faq-item:last-child { border-bottom: 0; }
 .faq-item summary { display: flex; align-items: baseline; gap: 10px; padding: 14px 1px 13px; color: #d8d4c8; cursor: pointer; font-size: 12px; font-weight: 600; line-height: 1.45; list-style: none; }
+.faq-item summary h3 { margin: 0; color: inherit; font: inherit; }
 .faq-item summary::-webkit-details-marker { display: none; }
 .faq-item summary::after { content: "+"; margin-left: auto; color: #8c9691; font: 16px "IBM Plex Mono", monospace; }
 .faq-item[open] summary { color: #f3ede0; }
