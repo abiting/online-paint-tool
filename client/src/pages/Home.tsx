@@ -1420,7 +1420,7 @@ export default function Home() {
   const activeWorkingFileIdRef = useRef("");
   const isApplyingWorkingFileRef = useRef(false);
 
-  const [canvasSize, setCanvasSize] = useState({ width: 960, height: 640 });
+  const [canvasSize, setCanvasSize] = useState({ width: 1024, height: 1024 });
   const [bleedGuide, setBleedGuide] = useState<BleedGuide | null>(null);
   const [scaleImagesWithCanvas, setScaleImagesWithCanvas] = useState(false);
 
@@ -2193,8 +2193,8 @@ export default function Home() {
   }, [activePaintLayerId, adjustments, bleedGuide, brushColor, brushKind, brushOpacity, brushSize, documentNameDraft, fileMeta, hasArtwork, paintLayers, scaleImagesWithCanvas, shapeCornerRadius, shapeFill, shapeKind, shapeOpacity, shapeOutline, shapeOutlineWidth, shapeShadow, shapeShadowOpacity]);
 
   const createBlankProject = useCallback((fileNumber: number): AbiPaintProject => {
-    const width = 960;
-    const height = 640;
+    const width = 1024;
+    const height = 1024;
     const surface = document.createElement("canvas");
     surface.width = width;
     surface.height = height;
