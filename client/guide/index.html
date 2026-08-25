@@ -3,14 +3,14 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>AbiPaint 使用說明｜免費線上修圖、去背與圖片尺寸調整工具</title>
-    <meta name="description" content="AbiPaint 使用說明：在瀏覽器中免費調整圖片尺寸、裁切、去背、調色、加入文字與圖形，並匯出 PNG、JPG 或 PDF。" />
+    <title>AbiPaint 使用說明｜免費線上圖片尺寸修改器</title>
+    <meta name="description" content="AbiPaint 是免費線上圖片尺寸修改器，不用安裝 Adobe 或註冊 Canva，直接在瀏覽器調整照片尺寸、像素與解析度。" />
     <link rel="canonical" href="https://abipaint.abiting.cc/guide/" />
     <link rel="alternate" hreflang="zh-Hant" href="https://abipaint.abiting.cc/guide/" />
     <link rel="alternate" hreflang="en" href="https://abipaint.abiting.cc/en/guide/" />
     <link rel="alternate" hreflang="x-default" href="https://abipaint.abiting.cc/guide/" />
     <style>
-      /* 紙上工作室指南：象牙紙、石墨字、朱砂校準記號與等寬規格標籤。 */
+      /* AbiPaint 使用說明：象牙紙、石墨字、朱砂校準記號與等寬規格標籤。 */
       :root { color: #252826; background: #efebe2; font-family: "Noto Sans TC", system-ui, sans-serif; }
       * { box-sizing: border-box; }
       body { max-width: 910px; margin: 0 auto; padding: 58px 28px 78px; line-height: 1.85; background: linear-gradient(rgba(54,50,42,.034) 1px, transparent 1px), linear-gradient(90deg, rgba(54,50,42,.028) 1px, transparent 1px), #f8f5ee; background-size: 24px 24px; }
@@ -38,7 +38,7 @@
       .card h3 { margin: 8px 0; font-size: 1rem; }
       .card p { margin: 0; font-size: .94rem; color: #4f534e; }
       main > section:not(:first-child) { position: relative; }
-      main > section:not(:first-child)::before { content: "REFERENCE / ABIPAINT"; position: absolute; top: 23px; right: 0; color: #8e8a80; font: 9px "IBM Plex Mono", ui-monospace, monospace; letter-spacing: .08em; }
+      main > section:not(:first-child)::before { content: "ABIPAINT / 使用說明"; position: absolute; top: 23px; right: 0; color: #8e8a80; font: 9px "IBM Plex Mono", ui-monospace, monospace; letter-spacing: .08em; }
       footer { display: flex; justify-content: space-between; gap: 18px; border-top: 1px solid #343833; margin-top: 64px; padding-top: 17px; color: #666; font: 11px "IBM Plex Mono", ui-monospace, monospace; }
       @media (max-width: 560px) { body { padding: 34px 18px 56px; background-size: 18px 18px; } header { margin-bottom: 35px; } h2 { margin-top: 42px; } main > section:not(:first-child)::before { display: none; } .card { min-height: 0; } footer { display: block; } }
     </style>
@@ -46,9 +46,11 @@
       {"@context":"https://schema.org","@graph":[
         {"@type":"SoftwareApplication","name":"AbiPaint","applicationCategory":"DesignApplication","operatingSystem":"Web Browser","isAccessibleForFree":true,"url":"https://abipaint.abiting.cc/","inLanguage":"zh-Hant"},
         {"@type":"FAQPage","mainEntity":[
-          {"@type":"Question","name":"AbiPaint 可以免費使用嗎？","acceptedAnswer":{"@type":"Answer","text":"可以。AbiPaint 可直接在瀏覽器中使用，不需要安裝或註冊。"}},
-          {"@type":"Question","name":"AbiPaint 可以做什麼？","acceptedAnswer":{"@type":"Answer","text":"可調整圖片尺寸、裁切、去背、調整影像色彩、繪圖、加入文字與圖形，並匯出 PNG、JPG 或 PDF。"}},
-          {"@type":"Question","name":"AbiPaint 的開發者是誰？","acceptedAnswer":{"@type":"Answer","text":"AbiPaint 由台灣開發者兼創作者阿比丁（Abiting）製作。"}}
+          {"@type":"Question","name":"AbiPaint 是什麼？","acceptedAnswer":{"@type":"Answer","text":"AbiPaint 是免費線上圖片尺寸修改器，不用安裝 Adobe 或註冊 Canva，直接在瀏覽器調整照片尺寸、像素與解析度。"}},
+          {"@type":"Question","name":"什麼情況會使用 AbiPaint？","acceptedAnswer":{"@type":"Answer","text":"想修改圖片、照片的解析度，但手邊沒有 Photoshop、Illustrator 或 Canva 時，本工具可快速派上用場。"}},
+          {"@type":"Question","name":"使用 AbiPaint 是否需要註冊帳號？","acceptedAnswer":{"@type":"Answer","text":"完全不需要！AbiPaint 提供免費、免註冊與免安裝的修圖服務，打開網頁即可直接使用，適合所有電腦、平板與手機用戶。"}},
+          {"@type":"Question","name":"AbiPaint 還有什麼功能？","acceptedAnswer":{"@type":"Answer","text":"除了修改圖片尺寸，AbiPaint 也提供畫筆、圖形與文字等多種素材，適合學生、教師、設計師、行銷人員等各行各業使用。"}},
+          {"@type":"Question","name":"發現錯誤資訊該怎麼辦？","acceptedAnswer":{"@type":"Answer","text":"若發現錯誤資訊，歡迎透過 abiting.ct@gmail.com 聯繫開發人員。"}}
         ]},
         {"@type":"Person","name":"阿比丁","alternateName":"Abiting","url":"https://abiting.cc/","sameAs":["https://www.facebook.com/shimokitazawa.news/","https://www.linkedin.com/in/abiting1998/"]}
       ]}
@@ -56,38 +58,41 @@
   </head>
   <body>
     <header>
-      <a class="brand-lockup" href="/"><span class="brand-mark"><img src="/favicon.webp" alt="" /></span>ABIPAINT / 工作台參考</a>
-      <span class="kicker">IMAGE EDITOR · BROWSER TOOL · FREE TO USE</span>
-      <h1>AbiPaint 使用說明：圖片尺寸、去背與修圖工作台</h1>
-      <p class="lead">AbiPaint 是免安裝、免註冊的瀏覽器修圖工具。你可以在同一個工作區調整圖片尺寸、去背、裁切、調色、繪圖、加入文字與圖形，再匯出成常用格式。</p>
-      <p class="links"><a href="/">開啟 AbiPaint 工作台</a><span>·</span><a href="/en/guide/">English guide</a></p>
+      <a class="brand-lockup" href="/"><span class="brand-mark"><img src="/favicon.webp" alt="" /></span>ABIPAINT / 使用說明</a>
+      <span class="kicker">免費 · 免註冊 · 免安裝</span>
+      <h1>AbiPaint 使用說明：免費線上圖片尺寸修改器</h1>
+      <p class="lead">AbiPaint 是免費線上圖片尺寸修改器，不用安裝 Adobe 或註冊 Canva，直接在瀏覽器調整照片尺寸、像素與解析度。</p>
+      <p class="links"><a href="/">開啟 AbiPaint</a><span>·</span><a href="/en/guide/">English</a></p>
     </header>
     <main>
       <section aria-labelledby="features">
         <h2 id="features">AbiPaint 可以做什麼？</h2>
         <div class="grid">
-          <article class="card"><span class="card-kicker">01 / CANVAS</span><h3>圖片尺寸與裁切</h3><p>設定自訂畫布尺寸，使用常用尺寸範本，並以控制點裁切匯入圖片。</p></article>
-          <article class="card"><span class="card-kicker">02 / IMAGE</span><h3>影像調色與去背</h3><p>調整曝光度、對比度、飽和度、亮麗度與不透明度；也可對選取圖片執行主體去背並手動修補。</p></article>
-          <article class="card"><span class="card-kicker">03 / CREATE</span><h3>文字、圖形與筆刷</h3><p>加入可移動、縮放和排序的文字與圖形，或以筆刷直接創作。</p></article>
-          <article class="card"><span class="card-kicker">04 / OUTPUT</span><h3>匯出與工作檔</h3><p>匯出 PNG、JPG 或 PDF；桌面版可保留多個自動儲存的工作檔。</p></article>
+          <article class="card"><span class="card-kicker">01 / 尺寸</span><h3>圖片尺寸修改</h3><p>調整照片尺寸、像素與解析度，並可設定畫布寬度與高度。</p></article>
+          <article class="card"><span class="card-kicker">02 / 調色</span><h3>影像調色</h3><p>調整曝光度、對比度、飽和度、亮麗度與不透明度。</p></article>
+          <article class="card"><span class="card-kicker">03 / 素材</span><h3>筆刷、圖形與文字</h3><p>加入畫筆、圖形與文字等多種素材，並在畫布上調整。</p></article>
+          <article class="card"><span class="card-kicker">04 / 匯出</span><h3>匯出影像與工作檔</h3><p>匯出 PNG、JPG 或 PDF；桌面版可保留多個自動儲存的工作檔。</p></article>
         </div>
       </section>
       <section aria-labelledby="how-to">
         <h2 id="how-to">如何使用 AbiPaint？</h2>
-        <h3>1. 匯入圖片或建立空白畫布</h3><p>選擇「匯入影像」後，首張圖片可成為畫布尺寸基準；也可以直接設定寬度與高度，從空白畫布開始。</p>
-        <h3>2. 編輯素材</h3><p>選取圖片、文字、圖形或筆觸後，可拖曳移動、縮放、旋轉、複製、刪除與調整前後順序。選取圖片時也能裁切、去背與調色。</p>
-        <h3>3. 匯出完成檔案</h3><p>從「匯出影像」選擇 PNG、JPG 或 PDF。PNG 適合保留透明背景，JPG 適合一般圖片分享，PDF 適合文件列印。</p>
+        <h3>1. 匯入影像或設定畫布尺寸</h3><p>使用「匯入影像」放入照片，或在「畫布尺寸」設定寬度與高度，再套用解析度。</p>
+        <h3>2. 使用工具與素材</h3><p>依需要選擇筆刷、圖形、文字、輪廓、裁切或去背；選取素材後可移動、縮放、旋轉、複製、刪除與調整前後順序。</p>
+        <h3>3. 匯出影像</h3><p>從「匯出影像」選擇 PNG、JPG 或 PDF。PNG 適合保留透明背景，JPG 適合一般圖片分享，PDF 適合文件列印。</p>
       </section>
       <section aria-labelledby="faq">
-        <h2 id="faq">常見問題</h2>
-        <h3>AbiPaint 需要安裝或註冊嗎？</h3><p>不需要。工具直接在瀏覽器中執行。</p>
-        <h3>去背功能適合哪些圖片？</h3><p>人物、物品與寵物都可處理。複雜背景或細髮絲等案例可在去背後使用保留筆與移除筆修補遮罩。</p>
-        <h3>可以在手機使用嗎？</h3><p>可以。手機版保留畫布、匯入、匯出與素材編輯等核心操作，並會依可用工作區自動安排畫布視角。</p>
+        <h2 id="faq">使用說明</h2>
+        <h3>AbiPaint 是什麼？</h3><p>AbiPaint 是免費線上圖片尺寸修改器，不用安裝 Adobe 或註冊 Canva，直接在瀏覽器調整照片尺寸、像素與解析度。</p>
+        <h3>什麼情況會使用 AbiPaint？</h3><p>想修改圖片、照片的解析度，但手邊沒有 Photoshop、Illustrator 或 Canva 時，本工具可快速派上用場。</p>
+        <h3>使用 AbiPaint 是否需要註冊帳號？</h3><p>完全不需要！AbiPaint 提供免費、免註冊與免安裝的修圖服務，打開網頁即可直接使用，適合所有電腦、平板與手機用戶。</p>
+        <h3>AbiPaint 還有什麼功能？</h3><p>除了修改圖片尺寸，AbiPaint 也提供畫筆、圖形與文字等多種素材，適合學生、教師、設計師、行銷人員等各行各業使用。</p>
+        <h3>發現錯誤資訊該怎麼辦？</h3><p>若發現錯誤資訊，歡迎透過 <a href="mailto:abiting.ct@gmail.com">abiting.ct@gmail.com</a> 聯繫開發人員。</p>
       </section>
       <section aria-labelledby="developer">
-        <h2 id="developer">開發者：阿比丁</h2>
-        <p>AbiPaint 由台灣開發者兼創作者阿比丁製作。長期經營《名偵探柯南》相關網站，經常需要調整圖片尺寸、加註文字與微調色彩，因此打造這個不被大型軟體綁定的免費線上工具。</p>
-        <p><a href="https://abiting.cc/" target="_blank" rel="noopener noreferrer">認識阿比丁</a></p>
+        <h2 id="developer">阿比丁</h2>
+        <p>台灣開發者兼創作者，畢業於國立陽明交通大學。曾獨立製作多款免費線上工具，希望能透過技術造福更多人類。</p>
+        <h3>其他代表作</h3>
+        <p><a href="https://coai.abiting.cc/japan-address-generator" target="_blank" rel="noopener noreferrer">日本地址產生器</a> · <a href="https://coai.abiting.cc/blank-line-generator" target="_blank" rel="noopener noreferrer">空白符號產生器</a> · <a href="https://coai.abiting.cc/traditional_simplified_converter" target="_blank" rel="noopener noreferrer">繁簡中文轉換器</a> · <a href="https://abitingpokedex.com" target="_blank" rel="noopener noreferrer">寶可夢能力點數計算器</a> · <a href="https://coai.abiting.cc" target="_blank" rel="noopener noreferrer">名偵探柯南集數列表</a></p>
       </section>
     </main>
     <footer>© 2026 AbiPaint · <a href="/">回到工具</a></footer>

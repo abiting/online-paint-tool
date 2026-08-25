@@ -370,4 +370,5 @@
 - [x] 將使用說明問題改為語意化 H3 與可擷取 FAQ 結構
 - [x] 加入中英文 WebApplication、FAQPage、Person 結構化資料與 sitemap
 - [ ] 發布後在 Google Search Console 提交 sitemap，並追蹤索引狀態與實際搜尋查詢
+- [x] 對照 FAQ／開發者彈出頁面，統一中英文指南與既有工作台的產品用詞
 - [ ] 移除手機版工具列的彩蛋入口，保留桌面版彩蛋
