@@ -480,6 +480,7 @@ const MOBILE_VIEWPORT_MEDIA_QUERY = "(max-width: 960px), (pointer: coarse) and (
 const TEXT_RASTER_VERSION = 4;
 const BASE_PAINT_LAYER_ID = "paint-layer-base";
 const ISNET_GENERAL_USE_MODEL_URL = "https://huggingface.co/SacredNoir/isnet-general-use-onnx/resolve/main/isnet-general-use-q8.onnx";
+const U2NETP_FALLBACK_MODEL_URL = "https://cdn.jsdelivr.net/npm/modern-rembg@0.1.2/dist/u2netp.onnx";
 const ONNX_RUNTIME_WASM_URL = "https://cdn.jsdelivr.net/npm/onnxruntime-web@1.27.0/dist/";
 const BACKGROUND_REMOVAL_MAX_EDGE = 2560;
 const BACKGROUND_REMOVAL_MODEL_EDGE = 1024;
@@ -1565,6 +1566,7 @@ export default function Home() {
   const [exportPreview, setExportPreview] = useState<{ url: string; format: ExportFormat; width: number; height: number } | null>(null);
   const objectClipboardRef = useRef<ObjectClipboard | null>(null);
   const backgroundRemovalSessionRef = useRef<Ort.InferenceSession | null>(null);
+  const backgroundRemovalUsesFallbackRef = useRef(false);
   const backgroundRemovalRuntimeRef = useRef<typeof import("onnxruntime-web") | null>(null);
   const backgroundRepairSessionRef = useRef<{ imageId: string; source: HTMLImageElement; current: HTMLImageElement } | null>(null);
   const backgroundRepairPointerRef = useRef<{ imageId: string; pointerId: number; x: number; y: number } | null>(null);
@@ -3760,22 +3762,6 @@ export default function Home() {
       const outputWidth = Math.max(1, Math.round(sourceWidth * scale));
       const outputHeight = Math.max(1, Math.round(sourceHeight * scale));
 
-      const modelCanvas = document.createElement("canvas");
-      modelCanvas.width = BACKGROUND_REMOVAL_MODEL_EDGE;
-      modelCanvas.height = BACKGROUND_REMOVAL_MODEL_EDGE;
-      const modelContext = modelCanvas.getContext("2d", { willReadFrequently: true });
-      if (!modelContext) throw new Error("Canvas is unavailable");
-      modelContext.drawImage(source, 0, 0, BACKGROUND_REMOVAL_MODEL_EDGE, BACKGROUND_REMOVAL_MODEL_EDGE);
-      const pixels = modelContext.getImageData(0, 0, BACKGROUND_REMOVAL_MODEL_EDGE, BACKGROUND_REMOVAL_MODEL_EDGE).data;
-      const input = new Float32Array(1 * 3 * BACKGROUND_REMOVAL_MODEL_EDGE * BACKGROUND_REMOVAL_MODEL_EDGE);
-      const planeSize = BACKGROUND_REMOVAL_MODEL_EDGE * BACKGROUND_REMOVAL_MODEL_EDGE;
-      for (let index = 0; index < planeSize; index += 1) {
-        const offset = index * 4;
-        input[index] = (pixels[offset] - 128) / 256;
-        input[planeSize + index] = (pixels[offset + 1] - 128) / 256;
-        input[planeSize * 2 + index] = (pixels[offset + 2] - 128) / 256;
-      }
-
       setBackgroundRemovalNotice({ kind: "loading", message: tr("正在載入本機去背引擎…", "Loading local removal engine…") });
       const runtime = backgroundRemovalRuntimeRef.current ?? await import("onnxruntime-web/wasm");
       backgroundRemovalRuntimeRef.current = runtime;
@@ -3783,29 +3769,70 @@ export default function Home() {
         runtime.env.wasm.numThreads = 1;
         runtime.env.wasm.proxy = false;
         runtime.env.wasm.wasmPaths = ONNX_RUNTIME_WASM_URL;
+        const sessionOptions = { executionProviders: ["wasm"] as const, graphOptimizationLevel: "all" as const };
         setBackgroundRemovalNotice({ kind: "loading", message: tr("正在下載高品質去背模型（首次約 42 MB）…", "Downloading high-quality removal model (~42 MB first use)…") });
-        backgroundRemovalSessionRef.current = await runtime.InferenceSession.create(ISNET_GENERAL_USE_MODEL_URL, {
-          executionProviders: ["wasm"],
-          graphOptimizationLevel: "all",
-        });
+        try {
+          backgroundRemovalSessionRef.current = await runtime.InferenceSession.create(ISNET_GENERAL_USE_MODEL_URL, sessionOptions);
+        } catch {
+          setBackgroundRemovalNotice({ kind: "loading", message: tr("正在重新連線至高品質去背模型…", "Reconnecting to the high-quality removal model…") });
+          try {
+            backgroundRemovalSessionRef.current = await runtime.InferenceSession.create(ISNET_GENERAL_USE_MODEL_URL, sessionOptions);
+          } catch {
+            setBackgroundRemovalNotice({ kind: "loading", message: tr("高品質模型暫時無法下載，改用快速去背…", "High-quality model unavailable; switching to quick removal…") });
+            backgroundRemovalSessionRef.current = await runtime.InferenceSession.create(U2NETP_FALLBACK_MODEL_URL, sessionOptions);
+            backgroundRemovalUsesFallbackRef.current = true;
+          }
+        }
       }
 
       const session = backgroundRemovalSessionRef.current;
-      setBackgroundRemovalNotice({ kind: "processing", message: tr("正在高解析度辨識人物或物品主體…", "Detecting the foreground at high resolution…") });
-      const results = await session.run({ [session.inputNames[0]]: new runtime.Tensor("float32", input, [1, 3, BACKGROUND_REMOVAL_MODEL_EDGE, BACKGROUND_REMOVAL_MODEL_EDGE]) });
-      const output = results[session.outputNames.includes("output") ? "output" : session.outputNames[0]];
+      const usesFallback = backgroundRemovalUsesFallbackRef.current;
+      const modelEdge = usesFallback ? 320 : BACKGROUND_REMOVAL_MODEL_EDGE;
+      const modelCanvas = document.createElement("canvas");
+      modelCanvas.width = modelEdge;
+      modelCanvas.height = modelEdge;
+      const modelContext = modelCanvas.getContext("2d", { willReadFrequently: true });
+      if (!modelContext) throw new Error("Canvas is unavailable");
+      modelContext.drawImage(source, 0, 0, modelEdge, modelEdge);
+      const pixels = modelContext.getImageData(0, 0, modelEdge, modelEdge).data;
+      const input = new Float32Array(1 * 3 * modelEdge * modelEdge);
+      const planeSize = modelEdge * modelEdge;
+      for (let index = 0; index < planeSize; index += 1) {
+        const offset = index * 4;
+        if (usesFallback) {
+          input[index] = (pixels[offset] / 255 - 0.485) / 0.229;
+          input[planeSize + index] = (pixels[offset + 1] / 255 - 0.456) / 0.224;
+          input[planeSize * 2 + index] = (pixels[offset + 2] / 255 - 0.406) / 0.225;
+        } else {
+          input[index] = (pixels[offset] - 128) / 256;
+          input[planeSize + index] = (pixels[offset + 1] - 128) / 256;
+          input[planeSize * 2 + index] = (pixels[offset + 2] - 128) / 256;
+        }
+      }
+      setBackgroundRemovalNotice({ kind: "processing", message: tr(usesFallback ? "正在快速辨識人物或物品主體…" : "正在高解析度辨識人物或物品主體…", usesFallback ? "Detecting the foreground quickly…" : "Detecting the foreground at high resolution…") });
+      const results = await session.run({ [session.inputNames[0]]: new runtime.Tensor("float32", input, [1, 3, modelEdge, modelEdge]) });
+      const output = results[session.outputNames.includes("output") ? "output" : session.outputNames.includes("d0") ? "d0" : session.outputNames[0]];
       if (!output?.data) throw new Error("Subject mask is unavailable");
 
       const values = output.data as Float32Array;
-      const mask = modelContext.createImageData(BACKGROUND_REMOVAL_MODEL_EDGE, BACKGROUND_REMOVAL_MODEL_EDGE);
+      let min = Number.POSITIVE_INFINITY;
+      let max = Number.NEGATIVE_INFINITY;
+      if (usesFallback) {
+        for (let index = 0; index < planeSize; index += 1) {
+          min = Math.min(min, values[index]);
+          max = Math.max(max, values[index]);
+        }
+      }
+      const range = Math.max(0.00001, max - min);
+      const mask = modelContext.createImageData(modelEdge, modelEdge);
       const foregroundMask = new Uint8Array(planeSize);
       const confidenceMask = new Float32Array(planeSize);
       for (let index = 0; index < planeSize; index += 1) {
-        const confidence = clamp(values[index], 0, 1);
+        const confidence = usesFallback ? clamp((values[index] - min) / range, 0, 1) : clamp(values[index], 0, 1);
         confidenceMask[index] = confidence;
         foregroundMask[index] = confidence >= BACKGROUND_REMOVAL_MASK_THRESHOLD ? 1 : 0;
       }
-      closeThinMaskGaps(foregroundMask, BACKGROUND_REMOVAL_MODEL_EDGE, BACKGROUND_REMOVAL_MODEL_EDGE);
+      closeThinMaskGaps(foregroundMask, modelEdge, modelEdge);
       for (let index = 0; index < planeSize; index += 1) {
         const offset = index * 4;
         mask.data[offset] = 255;
