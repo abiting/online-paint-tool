@@ -4239,13 +4239,14 @@ export default function Home() {
       const sourceWidth = Math.max(1, image.naturalWidth);
       const sourceHeight = Math.max(1, image.naturalHeight);
       const isFirstImportedImage = imagesRef.current.length === 0;
-      const targetCanvasWidth = isFirstImportedImage ? sourceWidth : canvasSize.width;
-      const targetCanvasHeight = isFirstImportedImage ? sourceHeight : canvasSize.height;
-      const fitScale = isFirstImportedImage ? 1 : Math.min(1, targetCanvasWidth / sourceWidth, targetCanvasHeight / sourceHeight);
+      const shouldAdoptImageCanvas = isFirstImportedImage && !isMobileViewport;
+      const targetCanvasWidth = shouldAdoptImageCanvas ? sourceWidth : canvasSize.width;
+      const targetCanvasHeight = shouldAdoptImageCanvas ? sourceHeight : canvasSize.height;
+      const fitScale = shouldAdoptImageCanvas ? 1 : Math.min(1, targetCanvasWidth / sourceWidth, targetCanvasHeight / sourceHeight);
       const width = sourceWidth * fitScale;
       const height = sourceHeight * fitScale;
 
-      if (isFirstImportedImage) {
+      if (shouldAdoptImageCanvas) {
         const scaleX = targetCanvasWidth / canvasSize.width;
         const scaleY = targetCanvasHeight / canvasSize.height;
         const previousCanvas = document.createElement("canvas");
@@ -4291,7 +4292,7 @@ export default function Home() {
       setSelectedShapeId(null);
       setHasArtwork(true);
       captureHistory();
-      toast.success(isFirstImportedImage
+      toast.success(shouldAdoptImageCanvas
         ? tr(`影像已加入畫布，解析度 ${targetCanvasWidth} × ${targetCanvasHeight}`, `Image added. Canvas set to ${targetCanvasWidth} × ${targetCanvasHeight}`)
         : tr("影像已等比例置入既有畫布", "Image placed proportionally on the existing canvas"));
     };
