@@ -487,7 +487,7 @@ const BACKGROUND_REMOVAL_MODEL_EDGE = 1024;
 const BACKGROUND_REMOVAL_MASK_THRESHOLD = 0.2;
 const BACKGROUND_REMOVAL_DETAIL_THRESHOLD = 0.15;
 const BACKGROUND_REMOVAL_DEFAULT_EDGE_SOFTNESS = 48;
-const BACKGROUND_REMOVAL_DEFAULT_DECONTAMINATION = 66;
+const BACKGROUND_REMOVAL_DEFAULT_DECONTAMINATION = 84;
 const AUTOSAVE_DB_NAME = "abipaint-project-storage";
 const AUTOSAVE_DB_STORE = "projects";
 const AUTOSAVE_PROJECT_KEY = "current-project";
@@ -725,6 +725,24 @@ const softenBackgroundMaskAlpha = (alpha: number, edgeSoftness: number) => {
   return Math.round(clamp((normalized - 0.5) * contrast + 0.5, 0, 1) * 255);
 };
 
+const trimBackgroundMaskEdge = (mask: ImageData, width: number, height: number, passes: number) => {
+  for (let pass = 0; pass < passes; pass += 1) {
+    const alphaSnapshot = new Uint8Array(width * height);
+    for (let index = 0; index < alphaSnapshot.length; index += 1) alphaSnapshot[index] = mask.data[index * 4 + 3];
+    for (let y = 1; y < height - 1; y += 1) {
+      for (let x = 1; x < width - 1; x += 1) {
+        const index = y * width + x;
+        if (alphaSnapshot[index] <= 20) continue;
+        const touchesTransparentBackground = alphaSnapshot[index - 1] <= 20
+          || alphaSnapshot[index + 1] <= 20
+          || alphaSnapshot[index - width] <= 20
+          || alphaSnapshot[index + width] <= 20;
+        if (touchesTransparentBackground) mask.data[index * 4 + 3] = 0;
+      }
+    }
+  }
+};
+
 const compositeBackgroundRemoval = (
   source: HTMLImageElement,
   maskCanvas: HTMLCanvasElement,
@@ -742,38 +760,9 @@ const compositeBackgroundRemoval = (
   sourceContext.drawImage(source, 0, 0, width, height);
   const sourceData = sourceContext.getImageData(0, 0, width, height);
   const maskData = maskContext.getImageData(0, 0, width, height);
-  refineMaskAgainstUniformBackground(sourceData, maskData, width, height, decontamination);
+  trimBackgroundMaskEdge(maskData, width, height, Math.round(clamp(decontamination / 33, 1, 3)));
   const borderBackground = findUniformBorderBackground(sourceData, width, height);
-  if (borderBackground) {
-    const borderBrightness = (borderBackground[0] + borderBackground[1] + borderBackground[2]) / 3;
-    const fringePasses = Math.round(clamp(decontamination / 34, 1, 3));
-    const fringeDistanceLimit = Math.round(clamp(72 + decontamination * 0.6, 72, 120));
-    for (let pass = 0; pass < fringePasses; pass += 1) {
-      const alphaSnapshot = new Uint8Array(width * height);
-      for (let index = 0; index < alphaSnapshot.length; index += 1) alphaSnapshot[index] = maskData.data[index * 4 + 3];
-      for (let y = 1; y < height - 1; y += 1) {
-        for (let x = 1; x < width - 1; x += 1) {
-          const index = y * width + x;
-          if (alphaSnapshot[index] <= 20) continue;
-          const touchesTransparentBackground = alphaSnapshot[index - 1] <= 20
-            || alphaSnapshot[index + 1] <= 20
-            || alphaSnapshot[index - width] <= 20
-            || alphaSnapshot[index + width] <= 20;
-          if (!touchesTransparentBackground) continue;
-          const offset = index * 4;
-          const red = sourceData.data[offset];
-          const green = sourceData.data[offset + 1];
-          const blue = sourceData.data[offset + 2];
-          const brightness = (red + green + blue) / 3;
-          const chroma = Math.max(red, green, blue) - Math.min(red, green, blue);
-          const distance = Math.abs(red - borderBackground[0]) + Math.abs(green - borderBackground[1]) + Math.abs(blue - borderBackground[2]);
-          const isLightNeutralFringe = borderBrightness >= 225 && brightness >= borderBrightness - 78 && chroma <= 42;
-          if (distance <= fringeDistanceLimit || isLightNeutralFringe) maskData.data[offset + 3] = 0;
-        }
-      }
-    }
-  }
-  const decontaminationAmount = Math.min(clamp(decontamination, 0, 100), 45) / 100;
+  const decontaminationAmount = Math.min(clamp(decontamination, 0, 100), 70) / 100;
   for (let offset = 0; offset < sourceData.data.length; offset += 4) {
     const alpha = softenBackgroundMaskAlpha(maskData.data[offset + 3], edgeSoftness);
     sourceData.data[offset + 3] = alpha;
@@ -3903,7 +3892,6 @@ export default function Home() {
         confidenceMask[index] = confidence;
         foregroundMask[index] = confidence >= BACKGROUND_REMOVAL_MASK_THRESHOLD ? 1 : 0;
       }
-      if (!usesFallback) preserveConnectedMaskDetails(foregroundMask, confidenceMask, modelEdge, modelEdge);
       closeThinMaskGaps(foregroundMask, modelEdge, modelEdge);
       for (let index = 0; index < planeSize; index += 1) {
         const offset = index * 4;
