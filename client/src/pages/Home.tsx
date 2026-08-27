@@ -485,7 +485,7 @@ const ONNX_RUNTIME_WASM_URL = "https://cdn.jsdelivr.net/npm/onnxruntime-web@1.27
 const BACKGROUND_REMOVAL_MAX_EDGE = 2560;
 const BACKGROUND_REMOVAL_MODEL_EDGE = 1024;
 const BACKGROUND_REMOVAL_MASK_THRESHOLD = 0.2;
-const BACKGROUND_REMOVAL_DETAIL_THRESHOLD = 0.1;
+const BACKGROUND_REMOVAL_DETAIL_THRESHOLD = 0.15;
 const BACKGROUND_REMOVAL_DEFAULT_EDGE_SOFTNESS = 48;
 const BACKGROUND_REMOVAL_DEFAULT_DECONTAMINATION = 66;
 const AUTOSAVE_DB_NAME = "abipaint-project-storage";
@@ -3903,6 +3903,7 @@ export default function Home() {
         confidenceMask[index] = confidence;
         foregroundMask[index] = confidence >= BACKGROUND_REMOVAL_MASK_THRESHOLD ? 1 : 0;
       }
+      if (!usesFallback) preserveConnectedMaskDetails(foregroundMask, confidenceMask, modelEdge, modelEdge);
       closeThinMaskGaps(foregroundMask, modelEdge, modelEdge);
       for (let index = 0; index < planeSize; index += 1) {
         const offset = index * 4;
@@ -5628,7 +5629,7 @@ export default function Home() {
             {backgroundRemovalNotice && (
               <div className={`background-removal-status is-${backgroundRemovalNotice.kind}`} role="status" aria-live="polite">
                 <WandSparkles size={16} />
-                <span>{backgroundRemovalNotice.message}</span>
+                <span>{backgroundRemovalNotice.kind === "loading" || backgroundRemovalNotice.kind === "processing" ? tr("請稍待片刻", "Please wait a moment") : backgroundRemovalNotice.message}</span>
               </div>
             )}
             <div
