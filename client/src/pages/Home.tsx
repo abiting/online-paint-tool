@@ -744,6 +744,35 @@ const compositeBackgroundRemoval = (
   const maskData = maskContext.getImageData(0, 0, width, height);
   refineMaskAgainstUniformBackground(sourceData, maskData, width, height, decontamination);
   const borderBackground = findUniformBorderBackground(sourceData, width, height);
+  if (borderBackground) {
+    const borderBrightness = (borderBackground[0] + borderBackground[1] + borderBackground[2]) / 3;
+    const fringePasses = Math.round(clamp(decontamination / 34, 1, 3));
+    const fringeDistanceLimit = Math.round(clamp(72 + decontamination * 0.6, 72, 120));
+    for (let pass = 0; pass < fringePasses; pass += 1) {
+      const alphaSnapshot = new Uint8Array(width * height);
+      for (let index = 0; index < alphaSnapshot.length; index += 1) alphaSnapshot[index] = maskData.data[index * 4 + 3];
+      for (let y = 1; y < height - 1; y += 1) {
+        for (let x = 1; x < width - 1; x += 1) {
+          const index = y * width + x;
+          if (alphaSnapshot[index] <= 20) continue;
+          const touchesTransparentBackground = alphaSnapshot[index - 1] <= 20
+            || alphaSnapshot[index + 1] <= 20
+            || alphaSnapshot[index - width] <= 20
+            || alphaSnapshot[index + width] <= 20;
+          if (!touchesTransparentBackground) continue;
+          const offset = index * 4;
+          const red = sourceData.data[offset];
+          const green = sourceData.data[offset + 1];
+          const blue = sourceData.data[offset + 2];
+          const brightness = (red + green + blue) / 3;
+          const chroma = Math.max(red, green, blue) - Math.min(red, green, blue);
+          const distance = Math.abs(red - borderBackground[0]) + Math.abs(green - borderBackground[1]) + Math.abs(blue - borderBackground[2]);
+          const isLightNeutralFringe = borderBrightness >= 225 && brightness >= borderBrightness - 78 && chroma <= 42;
+          if (distance <= fringeDistanceLimit || isLightNeutralFringe) maskData.data[offset + 3] = 0;
+        }
+      }
+    }
+  }
   const decontaminationAmount = Math.min(clamp(decontamination, 0, 100), 45) / 100;
   for (let offset = 0; offset < sourceData.data.length; offset += 4) {
     const alpha = softenBackgroundMaskAlpha(maskData.data[offset + 3], edgeSoftness);
@@ -1893,6 +1922,7 @@ export default function Home() {
   };
 
   const scheduleImages = useCallback((nextImages: ImageLayer[]) => {
+    imagesRef.current = nextImages;
     pendingImagesRef.current = nextImages;
     if (imageUpdateFrameRef.current !== null) return;
     imageUpdateFrameRef.current = window.requestAnimationFrame(() => {
@@ -3794,7 +3824,7 @@ export default function Home() {
     if (!image || backgroundRemovalImageId || isPaintLayerLocked(image.paintLayerId)) return;
 
     setBackgroundRemovalImageId(image.id);
-    setBackgroundRemovalNotice({ kind: "loading", message: tr("正在準備去背模型…", "Preparing background-removal model…") });
+    setBackgroundRemovalNotice({ kind: "loading", message: tr("去背中，請稍等…", "Removing background, please wait…") });
     try {
       const source = await loadImageElement(image.backgroundSource ?? image.src);
       const sourceWidth = Math.max(1, source.naturalWidth || source.width);
@@ -3803,7 +3833,7 @@ export default function Home() {
       const outputWidth = Math.max(1, Math.round(sourceWidth * scale));
       const outputHeight = Math.max(1, Math.round(sourceHeight * scale));
 
-      setBackgroundRemovalNotice({ kind: "loading", message: tr("正在載入本機去背引擎…", "Loading local removal engine…") });
+      setBackgroundRemovalNotice({ kind: "loading", message: tr("去背中，請稍等…", "Removing background, please wait…") });
       const runtime = backgroundRemovalRuntimeRef.current ?? await import("onnxruntime-web/wasm");
       backgroundRemovalRuntimeRef.current = runtime;
       if (!backgroundRemovalSessionRef.current) {
@@ -3811,15 +3841,15 @@ export default function Home() {
         runtime.env.wasm.proxy = true;
         runtime.env.wasm.wasmPaths = ONNX_RUNTIME_WASM_URL;
         const sessionOptions = { executionProviders: ["wasm"] as const, graphOptimizationLevel: "all" as const };
-        setBackgroundRemovalNotice({ kind: "loading", message: tr("正在下載高品質去背模型（首次約 42 MB）…", "Downloading high-quality removal model (~42 MB first use)…") });
+        setBackgroundRemovalNotice({ kind: "loading", message: tr("去背中，請稍等…", "Removing background, please wait…") });
         try {
           backgroundRemovalSessionRef.current = await runtime.InferenceSession.create(ISNET_GENERAL_USE_MODEL_URL, sessionOptions);
         } catch {
-          setBackgroundRemovalNotice({ kind: "loading", message: tr("正在重新連線至高品質去背模型…", "Reconnecting to the high-quality removal model…") });
+          setBackgroundRemovalNotice({ kind: "loading", message: tr("去背中，請稍等…", "Removing background, please wait…") });
           try {
             backgroundRemovalSessionRef.current = await runtime.InferenceSession.create(ISNET_GENERAL_USE_MODEL_URL, sessionOptions);
           } catch {
-            setBackgroundRemovalNotice({ kind: "loading", message: tr("高品質模型暫時無法下載，改用快速去背…", "High-quality model unavailable; switching to quick removal…") });
+            setBackgroundRemovalNotice({ kind: "loading", message: tr("去背中，請稍等…", "Removing background, please wait…") });
             backgroundRemovalSessionRef.current = await runtime.InferenceSession.create(U2NETP_FALLBACK_MODEL_URL, sessionOptions);
             backgroundRemovalUsesFallbackRef.current = true;
           }
@@ -3850,7 +3880,7 @@ export default function Home() {
           input[planeSize * 2 + index] = (pixels[offset + 2] - 128) / 256;
         }
       }
-      setBackgroundRemovalNotice({ kind: "processing", message: tr(usesFallback ? "正在快速辨識人物或物品主體…" : "正在高解析度辨識人物或物品主體…", usesFallback ? "Detecting the foreground quickly…" : "Detecting the foreground at high resolution…") });
+      setBackgroundRemovalNotice({ kind: "processing", message: tr("去背中，請稍等…", "Removing background, please wait…") });
       const results = await session.run({ [session.inputNames[0]]: new runtime.Tensor("float32", input, [1, 3, modelEdge, modelEdge]) });
       const output = results[session.outputNames.includes("output") ? "output" : session.outputNames.includes("d0") ? "d0" : session.outputNames[0]];
       if (!output?.data) throw new Error("Subject mask is unavailable");
@@ -4484,7 +4514,7 @@ export default function Home() {
     event.stopPropagation();
     if (isPaintLayerLocked(layer.paintLayerId)) return;
     if (editingTextId === layer.id) return;
-    const point = getCanvasPoint(event.clientX, event.clientY);
+    const point = getCanvasPoint(event.clientX, event.clientY, true);
     setSelectedTextId(layer.id);
     setSelectedShapeId(null);
     setSelectedImageId(null);
@@ -4530,7 +4560,7 @@ export default function Home() {
     if (isPaintLayerLocked(shape.paintLayerId)) return;
     if ((event.target as Element).classList.contains("shape-resize-handle")) return;
     event.currentTarget.setPointerCapture(event.pointerId);
-    const point = getCanvasPoint(event.clientX, event.clientY);
+    const point = getCanvasPoint(event.clientX, event.clientY, true);
     setSelectedShapeId(shape.id);
     setSelectedTextId(null);
     setSelectedImageId(null);
@@ -4561,7 +4591,7 @@ export default function Home() {
     event.preventDefault();
     if (isPaintLayerLocked(stroke.paintLayerId)) return;
     event.currentTarget.setPointerCapture(event.pointerId);
-    const point = getCanvasPoint(event.clientX, event.clientY);
+    const point = getCanvasPoint(event.clientX, event.clientY, true);
     setSelectedStrokeId(stroke.id);
     setSelectedTextId(null);
     setSelectedShapeId(null);
@@ -4630,7 +4660,7 @@ export default function Home() {
     } catch {
       // 部分觸控與合成指標環境不支援捕捉，裁切仍由全域指標事件持續追蹤。
     }
-    const point = getCanvasPoint(event.clientX, event.clientY);
+    const point = getCanvasPoint(event.clientX, event.clientY, true);
     setSnapGuides({ x: null, y: null });
     setSelectedImageId(image.id);
     setSelectedTextId(null);
@@ -4675,7 +4705,7 @@ export default function Home() {
     if (isPaintLayerLocked(image.paintLayerId)) return;
     if (imageEditingId !== image.id) return;
     event.currentTarget.setPointerCapture(event.pointerId);
-    const point = getCanvasPoint(event.clientX, event.clientY);
+    const point = getCanvasPoint(event.clientX, event.clientY, true);
     const centerX = image.x + image.width / 2;
     const centerY = image.y + image.height / 2;
     setSelectedImageId(image.id);
