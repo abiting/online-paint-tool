@@ -485,7 +485,7 @@ const BACKGROUND_REMOVAL_MAX_EDGE = 2560;
 const BACKGROUND_REMOVAL_MASK_THRESHOLD = 0.25;
 const BACKGROUND_REMOVAL_DETAIL_THRESHOLD = 0.1;
 const BACKGROUND_REMOVAL_DEFAULT_EDGE_SOFTNESS = 48;
-const BACKGROUND_REMOVAL_DEFAULT_DECONTAMINATION = 42;
+const BACKGROUND_REMOVAL_DEFAULT_DECONTAMINATION = 66;
 const AUTOSAVE_DB_NAME = "abipaint-project-storage";
 const AUTOSAVE_DB_STORE = "projects";
 const AUTOSAVE_PROJECT_KEY = "current-project";
@@ -582,7 +582,7 @@ const closeThinMaskGaps = (mask: Uint8Array, width: number, height: number) => {
   mask.set(repaired);
 };
 
-const refineMaskAgainstUniformBackground = (source: ImageData, mask: ImageData, width: number, height: number) => {
+const refineMaskAgainstUniformBackground = (source: ImageData, mask: ImageData, width: number, height: number, cleanupStrength: number) => {
   const sampleIndices: number[] = [];
   const step = Math.max(1, Math.floor(Math.min(width, height) / 48));
   for (let x = 0; x < width; x += step) {
@@ -609,7 +609,8 @@ const refineMaskAgainstUniformBackground = (source: ImageData, mask: ImageData, 
   }
   deviation /= sampleIndices.length * 3;
   if (deviation > 16) return;
-  const distanceLimit = Math.max(38, deviation * 5);
+  const distanceLimit = Math.max(34, deviation * 4.5);
+  const alphaLimit = Math.round(clamp(70 + cleanupStrength * 1.7, 70, 240));
   const isBackgroundLike = (index: number) => {
     const offset = index * 4;
     const distance = Math.abs(source.data[offset] - background[0]) + Math.abs(source.data[offset + 1] - background[1]) + Math.abs(source.data[offset + 2] - background[2]);
@@ -620,7 +621,7 @@ const refineMaskAgainstUniformBackground = (source: ImageData, mask: ImageData, 
   let head = 0;
   let tail = 0;
   const enqueue = (index: number) => {
-    if (reachable[index] || !isBackgroundLike(index)) return;
+    if (reachable[index] || mask.data[index * 4 + 3] > alphaLimit || !isBackgroundLike(index)) return;
     reachable[index] = 1;
     queue[tail] = index;
     tail += 1;
@@ -697,8 +698,9 @@ const compositeBackgroundRemoval = (
   sourceContext.drawImage(source, 0, 0, width, height);
   const sourceData = sourceContext.getImageData(0, 0, width, height);
   const maskData = maskContext.getImageData(0, 0, width, height);
+  refineMaskAgainstUniformBackground(sourceData, maskData, width, height, decontamination);
   const borderBackground = findUniformBorderBackground(sourceData, width, height);
-  const decontaminationAmount = clamp(decontamination, 0, 100) / 100;
+  const decontaminationAmount = Math.min(clamp(decontamination, 0, 100), 45) / 100;
   for (let offset = 0; offset < sourceData.data.length; offset += 4) {
     const alpha = softenBackgroundMaskAlpha(maskData.data[offset + 3], edgeSoftness);
     sourceData.data[offset + 3] = alpha;
@@ -3837,13 +3839,6 @@ export default function Home() {
         if (scaledMask.data[index + 3] <= 3) scaledMask.data[index + 3] = 0;
         if (scaledMask.data[index + 3] >= 252) scaledMask.data[index + 3] = 255;
       }
-      const sourceRefineCanvas = document.createElement("canvas");
-      sourceRefineCanvas.width = outputWidth;
-      sourceRefineCanvas.height = outputHeight;
-      const sourceRefineContext = sourceRefineCanvas.getContext("2d", { willReadFrequently: true });
-      if (!sourceRefineContext) throw new Error("Canvas is unavailable");
-      sourceRefineContext.drawImage(source, 0, 0, outputWidth, outputHeight);
-      refineMaskAgainstUniformBackground(sourceRefineContext.getImageData(0, 0, outputWidth, outputHeight), scaledMask, outputWidth, outputHeight);
       scaledMaskContext.putImageData(scaledMask, 0, 0);
       const backgroundMask = scaledMaskCanvas.toDataURL("image/png");
       const transparentSource = compositeBackgroundRemoval(
@@ -6023,7 +6018,7 @@ export default function Home() {
                 {selectedImage.backgroundMask && !backgroundRepair && (
                   <div className="background-repair-controls background-quality-controls">
                     <RangeControl label={tr("邊緣柔化", "Edge softness")} value={selectedImage.backgroundEdgeSoftness ?? BACKGROUND_REMOVAL_DEFAULT_EDGE_SOFTNESS} min={0} max={100} suffix="%" onChange={(value) => scheduleBackgroundQualityUpdate({ backgroundEdgeSoftness: value })} />
-                    <RangeControl label={tr("邊緣去色", "Edge decontamination")} value={selectedImage.backgroundDecontamination ?? BACKGROUND_REMOVAL_DEFAULT_DECONTAMINATION} min={0} max={100} suffix="%" onChange={(value) => scheduleBackgroundQualityUpdate({ backgroundDecontamination: value })} />
+                    <RangeControl label={tr("邊緣清理", "Edge cleanup")} value={selectedImage.backgroundDecontamination ?? BACKGROUND_REMOVAL_DEFAULT_DECONTAMINATION} min={0} max={100} suffix="%" onChange={(value) => scheduleBackgroundQualityUpdate({ backgroundDecontamination: value })} />
                     <button type="button" className="secondary-button full-width" onClick={() => scheduleBackgroundQualityUpdate({ backgroundEdgeSoftness: BACKGROUND_REMOVAL_DEFAULT_EDGE_SOFTNESS, backgroundDecontamination: BACKGROUND_REMOVAL_DEFAULT_DECONTAMINATION })}>{tr("重設去背邊緣", "Reset background edge")}</button>
                   </div>
                 )}
