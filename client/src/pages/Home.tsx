@@ -479,10 +479,11 @@ const MAX_PAINT_LAYERS = 5;
 const MOBILE_VIEWPORT_MEDIA_QUERY = "(max-width: 960px), (pointer: coarse) and (max-height: 600px)";
 const TEXT_RASTER_VERSION = 4;
 const BASE_PAINT_LAYER_ID = "paint-layer-base";
-const U2NETP_MODEL_URL = "https://cdn.jsdelivr.net/npm/modern-rembg@0.1.2/dist/u2netp.onnx";
+const ISNET_GENERAL_USE_MODEL_URL = "https://huggingface.co/SacredNoir/isnet-general-use-onnx/resolve/main/isnet-general-use-q8.onnx";
 const ONNX_RUNTIME_WASM_URL = "https://cdn.jsdelivr.net/npm/onnxruntime-web@1.27.0/dist/";
 const BACKGROUND_REMOVAL_MAX_EDGE = 2560;
-const BACKGROUND_REMOVAL_MASK_THRESHOLD = 0.25;
+const BACKGROUND_REMOVAL_MODEL_EDGE = 1024;
+const BACKGROUND_REMOVAL_MASK_THRESHOLD = 0.2;
 const BACKGROUND_REMOVAL_DETAIL_THRESHOLD = 0.1;
 const BACKGROUND_REMOVAL_DEFAULT_EDGE_SOFTNESS = 48;
 const BACKGROUND_REMOVAL_DEFAULT_DECONTAMINATION = 66;
@@ -3760,19 +3761,19 @@ export default function Home() {
       const outputHeight = Math.max(1, Math.round(sourceHeight * scale));
 
       const modelCanvas = document.createElement("canvas");
-      modelCanvas.width = 320;
-      modelCanvas.height = 320;
+      modelCanvas.width = BACKGROUND_REMOVAL_MODEL_EDGE;
+      modelCanvas.height = BACKGROUND_REMOVAL_MODEL_EDGE;
       const modelContext = modelCanvas.getContext("2d", { willReadFrequently: true });
       if (!modelContext) throw new Error("Canvas is unavailable");
-      modelContext.drawImage(source, 0, 0, 320, 320);
-      const pixels = modelContext.getImageData(0, 0, 320, 320).data;
-      const input = new Float32Array(1 * 3 * 320 * 320);
-      const planeSize = 320 * 320;
+      modelContext.drawImage(source, 0, 0, BACKGROUND_REMOVAL_MODEL_EDGE, BACKGROUND_REMOVAL_MODEL_EDGE);
+      const pixels = modelContext.getImageData(0, 0, BACKGROUND_REMOVAL_MODEL_EDGE, BACKGROUND_REMOVAL_MODEL_EDGE).data;
+      const input = new Float32Array(1 * 3 * BACKGROUND_REMOVAL_MODEL_EDGE * BACKGROUND_REMOVAL_MODEL_EDGE);
+      const planeSize = BACKGROUND_REMOVAL_MODEL_EDGE * BACKGROUND_REMOVAL_MODEL_EDGE;
       for (let index = 0; index < planeSize; index += 1) {
         const offset = index * 4;
-        input[index] = (pixels[offset] / 255 - 0.485) / 0.229;
-        input[planeSize + index] = (pixels[offset + 1] / 255 - 0.456) / 0.224;
-        input[planeSize * 2 + index] = (pixels[offset + 2] / 255 - 0.406) / 0.225;
+        input[index] = (pixels[offset] - 128) / 256;
+        input[planeSize + index] = (pixels[offset + 1] - 128) / 256;
+        input[planeSize * 2 + index] = (pixels[offset + 2] - 128) / 256;
       }
 
       setBackgroundRemovalNotice({ kind: "loading", message: tr("正在載入本機去背引擎…", "Loading local removal engine…") });
@@ -3782,38 +3783,29 @@ export default function Home() {
         runtime.env.wasm.numThreads = 1;
         runtime.env.wasm.proxy = false;
         runtime.env.wasm.wasmPaths = ONNX_RUNTIME_WASM_URL;
-        setBackgroundRemovalNotice({ kind: "loading", message: tr("正在下載主體辨識模型（約 5 MB）…", "Downloading subject model (~5 MB)…") });
-        backgroundRemovalSessionRef.current = await runtime.InferenceSession.create(U2NETP_MODEL_URL, {
+        setBackgroundRemovalNotice({ kind: "loading", message: tr("正在下載高品質去背模型（首次約 42 MB）…", "Downloading high-quality removal model (~42 MB first use)…") });
+        backgroundRemovalSessionRef.current = await runtime.InferenceSession.create(ISNET_GENERAL_USE_MODEL_URL, {
           executionProviders: ["wasm"],
           graphOptimizationLevel: "all",
         });
       }
 
       const session = backgroundRemovalSessionRef.current;
-      setBackgroundRemovalNotice({ kind: "processing", message: tr("正在辨識人物或物品主體…", "Detecting the foreground subject…") });
-      const results = await session.run({ [session.inputNames[0]]: new runtime.Tensor("float32", input, [1, 3, 320, 320]) });
-      const output = results[session.outputNames.includes("d0") ? "d0" : session.outputNames[0]];
+      setBackgroundRemovalNotice({ kind: "processing", message: tr("正在高解析度辨識人物或物品主體…", "Detecting the foreground at high resolution…") });
+      const results = await session.run({ [session.inputNames[0]]: new runtime.Tensor("float32", input, [1, 3, BACKGROUND_REMOVAL_MODEL_EDGE, BACKGROUND_REMOVAL_MODEL_EDGE]) });
+      const output = results[session.outputNames.includes("output") ? "output" : session.outputNames[0]];
       if (!output?.data) throw new Error("Subject mask is unavailable");
 
       const values = output.data as Float32Array;
-      let min = Number.POSITIVE_INFINITY;
-      let max = Number.NEGATIVE_INFINITY;
-      for (let index = 0; index < planeSize; index += 1) {
-        min = Math.min(min, values[index]);
-        max = Math.max(max, values[index]);
-      }
-      const range = Math.max(0.00001, max - min);
-      const mask = modelContext.createImageData(320, 320);
+      const mask = modelContext.createImageData(BACKGROUND_REMOVAL_MODEL_EDGE, BACKGROUND_REMOVAL_MODEL_EDGE);
       const foregroundMask = new Uint8Array(planeSize);
       const confidenceMask = new Float32Array(planeSize);
       for (let index = 0; index < planeSize; index += 1) {
-        const confidence = clamp((values[index] - min) / range, 0, 1);
+        const confidence = clamp(values[index], 0, 1);
         confidenceMask[index] = confidence;
         foregroundMask[index] = confidence >= BACKGROUND_REMOVAL_MASK_THRESHOLD ? 1 : 0;
       }
-      preserveConnectedMaskDetails(foregroundMask, confidenceMask, 320, 320);
-      closeThinMaskGaps(foregroundMask, 320, 320);
-      fillEnclosedMaskHoles(foregroundMask, 320, 320);
+      closeThinMaskGaps(foregroundMask, BACKGROUND_REMOVAL_MODEL_EDGE, BACKGROUND_REMOVAL_MODEL_EDGE);
       for (let index = 0; index < planeSize; index += 1) {
         const offset = index * 4;
         mask.data[offset] = 255;
