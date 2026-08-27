@@ -477,6 +477,7 @@ const PAPER = "#FFFDF8";
 const GRAPHITE = "#1F2528";
 const MAX_PAINT_LAYERS = 5;
 const MOBILE_VIEWPORT_MEDIA_QUERY = "(max-width: 960px), (pointer: coarse) and (max-height: 600px)";
+const MIN_MOBILE_CANVAS_ZOOM = 8;
 const TEXT_RASTER_VERSION = 4;
 const BASE_PAINT_LAYER_ID = "paint-layer-base";
 const ISNET_GENERAL_USE_MODEL_URL = "https://huggingface.co/SacredNoir/isnet-general-use-onnx/resolve/main/isnet-general-use-q8.onnx";
@@ -4873,7 +4874,11 @@ export default function Home() {
         const centerX = (points[0].x + points[1].x) / 2;
         const centerY = (points[0].y + points[1].y) / 2;
         const distance = Math.hypot(points[1].x - points[0].x, points[1].y - points[0].y);
-        const nextZoom = clamp(Math.round(pinchPan.startZoom * (distance / Math.max(1, pinchPan.startDistance))), 25, 150);
+        const nextZoom = clamp(
+          Math.round(pinchPan.startZoom * (distance / Math.max(1, pinchPan.startDistance))),
+          isMobileViewport ? MIN_MOBILE_CANVAS_ZOOM : 25,
+          150,
+        );
         setZoom(nextZoom);
         setPan({
           x: pinchPan.originX + centerX - pinchPan.startCenterX,
@@ -4915,7 +4920,11 @@ export default function Home() {
     const availableHeight = Math.max(120, bounds.height - bottomInset - 32);
     const mobileToolbarReserve = isMobileViewport ? 60 : 0;
     const canvasAvailableHeight = Math.max(120, availableHeight - mobileToolbarReserve);
-    const nextZoom = clamp(Math.floor(Math.min(availableWidth / canvasSize.width, canvasAvailableHeight / canvasSize.height) * 100), 25, 150);
+    const nextZoom = clamp(
+      Math.floor(Math.min(availableWidth / canvasSize.width, canvasAvailableHeight / canvasSize.height) * 100),
+      isMobileViewport ? MIN_MOBILE_CANVAS_ZOOM : 25,
+      150,
+    );
     const displayWidth = canvasSize.width * (nextZoom / 100);
     const displayHeight = canvasSize.height * (nextZoom / 100);
     const nextPan = {
@@ -4969,6 +4978,10 @@ export default function Home() {
     };
   }, [fitCanvasToViewport, isMobileViewport, mobileDrawerHeight]);
   const resetCanvasView = () => {
+    if (isMobileViewport) {
+      fitCanvasToViewport();
+      return;
+    }
     const viewport = viewportRef.current;
     const nextZoom = 58;
     if (!viewport) {
