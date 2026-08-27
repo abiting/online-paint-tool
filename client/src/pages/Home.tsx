@@ -725,21 +725,40 @@ const softenBackgroundMaskAlpha = (alpha: number, edgeSoftness: number) => {
   return Math.round(clamp((normalized - 0.5) * contrast + 0.5, 0, 1) * 255);
 };
 
-const trimBackgroundMaskEdge = (mask: ImageData, width: number, height: number, passes: number) => {
-  for (let pass = 0; pass < passes; pass += 1) {
-    const alphaSnapshot = new Uint8Array(width * height);
-    for (let index = 0; index < alphaSnapshot.length; index += 1) alphaSnapshot[index] = mask.data[index * 4 + 3];
-    for (let y = 1; y < height - 1; y += 1) {
-      for (let x = 1; x < width - 1; x += 1) {
-        const index = y * width + x;
-        if (alphaSnapshot[index] <= 20) continue;
-        const touchesTransparentBackground = alphaSnapshot[index - 1] <= 20
-          || alphaSnapshot[index + 1] <= 20
-          || alphaSnapshot[index - width] <= 20
-          || alphaSnapshot[index + width] <= 20;
-        if (touchesTransparentBackground) mask.data[index * 4 + 3] = 0;
-      }
+const removeLightMatteFringe = (source: ImageData, mask: ImageData, width: number, height: number, cleanupStrength: number) => {
+  const radius = Math.round(clamp(cleanupStrength / 24, 0, 5));
+  if (radius < 1) return;
+  const distance = new Uint8Array(width * height).fill(255);
+  for (let index = 0; index < distance.length; index += 1) {
+    if (mask.data[index * 4 + 3] <= 20) distance[index] = 0;
+  }
+  for (let y = 0; y < height; y += 1) {
+    for (let x = 0; x < width; x += 1) {
+      const index = y * width + x;
+      if (distance[index] === 0) continue;
+      const left = x > 0 ? distance[index - 1] + 1 : 255;
+      const top = y > 0 ? distance[index - width] + 1 : 255;
+      distance[index] = Math.min(distance[index], left, top);
     }
+  }
+  for (let y = height - 1; y >= 0; y -= 1) {
+    for (let x = width - 1; x >= 0; x -= 1) {
+      const index = y * width + x;
+      if (distance[index] === 0) continue;
+      const right = x < width - 1 ? distance[index + 1] + 1 : 255;
+      const bottom = y < height - 1 ? distance[index + width] + 1 : 255;
+      distance[index] = Math.min(distance[index], right, bottom);
+    }
+  }
+  for (let index = 0; index < distance.length; index += 1) {
+    if (distance[index] > radius) continue;
+    const offset = index * 4;
+    const red = source.data[offset];
+    const green = source.data[offset + 1];
+    const blue = source.data[offset + 2];
+    const brightness = (red + green + blue) / 3;
+    const chroma = Math.max(red, green, blue) - Math.min(red, green, blue);
+    if (brightness >= 195 && chroma <= 62) mask.data[offset + 3] = 0;
   }
 };
 
@@ -760,7 +779,7 @@ const compositeBackgroundRemoval = (
   sourceContext.drawImage(source, 0, 0, width, height);
   const sourceData = sourceContext.getImageData(0, 0, width, height);
   const maskData = maskContext.getImageData(0, 0, width, height);
-  trimBackgroundMaskEdge(maskData, width, height, Math.round(clamp(decontamination / 33, 1, 3)));
+  removeLightMatteFringe(sourceData, maskData, width, height, decontamination);
   const borderBackground = findUniformBorderBackground(sourceData, width, height);
   const decontaminationAmount = Math.min(clamp(decontamination, 0, 100), 70) / 100;
   for (let offset = 0; offset < sourceData.data.length; offset += 4) {
