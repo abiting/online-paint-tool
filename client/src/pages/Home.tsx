@@ -4976,7 +4976,7 @@ export default function Home() {
       window.removeEventListener("resize", refit);
       window.removeEventListener("orientationchange", refitAfterRotation);
     };
-  }, [fitCanvasToViewport, isMobileViewport, mobileDrawerHeight]);
+  }, [fitCanvasToViewport, isMobileViewport]);
   const resetCanvasView = () => {
     if (isMobileViewport) {
       fitCanvasToViewport();
