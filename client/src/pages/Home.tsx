@@ -725,6 +725,11 @@ const softenBackgroundMaskAlpha = (alpha: number, edgeSoftness: number) => {
   return Math.round(clamp((normalized - 0.5) * contrast + 0.5, 0, 1) * 255);
 };
 
+/**
+ * AbiPaint 白描邊處理原則：從圖片外圍沿著白／近白來源像素做連通追蹤，
+ * 只將這個「可從外部到達」的區域設為透明。不得以整體遮罩侵蝕取代它，
+ * 否則會吃掉深色髮絲與主體外輪廓，也不得清除未連到圖片外圍的白色細節。
+ */
 const removeLightMatteFringe = (source: ImageData, mask: ImageData, width: number, height: number, cleanupStrength: number) => {
   const strength = clamp(cleanupStrength, 0, 100);
   if (strength <= 0) return;
