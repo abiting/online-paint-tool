@@ -612,11 +612,19 @@ const refineMaskAgainstUniformBackground = (source: ImageData, mask: ImageData, 
   deviation /= sampleIndices.length * 3;
   if (deviation > 16) return;
   const distanceLimit = Math.round(clamp(Math.max(28, deviation * 4.5) + cleanupStrength * 0.12, 28, 58));
-  const detachedResidualAlphaLimit = Math.round(clamp(26 + cleanupStrength * 1.6, 26, 188));
+  const detachedResidualAlphaLimit = Math.round(clamp(125 + cleanupStrength * 1.35, 125, 240));
+  const maxDetachedResidualPixels = Math.round(clamp(width * height * 0.006, 320, 12000));
+  const backgroundBrightness = (background[0] + background[1] + background[2]) / 3;
   const isBackgroundLike = (index: number) => {
     const offset = index * 4;
-    const distance = Math.abs(source.data[offset] - background[0]) + Math.abs(source.data[offset + 1] - background[1]) + Math.abs(source.data[offset + 2] - background[2]);
-    return distance <= distanceLimit;
+    const red = source.data[offset];
+    const green = source.data[offset + 1];
+    const blue = source.data[offset + 2];
+    const distance = Math.abs(red - background[0]) + Math.abs(green - background[1]) + Math.abs(blue - background[2]);
+    const brightness = (red + green + blue) / 3;
+    const chroma = Math.max(red, green, blue) - Math.min(red, green, blue);
+    const isLightNeutralResidual = backgroundBrightness >= 225 && brightness >= backgroundBrightness - 62 && chroma <= 18;
+    return distance <= distanceLimit || isLightNeutralResidual;
   };
   const reachable = new Uint8Array(width * height);
   const queue = new Int32Array(width * height);
@@ -648,7 +656,40 @@ const refineMaskAgainstUniformBackground = (source: ImageData, mask: ImageData, 
   }
   for (let index = 0; index < reachable.length; index += 1) {
     if (reachable[index]) mask.data[index * 4 + 3] = 0;
-    else if (mask.data[index * 4 + 3] <= detachedResidualAlphaLimit && isBackgroundLike(index)) mask.data[index * 4 + 3] = 0;
+  }
+
+  const inspected = new Uint8Array(width * height);
+  const componentQueue = new Int32Array(width * height);
+  const isDetachedResidual = (index: number) => !reachable[index]
+    && mask.data[index * 4 + 3] <= detachedResidualAlphaLimit
+    && isBackgroundLike(index);
+  for (let start = 0; start < inspected.length; start += 1) {
+    if (inspected[start] || !isDetachedResidual(start)) continue;
+    let componentHead = 0;
+    let componentTail = 0;
+    componentQueue[componentTail] = start;
+    componentTail += 1;
+    inspected[start] = 1;
+    while (componentHead < componentTail) {
+      const index = componentQueue[componentHead];
+      componentHead += 1;
+      const x = index % width;
+      const y = Math.floor(index / width);
+      const inspect = (nextIndex: number) => {
+        if (inspected[nextIndex] || !isDetachedResidual(nextIndex)) return;
+        inspected[nextIndex] = 1;
+        componentQueue[componentTail] = nextIndex;
+        componentTail += 1;
+      };
+      if (x > 0) inspect(index - 1);
+      if (x < width - 1) inspect(index + 1);
+      if (y > 0) inspect(index - width);
+      if (y < height - 1) inspect(index + width);
+    }
+    if (componentTail > maxDetachedResidualPixels) continue;
+    for (let componentIndex = 0; componentIndex < componentTail; componentIndex += 1) {
+      mask.data[componentQueue[componentIndex] * 4 + 3] = 0;
+    }
   }
 };
 
@@ -3767,7 +3808,7 @@ export default function Home() {
       backgroundRemovalRuntimeRef.current = runtime;
       if (!backgroundRemovalSessionRef.current) {
         runtime.env.wasm.numThreads = 1;
-        runtime.env.wasm.proxy = false;
+        runtime.env.wasm.proxy = true;
         runtime.env.wasm.wasmPaths = ONNX_RUNTIME_WASM_URL;
         const sessionOptions = { executionProviders: ["wasm"] as const, graphOptimizationLevel: "all" as const };
         setBackgroundRemovalNotice({ kind: "loading", message: tr("正在下載高品質去背模型（首次約 42 MB）…", "Downloading high-quality removal model (~42 MB first use)…") });
