@@ -726,39 +726,45 @@ const softenBackgroundMaskAlpha = (alpha: number, edgeSoftness: number) => {
 };
 
 const removeLightMatteFringe = (source: ImageData, mask: ImageData, width: number, height: number, cleanupStrength: number) => {
-  const radius = Math.round(clamp(cleanupStrength / 24, 0, 5));
-  if (radius < 1) return;
-  const distance = new Uint8Array(width * height).fill(255);
-  for (let index = 0; index < distance.length; index += 1) {
-    if (mask.data[index * 4 + 3] <= 20) distance[index] = 0;
-  }
-  for (let y = 0; y < height; y += 1) {
-    for (let x = 0; x < width; x += 1) {
-      const index = y * width + x;
-      if (distance[index] === 0) continue;
-      const left = x > 0 ? distance[index - 1] + 1 : 255;
-      const top = y > 0 ? distance[index - width] + 1 : 255;
-      distance[index] = Math.min(distance[index], left, top);
-    }
-  }
-  for (let y = height - 1; y >= 0; y -= 1) {
-    for (let x = width - 1; x >= 0; x -= 1) {
-      const index = y * width + x;
-      if (distance[index] === 0) continue;
-      const right = x < width - 1 ? distance[index + 1] + 1 : 255;
-      const bottom = y < height - 1 ? distance[index + width] + 1 : 255;
-      distance[index] = Math.min(distance[index], right, bottom);
-    }
-  }
-  for (let index = 0; index < distance.length; index += 1) {
-    if (distance[index] > radius) continue;
+  const strength = clamp(cleanupStrength, 0, 100);
+  if (strength <= 0) return;
+  const isLightMattePixel = (index: number) => {
     const offset = index * 4;
     const red = source.data[offset];
     const green = source.data[offset + 1];
     const blue = source.data[offset + 2];
     const brightness = (red + green + blue) / 3;
     const chroma = Math.max(red, green, blue) - Math.min(red, green, blue);
-    if (brightness >= 195 && chroma <= 62) mask.data[offset + 3] = 0;
+    return brightness >= 190 - strength * 0.14 && chroma <= 66 + strength * 0.16;
+  };
+  const reachable = new Uint8Array(width * height);
+  const queue = new Int32Array(width * height);
+  let head = 0;
+  let tail = 0;
+  const enqueue = (index: number) => {
+    if (reachable[index] || !isLightMattePixel(index)) return;
+    reachable[index] = 1;
+    queue[tail] = index;
+    tail += 1;
+  };
+  for (let x = 0; x < width; x += 1) {
+    enqueue(x);
+    enqueue((height - 1) * width + x);
+  }
+  for (let y = 1; y < height - 1; y += 1) {
+    enqueue(y * width);
+    enqueue(y * width + width - 1);
+  }
+  while (head < tail) {
+    const index = queue[head];
+    head += 1;
+    const x = index % width;
+    const y = Math.floor(index / width);
+    mask.data[index * 4 + 3] = 0;
+    if (x > 0) enqueue(index - 1);
+    if (x < width - 1) enqueue(index + 1);
+    if (y > 0) enqueue(index - width);
+    if (y < height - 1) enqueue(index + width);
   }
 };
 
