@@ -609,8 +609,8 @@ const refineMaskAgainstUniformBackground = (source: ImageData, mask: ImageData, 
   }
   deviation /= sampleIndices.length * 3;
   if (deviation > 16) return;
-  const distanceLimit = Math.max(34, deviation * 4.5);
-  const alphaLimit = Math.round(clamp(70 + cleanupStrength * 1.7, 70, 240));
+  const distanceLimit = Math.round(clamp(Math.max(28, deviation * 4.5) + cleanupStrength * 0.12, 28, 58));
+  const detachedResidualAlphaLimit = Math.round(clamp(26 + cleanupStrength * 1.6, 26, 188));
   const isBackgroundLike = (index: number) => {
     const offset = index * 4;
     const distance = Math.abs(source.data[offset] - background[0]) + Math.abs(source.data[offset + 1] - background[1]) + Math.abs(source.data[offset + 2] - background[2]);
@@ -621,7 +621,7 @@ const refineMaskAgainstUniformBackground = (source: ImageData, mask: ImageData, 
   let head = 0;
   let tail = 0;
   const enqueue = (index: number) => {
-    if (reachable[index] || mask.data[index * 4 + 3] > alphaLimit || !isBackgroundLike(index)) return;
+    if (reachable[index] || !isBackgroundLike(index)) return;
     reachable[index] = 1;
     queue[tail] = index;
     tail += 1;
@@ -646,6 +646,7 @@ const refineMaskAgainstUniformBackground = (source: ImageData, mask: ImageData, 
   }
   for (let index = 0; index < reachable.length; index += 1) {
     if (reachable[index]) mask.data[index * 4 + 3] = 0;
+    else if (mask.data[index * 4 + 3] <= detachedResidualAlphaLimit && isBackgroundLike(index)) mask.data[index * 4 + 3] = 0;
   }
 };
 
