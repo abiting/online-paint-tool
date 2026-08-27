@@ -318,6 +318,9 @@ type ImageLayer = OutlineAdjustments & {
   name: string;
   src: string;
   backgroundSource?: string;
+  backgroundMask?: string;
+  backgroundEdgeSoftness?: number;
+  backgroundDecontamination?: number;
   x: number;
   y: number;
   width: number;
@@ -481,6 +484,8 @@ const ONNX_RUNTIME_WASM_URL = "https://cdn.jsdelivr.net/npm/onnxruntime-web@1.27
 const BACKGROUND_REMOVAL_MAX_EDGE = 2560;
 const BACKGROUND_REMOVAL_MASK_THRESHOLD = 0.25;
 const BACKGROUND_REMOVAL_DETAIL_THRESHOLD = 0.1;
+const BACKGROUND_REMOVAL_DEFAULT_EDGE_SOFTNESS = 48;
+const BACKGROUND_REMOVAL_DEFAULT_DECONTAMINATION = 42;
 const AUTOSAVE_DB_NAME = "abipaint-project-storage";
 const AUTOSAVE_DB_STORE = "projects";
 const AUTOSAVE_PROJECT_KEY = "current-project";
@@ -641,6 +646,73 @@ const refineMaskAgainstUniformBackground = (source: ImageData, mask: ImageData, 
   for (let index = 0; index < reachable.length; index += 1) {
     if (reachable[index]) mask.data[index * 4 + 3] = 0;
   }
+};
+
+const findUniformBorderBackground = (source: ImageData, width: number, height: number) => {
+  const sampleIndices: number[] = [];
+  const step = Math.max(1, Math.floor(Math.min(width, height) / 48));
+  for (let x = 0; x < width; x += step) sampleIndices.push(x, (height - 1) * width + x);
+  for (let y = step; y < height - 1; y += step) sampleIndices.push(y * width, y * width + width - 1);
+  if (!sampleIndices.length) return null;
+  const color = [0, 0, 0];
+  for (const index of sampleIndices) {
+    const offset = index * 4;
+    color[0] += source.data[offset];
+    color[1] += source.data[offset + 1];
+    color[2] += source.data[offset + 2];
+  }
+  color[0] /= sampleIndices.length;
+  color[1] /= sampleIndices.length;
+  color[2] /= sampleIndices.length;
+  let deviation = 0;
+  for (const index of sampleIndices) {
+    const offset = index * 4;
+    deviation += Math.abs(source.data[offset] - color[0]) + Math.abs(source.data[offset + 1] - color[1]) + Math.abs(source.data[offset + 2] - color[2]);
+  }
+  deviation /= sampleIndices.length * 3;
+  return deviation <= 16 ? color : null;
+};
+
+const softenBackgroundMaskAlpha = (alpha: number, edgeSoftness: number) => {
+  const normalized = alpha / 255;
+  if (normalized <= 0.002 || normalized >= 0.998) return normalized >= 0.998 ? 255 : 0;
+  const contrast = 1.9 - clamp(edgeSoftness, 0, 100) / 72;
+  return Math.round(clamp((normalized - 0.5) * contrast + 0.5, 0, 1) * 255);
+};
+
+const compositeBackgroundRemoval = (
+  source: HTMLImageElement,
+  maskCanvas: HTMLCanvasElement,
+  edgeSoftness: number,
+  decontamination: number,
+) => {
+  const width = Math.max(1, maskCanvas.width);
+  const height = Math.max(1, maskCanvas.height);
+  const sourceCanvas = document.createElement("canvas");
+  sourceCanvas.width = width;
+  sourceCanvas.height = height;
+  const sourceContext = sourceCanvas.getContext("2d", { willReadFrequently: true });
+  const maskContext = maskCanvas.getContext("2d", { willReadFrequently: true });
+  if (!sourceContext || !maskContext) throw new Error("Canvas is unavailable");
+  sourceContext.drawImage(source, 0, 0, width, height);
+  const sourceData = sourceContext.getImageData(0, 0, width, height);
+  const maskData = maskContext.getImageData(0, 0, width, height);
+  const borderBackground = findUniformBorderBackground(sourceData, width, height);
+  const decontaminationAmount = clamp(decontamination, 0, 100) / 100;
+  for (let offset = 0; offset < sourceData.data.length; offset += 4) {
+    const alpha = softenBackgroundMaskAlpha(maskData.data[offset + 3], edgeSoftness);
+    sourceData.data[offset + 3] = alpha;
+    if (!borderBackground || alpha <= 3 || alpha >= 252 || decontaminationAmount <= 0) continue;
+    const matte = alpha / 255;
+    const edgeAmount = decontaminationAmount * (1 - matte);
+    for (let channel = 0; channel < 3; channel += 1) {
+      const original = sourceData.data[offset + channel];
+      const recoveredForeground = clamp((original - borderBackground[channel] * (1 - matte)) / Math.max(0.08, matte), 0, 255);
+      sourceData.data[offset + channel] = Math.round(original + (recoveredForeground - original) * edgeAmount);
+    }
+  }
+  sourceContext.putImageData(sourceData, 0, 0);
+  return sourceCanvas.toDataURL("image/png");
 };
 
 const normalizeProjectSaturation = (value: unknown, version: AbiPaintProject["version"]) => {
@@ -1493,6 +1565,8 @@ export default function Home() {
   const backgroundRepairSessionRef = useRef<{ imageId: string; source: HTMLImageElement; current: HTMLImageElement } | null>(null);
   const backgroundRepairPointerRef = useRef<{ imageId: string; pointerId: number; x: number; y: number } | null>(null);
   const backgroundRepairCanvasRefs = useRef(new Map<string, HTMLCanvasElement>());
+  const backgroundQualityTimerRef = useRef<number | null>(null);
+  const backgroundQualityRequestRef = useRef(0);
   const panDragRef = useRef<{ startX: number; startY: number; originX: number; originY: number } | null>(null);
   const touchPointsRef = useRef(new Map<number, { x: number; y: number }>());
   const pinchPanRef = useRef<{ startDistance: number; startCenterX: number; startCenterY: number; startZoom: number; originX: number; originY: number } | null>(null);
@@ -3675,7 +3749,7 @@ export default function Home() {
     setBackgroundRemovalImageId(image.id);
     setBackgroundRemovalNotice({ kind: "loading", message: tr("正在準備去背模型…", "Preparing background-removal model…") });
     try {
-      const source = await loadImageElement(image.src);
+      const source = await loadImageElement(image.backgroundSource ?? image.src);
       const sourceWidth = Math.max(1, source.naturalWidth || source.width);
       const sourceHeight = Math.max(1, source.naturalHeight || source.height);
       const scale = Math.min(1, BACKGROUND_REMOVAL_MAX_EDGE / Math.max(sourceWidth, sourceHeight));
@@ -3742,7 +3816,9 @@ export default function Home() {
         mask.data[offset] = 255;
         mask.data[offset + 1] = 255;
         mask.data[offset + 2] = 255;
-        mask.data[offset + 3] = foregroundMask[index] ? 255 : 0;
+        mask.data[offset + 3] = foregroundMask[index]
+          ? Math.round(Math.max(confidenceMask[index], BACKGROUND_REMOVAL_MASK_THRESHOLD) * 255)
+          : 0;
       }
       modelContext.putImageData(mask, 0, 0);
 
@@ -3758,7 +3834,8 @@ export default function Home() {
         scaledMask.data[index] = 255;
         scaledMask.data[index + 1] = 255;
         scaledMask.data[index + 2] = 255;
-        scaledMask.data[index + 3] = scaledMask.data[index + 3] >= 128 ? 255 : 0;
+        if (scaledMask.data[index + 3] <= 3) scaledMask.data[index + 3] = 0;
+        if (scaledMask.data[index + 3] >= 252) scaledMask.data[index + 3] = 255;
       }
       const sourceRefineCanvas = document.createElement("canvas");
       sourceRefineCanvas.width = outputWidth;
@@ -3768,39 +3845,20 @@ export default function Home() {
       sourceRefineContext.drawImage(source, 0, 0, outputWidth, outputHeight);
       refineMaskAgainstUniformBackground(sourceRefineContext.getImageData(0, 0, outputWidth, outputHeight), scaledMask, outputWidth, outputHeight);
       scaledMaskContext.putImageData(scaledMask, 0, 0);
-
-      const resultCanvas = document.createElement("canvas");
-      resultCanvas.width = outputWidth;
-      resultCanvas.height = outputHeight;
-      const resultContext = resultCanvas.getContext("2d");
-      if (!resultContext) throw new Error("Canvas is unavailable");
-      resultContext.drawImage(source, 0, 0, outputWidth, outputHeight);
-      resultContext.globalCompositeOperation = "destination-in";
-      resultContext.drawImage(scaledMaskCanvas, 0, 0);
-      resultContext.globalCompositeOperation = "source-over";
-      const composited = resultContext.getImageData(0, 0, outputWidth, outputHeight);
-      const alpha = new Uint8Array(outputWidth * outputHeight);
-      for (let index = 0; index < alpha.length; index += 1) alpha[index] = composited.data[index * 4 + 3];
-      for (let y = 1; y < outputHeight - 1; y += 1) {
-        for (let x = 1; x < outputWidth - 1; x += 1) {
-          const index = y * outputWidth + x;
-          if (!alpha[index]) continue;
-          const touchesTransparent = !alpha[index - 1] || !alpha[index + 1] || !alpha[index - outputWidth] || !alpha[index + outputWidth];
-          if (!touchesTransparent) continue;
-          const offset = index * 4;
-          const red = composited.data[offset];
-          const green = composited.data[offset + 1];
-          const blue = composited.data[offset + 2];
-          if (blue > red + 16 && blue > green + 6) composited.data[offset + 3] = 0;
-        }
-      }
-      resultContext.putImageData(composited, 0, 0);
-
-      const transparentSource = resultCanvas.toDataURL("image/png");
+      const backgroundMask = scaledMaskCanvas.toDataURL("image/png");
+      const transparentSource = compositeBackgroundRemoval(
+        source,
+        scaledMaskCanvas,
+        BACKGROUND_REMOVAL_DEFAULT_EDGE_SOFTNESS,
+        BACKGROUND_REMOVAL_DEFAULT_DECONTAMINATION,
+      );
       syncImages(imagesRef.current.map((item) => item.id === image.id ? {
         ...item,
         src: transparentSource,
         backgroundSource: item.backgroundSource ?? image.src,
+        backgroundMask,
+        backgroundEdgeSoftness: BACKGROUND_REMOVAL_DEFAULT_EDGE_SOFTNESS,
+        backgroundDecontamination: BACKGROUND_REMOVAL_DEFAULT_DECONTAMINATION,
         crop: FULL_IMAGE_CROP,
       } : item));
       setHasArtwork(true);
@@ -3818,6 +3876,46 @@ export default function Home() {
     } finally {
       setBackgroundRemovalImageId(null);
     }
+  };
+
+  const scheduleBackgroundQualityUpdate = (patch: Pick<ImageLayer, "backgroundEdgeSoftness" | "backgroundDecontamination">) => {
+    const image = selectedImage;
+    if (!image?.backgroundSource || !image.backgroundMask || backgroundRepair?.imageId === image.id) return;
+    const nextImages = imagesRef.current.map((item) => item.id === image.id ? { ...item, ...patch } : item);
+    syncImages(nextImages);
+    if (backgroundQualityTimerRef.current) window.clearTimeout(backgroundQualityTimerRef.current);
+    const request = backgroundQualityRequestRef.current + 1;
+    backgroundQualityRequestRef.current = request;
+    backgroundQualityTimerRef.current = window.setTimeout(() => {
+      void (async () => {
+        const currentImage = imagesRef.current.find((item) => item.id === image.id);
+        if (!currentImage?.backgroundSource || !currentImage.backgroundMask) return;
+        try {
+          const [source, mask] = await Promise.all([
+            loadImageElement(currentImage.backgroundSource),
+            loadImageElement(currentImage.backgroundMask),
+          ]);
+          if (request !== backgroundQualityRequestRef.current) return;
+          const maskCanvas = document.createElement("canvas");
+          maskCanvas.width = Math.max(1, mask.naturalWidth || mask.width);
+          maskCanvas.height = Math.max(1, mask.naturalHeight || mask.height);
+          const maskContext = maskCanvas.getContext("2d");
+          if (!maskContext) return;
+          maskContext.drawImage(mask, 0, 0, maskCanvas.width, maskCanvas.height);
+          const src = compositeBackgroundRemoval(
+            source,
+            maskCanvas,
+            currentImage.backgroundEdgeSoftness ?? BACKGROUND_REMOVAL_DEFAULT_EDGE_SOFTNESS,
+            currentImage.backgroundDecontamination ?? BACKGROUND_REMOVAL_DEFAULT_DECONTAMINATION,
+          );
+          if (request !== backgroundQualityRequestRef.current) return;
+          syncImages(imagesRef.current.map((item) => item.id === image.id ? { ...item, src } : item));
+          captureHistory();
+        } catch {
+          toast.error(tr("無法更新去背邊緣", "Unable to update background edge"));
+        }
+      })();
+    }, 180);
   };
 
   const startBackgroundRepair = async () => {
@@ -3905,7 +4003,11 @@ export default function Home() {
     const nextSource = canvas.toDataURL("image/png");
     try {
       session.current = await loadImageElement(nextSource);
-      syncImages(imagesRef.current.map((image) => image.id === repair.imageId ? { ...image, src: nextSource } : image));
+      syncImages(imagesRef.current.map((image) => image.id === repair.imageId ? {
+        ...image,
+        src: nextSource,
+        backgroundMask: undefined,
+      } : image));
       captureHistory();
       setBackgroundRepair(null);
       backgroundRepairPointerRef.current = null;
@@ -5918,6 +6020,13 @@ export default function Home() {
                 {imageEditingId === selectedImage.id && !cropDraft && <><button type="button" className="secondary-button full-width" onClick={beginImageCrop}><Crop size={14} /> {tr("裁切圖片", "Crop image")}</button><button type="button" className="secondary-button full-width" onClick={() => setImageEditingId(null)}><Lock size={14} /> {tr("完成編輯並鎖定", "Finish editing & lock")}</button></>}
                 {cropDraft?.imageId === selectedImage.id && <><RangeControl label={tr("裁切左側", "Crop left")} value={Math.round(cropDraft.x * 100)} min={0} max={90} suffix="%" onChange={(value) => updateCropDraft({ x: value / 100 })} /><RangeControl label={tr("裁切上方", "Crop top")} value={Math.round(cropDraft.y * 100)} min={0} max={90} suffix="%" onChange={(value) => updateCropDraft({ y: value / 100 })} /><RangeControl label={tr("裁切寬度", "Crop width")} value={Math.round(cropDraft.width * 100)} min={10} max={Math.max(10, Math.round((1 - cropDraft.x) * 100))} suffix="%" onChange={(value) => updateCropDraft({ width: value / 100 })} /><RangeControl label={tr("裁切高度", "Crop height")} value={Math.round(cropDraft.height * 100)} min={10} max={Math.max(10, Math.round((1 - cropDraft.y) * 100))} suffix="%" onChange={(value) => updateCropDraft({ height: value / 100 })} /><button type="button" className="primary-button full-width" onClick={() => void applyImageCrop()}><Check size={14} /> {tr("套用裁切", "Apply crop")}</button><button type="button" className="secondary-button full-width" onClick={cancelImageCrop}>{tr("取消裁切", "Cancel crop")}</button></>}
                 {selectedImage.backgroundSource && !backgroundRepair && <button type="button" className="secondary-button full-width" onClick={() => void startBackgroundRepair()}><Pencil size={14} /> {tr("修補去背", "Repair background")}</button>}
+                {selectedImage.backgroundMask && !backgroundRepair && (
+                  <div className="background-repair-controls background-quality-controls">
+                    <RangeControl label={tr("邊緣柔化", "Edge softness")} value={selectedImage.backgroundEdgeSoftness ?? BACKGROUND_REMOVAL_DEFAULT_EDGE_SOFTNESS} min={0} max={100} suffix="%" onChange={(value) => scheduleBackgroundQualityUpdate({ backgroundEdgeSoftness: value })} />
+                    <RangeControl label={tr("邊緣去色", "Edge decontamination")} value={selectedImage.backgroundDecontamination ?? BACKGROUND_REMOVAL_DEFAULT_DECONTAMINATION} min={0} max={100} suffix="%" onChange={(value) => scheduleBackgroundQualityUpdate({ backgroundDecontamination: value })} />
+                    <button type="button" className="secondary-button full-width" onClick={() => scheduleBackgroundQualityUpdate({ backgroundEdgeSoftness: BACKGROUND_REMOVAL_DEFAULT_EDGE_SOFTNESS, backgroundDecontamination: BACKGROUND_REMOVAL_DEFAULT_DECONTAMINATION })}>{tr("重設去背邊緣", "Reset background edge")}</button>
+                  </div>
+                )}
                 {backgroundRepair?.imageId === selectedImage.id && (
                   <div className="background-repair-controls">
                     <div className="background-repair-mode-row">
