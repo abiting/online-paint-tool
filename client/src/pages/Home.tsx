@@ -1719,6 +1719,8 @@ export default function Home() {
   const [isEasterEggOpen, setIsEasterEggOpen] = useState(false);
   const [mobileMiniToolPosition, setMobileMiniToolPosition] = useState({ x: 14, y: 14 });
   const [isMobileMiniToolDragging, setIsMobileMiniToolDragging] = useState(false);
+  const [mobileSettingsDockLift, setMobileSettingsDockLift] = useState(0);
+  const [isMobileSettingsDockDragging, setIsMobileSettingsDockDragging] = useState(false);
   const [isMobileViewport, setIsMobileViewport] = useState(() => window.matchMedia(MOBILE_VIEWPORT_MEDIA_QUERY).matches);
   const [isExportRendering, setIsExportRendering] = useState(false);
   const [exportPreview, setExportPreview] = useState<{ url: string; format: ExportFormat; width: number; height: number } | null>(null);
@@ -1749,6 +1751,10 @@ export default function Home() {
   const mobileMiniToolRef = useRef<HTMLDivElement>(null);
   const mobileMiniToolDragRef = useRef<{ startX: number; startY: number; originX: number; originY: number } | null>(null);
   const mobileMiniToolHasCustomPositionRef = useRef(false);
+  const mobileSettingsDockRef = useRef<HTMLDivElement>(null);
+  const mobileSettingsDockDragRef = useRef<{ startY: number; originLift: number; maxLift: number } | null>(null);
+  const mobileSettingsDockFrameRef = useRef<number | null>(null);
+  const pendingMobileSettingsDockLiftRef = useRef(0);
   const hasInitializedPanRef = useRef(false);
 
   useEffect(() => {
@@ -5116,6 +5122,42 @@ export default function Home() {
     };
   }, []);
 
+  useEffect(() => {
+    const scheduleMobileSettingsDockLift = (nextLift: number) => {
+      pendingMobileSettingsDockLiftRef.current = nextLift;
+      if (mobileSettingsDockFrameRef.current !== null) return;
+      mobileSettingsDockFrameRef.current = window.requestAnimationFrame(() => {
+        mobileSettingsDockFrameRef.current = null;
+        setMobileSettingsDockLift(pendingMobileSettingsDockLiftRef.current);
+      });
+    };
+    const moveMobileSettingsDock = (event: PointerEvent) => {
+      const drag = mobileSettingsDockDragRef.current;
+      if (!drag) return;
+      const nextLift = clamp(drag.originLift + drag.startY - event.clientY, 0, drag.maxLift);
+      scheduleMobileSettingsDockLift(nextLift);
+    };
+    const finishMobileSettingsDockDrag = () => {
+      if (!mobileSettingsDockDragRef.current) return;
+      mobileSettingsDockDragRef.current = null;
+      if (mobileSettingsDockFrameRef.current !== null) {
+        window.cancelAnimationFrame(mobileSettingsDockFrameRef.current);
+        mobileSettingsDockFrameRef.current = null;
+        setMobileSettingsDockLift(pendingMobileSettingsDockLiftRef.current);
+      }
+      setIsMobileSettingsDockDragging(false);
+    };
+    window.addEventListener("pointermove", moveMobileSettingsDock);
+    window.addEventListener("pointerup", finishMobileSettingsDockDrag);
+    window.addEventListener("pointercancel", finishMobileSettingsDockDrag);
+    return () => {
+      window.removeEventListener("pointermove", moveMobileSettingsDock);
+      window.removeEventListener("pointerup", finishMobileSettingsDockDrag);
+      window.removeEventListener("pointercancel", finishMobileSettingsDockDrag);
+      if (mobileSettingsDockFrameRef.current !== null) window.cancelAnimationFrame(mobileSettingsDockFrameRef.current);
+    };
+  }, []);
+
   const handleMobileMiniToolPointerDown = (event: ReactPointerEvent<HTMLButtonElement>) => {
     if (event.pointerType === "mouse" && event.button !== 0) return;
     const toolbar = mobileMiniToolRef.current;
@@ -5134,6 +5176,23 @@ export default function Home() {
     };
     mobileMiniToolHasCustomPositionRef.current = true;
     setIsMobileMiniToolDragging(true);
+  };
+
+  const handleMobileSettingsDockPointerDown = (event: ReactPointerEvent<HTMLButtonElement>) => {
+    if (event.pointerType === "mouse" && event.button !== 0) return;
+    const dock = mobileSettingsDockRef.current;
+    if (!dock) return;
+    event.preventDefault();
+    event.stopPropagation();
+    event.currentTarget.setPointerCapture(event.pointerId);
+    const dockBounds = dock.getBoundingClientRect();
+    const currentLift = pendingMobileSettingsDockLiftRef.current;
+    mobileSettingsDockDragRef.current = {
+      startY: event.clientY,
+      originLift: currentLift,
+      maxLift: Math.min(280, Math.max(0, dockBounds.top + currentLift - 112)),
+    };
+    setIsMobileSettingsDockDragging(true);
   };
 
   const handleDesktopToolPanelPointerDown = (event: ReactPointerEvent<HTMLDivElement>) => {
@@ -5159,6 +5218,10 @@ export default function Home() {
     ? undefined
     : ({ left: `${desktopToolPosition.x}px`, top: `${desktopToolPosition.y}px`, transform: "none" } as CSSProperties);
   const mobileMiniToolsStyle = ({ left: `${mobileMiniToolPosition.x}px`, top: `${mobileMiniToolPosition.y}px` } as CSSProperties);
+  const mobileWorkspaceStyle = ({
+    "--mobile-settings-dock-lift": `${mobileSettingsDockLift}px`,
+    "--mobile-settings-dock-offset": `-${mobileSettingsDockLift}px`,
+  } as CSSProperties);
   const handleDesktopToolCreate = (nextTool: DesktopCreativeTool) => {
     setTool(nextTool === "outline" ? "move" : nextTool);
     setActiveDesktopTool(nextTool);
@@ -5264,7 +5327,7 @@ export default function Home() {
     : activeWorkspaceToolLabel;
 
   return (
-    <main className="studio-app">
+    <main className="studio-app" style={mobileWorkspaceStyle}>
       <header className="topbar">
         <div className="brand-lockup">
           <span className="brand-mark brand-logo">
@@ -6290,7 +6353,8 @@ export default function Home() {
           </div>
         </aside>
       </div>
-      <div className="mobile-settings-dock" aria-label={tr("手機設定目錄", "Mobile settings")}>
+      <div ref={mobileSettingsDockRef} className={`mobile-settings-dock ${isMobileSettingsDockDragging ? "is-dragging" : ""}`} aria-label={tr("手機設定目錄", "Mobile settings")}>
+        <button type="button" className="mobile-settings-dock-drag-handle" onPointerDown={handleMobileSettingsDockPointerDown} aria-label={tr("拖曳移動設定目錄", "Move settings menu")} title={tr("拖曳移動設定目錄", "Move settings menu")}><GripVertical size={16} /></button>
         <button type="button" onClick={() => setMobileSettingsPanel("canvas")} aria-label={copy.canvasSize}>
           <Maximize2 size={17} />
           <span>{copy.canvasSize}</span>

@@ -386,7 +386,7 @@ kbd { min-width: 19px; padding: 3px 4px; text-align: center; color: #aab1aa; bac
 .floating-shape-grid .shape-choice { padding-top: 8px; padding-bottom: 7px; }
 
 @media (max-width: 960px), (pointer: coarse) and (max-height: 600px) {
-  .desktop-tool-popover { display: block; position: fixed; z-index: 42; top: auto !important; right: 12px; bottom: calc(max(12px, env(safe-area-inset-bottom)) + 64px); left: 12px !important; width: auto; max-height: min(54dvh, 500px); padding: 15px 16px 17px; transform: none !important; border-radius: 10px; background: rgba(27,35,37,0.985); }
+  .desktop-tool-popover { display: block; position: fixed; z-index: 42; top: auto !important; right: 12px; bottom: calc(max(12px, env(safe-area-inset-bottom)) + 64px + var(--mobile-settings-dock-lift, 0px)); left: 12px !important; width: auto; max-height: min(54dvh, 500px); padding: 15px 16px 17px; transform: none !important; border-radius: 10px; background: rgba(27,35,37,0.985); }
   .desktop-tool-popover-heading { margin-bottom: 11px; cursor: default; }
   .desktop-tool-popover .floating-shape-grid { grid-template-columns: repeat(3, 1fr); }
   .faq-panel { display: none !important; }
@@ -488,7 +488,7 @@ input[type="range"]::-moz-range-thumb { width: 11px; height: 11px; border: 2px s
   .workspace { min-height: 0; overflow: hidden; }
   .desktop-creative-rail { display: none; }
   .inspector { display: none; }
-  .canvas-viewport { padding-bottom: 82px; cursor: default; }
+  .canvas-viewport { padding-bottom: 104px; cursor: default; }
   .workspace-actions { display: none; }
   .workspace-toolbar { display: none; }
   .paint-layer-panel { display: none; }
@@ -507,9 +507,13 @@ input[type="range"]::-moz-range-thumb { width: 11px; height: 11px; border: 2px s
   .floating-chat-kofi-popup-iframe-mobi,
   .floating-chat-kofi-popup-iframe-notice,
   .floating-chat-kofi-popup-iframe-notice-mobi { display: none !important; }
-  .mobile-settings-dock { position: fixed; z-index: 58; right: 12px; bottom: max(12px, env(safe-area-inset-bottom)); left: 12px; display: grid; grid-template-columns: repeat(2, 1fr); gap: 4px; padding: 6px; border: 1px solid rgba(227,213,187,0.2); border-top-color: rgba(228,81,59,0.62); border-radius: 13px; background: rgba(29,30,27,0.96); box-shadow: 0 12px 30px rgba(8,12,13,0.42); backdrop-filter: blur(14px); }
-  .mobile-settings-dock button { display: inline-flex; align-items: center; justify-content: center; gap: 7px; min-height: 40px; padding: 0 8px; color: #d9d5ca; border-radius: 8px; background: transparent; font: 600 10px "Noto Sans TC", "DM Sans", sans-serif; }
-  .mobile-settings-dock button:active { transform: scale(0.97); }
+  .mobile-settings-dock { position: fixed; z-index: 58; right: 12px; bottom: max(12px, env(safe-area-inset-bottom)); left: 12px; display: grid; grid-template-columns: 30px repeat(2, minmax(0, 1fr)); gap: 4px; padding: 6px; border: 1px solid rgba(227,213,187,0.2); border-top-color: rgba(228,81,59,0.62); border-radius: 13px; background: rgba(29,30,27,0.96); box-shadow: 0 12px 30px rgba(8,12,13,0.42); backdrop-filter: blur(14px); transform: translate3d(0, var(--mobile-settings-dock-offset, 0px), 0); transition: transform 180ms var(--ease-out, ease-out), box-shadow 180ms var(--ease-out, ease-out); will-change: transform; }
+  .mobile-settings-dock.is-dragging { box-shadow: 0 16px 34px rgba(8,12,13,0.58), 0 0 0 2px rgba(228,81,59,0.16); transition: none; }
+  .mobile-settings-dock > button:not(.mobile-settings-dock-drag-handle) { display: inline-flex; align-items: center; justify-content: center; gap: 7px; min-height: 40px; padding: 0 8px; color: #d9d5ca; border-radius: 8px; background: transparent; font: 600 10px "Noto Sans TC", "DM Sans", sans-serif; }
+  .mobile-settings-dock > button:not(.mobile-settings-dock-drag-handle):active { transform: scale(0.97); }
+  .mobile-settings-dock-drag-handle { display: grid; min-height: 40px; place-items: center; padding: 0; color: #d7c7b1; border-radius: 8px; background: rgba(245,240,229,0.045); cursor: grab; touch-action: none; }
+  .mobile-settings-dock.is-dragging .mobile-settings-dock-drag-handle { cursor: grabbing; background: rgba(228,81,59,0.13); }
+  .mobile-settings-dock-drag-handle:active { transform: scale(0.94); }
   .mobile-settings-overlay { position: fixed; z-index: 80; inset: 0; display: flex; align-items: flex-end; isolation: isolate; }
   .mobile-settings-overlay-scrim { position: absolute; inset: 0; padding: 0; border: 0; background: rgba(7,9,9,0.52); }
   .mobile-settings-sheet { position: relative; z-index: 1; width: 100%; max-height: min(68dvh, 600px); overflow: hidden; color: #eee8dc; border: 1px solid rgba(228,81,59,0.55); border-radius: 18px 18px 0 0; background: linear-gradient(90deg, rgba(228,81,59,0.16) 0 2px, transparent 2px), rgba(35,33,29,0.985); box-shadow: 0 -18px 42px rgba(8,12,13,0.48); }
@@ -529,7 +533,7 @@ input[type="range"]::-moz-range-thumb { width: 11px; height: 11px; border: 2px s
   .top-actions .icon-button:nth-child(2), .top-actions .top-divider { display: grid !important; }
   .primary-button { padding: 0 9px; font-size: 10px; }
   .studio-layout { grid-template-columns: minmax(0, 1fr); }
-  .canvas-viewport { padding: 18px 14px 82px; }
+  .canvas-viewport { padding: 18px 14px 104px; }
   .workspace-toolbar { padding: 0 12px; }
   .tool-hint { display: none; }
   .mobile-settings-dock { right: 10px; left: 10px; }
