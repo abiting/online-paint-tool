@@ -4991,7 +4991,7 @@ export default function Home() {
     const canvasAvailableHeight = Math.max(120, availableHeight - mobileToolbarReserve);
     const nextZoom = clamp(
       Math.floor(Math.min(availableWidth / canvasSize.width, canvasAvailableHeight / canvasSize.height) * 100),
-      allowBelowMinimum && isMobileViewport ? 8 : 25,
+      isMobileViewport || allowBelowMinimum ? 8 : 25,
       150,
     );
     const displayWidth = canvasSize.width * (nextZoom / 100);
