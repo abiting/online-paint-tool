@@ -585,6 +585,75 @@ const closeThinMaskGaps = (mask: Uint8Array, width: number, height: number) => {
   mask.set(repaired);
 };
 
+/**
+ * 保守回補完全被前景包住的小型透明缺口，例如臉部、皮膚或插畫中被模型誤判的破圖。
+ * 只處理無法連到圖片外圍的區域，並限制面積，不能取代外圍白描邊的連通清理。
+ */
+const repairSmallEnclosedMaskHoles = (mask: Uint8Array, confidence: Float32Array, width: number, height: number) => {
+  const outsideBackground = new Uint8Array(mask.length);
+  const queue = new Int32Array(mask.length);
+  let head = 0;
+  let tail = 0;
+  const enqueueOutside = (index: number) => {
+    if (mask[index] || outsideBackground[index]) return;
+    outsideBackground[index] = 1;
+    queue[tail] = index;
+    tail += 1;
+  };
+  for (let x = 0; x < width; x += 1) {
+    enqueueOutside(x);
+    enqueueOutside((height - 1) * width + x);
+  }
+  for (let y = 1; y < height - 1; y += 1) {
+    enqueueOutside(y * width);
+    enqueueOutside(y * width + width - 1);
+  }
+  while (head < tail) {
+    const index = queue[head];
+    head += 1;
+    const x = index % width;
+    const y = Math.floor(index / width);
+    if (x > 0) enqueueOutside(index - 1);
+    if (x < width - 1) enqueueOutside(index + 1);
+    if (y > 0) enqueueOutside(index - width);
+    if (y < height - 1) enqueueOutside(index + width);
+  }
+
+  const inspected = new Uint8Array(mask.length);
+  const component = new Int32Array(mask.length);
+  const maxHolePixels = Math.round(clamp(width * height * 0.0012, 32, 1100));
+  for (let start = 0; start < mask.length; start += 1) {
+    if (mask[start] || outsideBackground[start] || inspected[start]) continue;
+    let componentHead = 0;
+    let componentTail = 0;
+    component[componentTail] = start;
+    componentTail += 1;
+    inspected[start] = 1;
+    while (componentHead < componentTail) {
+      const index = component[componentHead];
+      componentHead += 1;
+      const x = index % width;
+      const y = Math.floor(index / width);
+      const inspect = (nextIndex: number) => {
+        if (mask[nextIndex] || outsideBackground[nextIndex] || inspected[nextIndex]) return;
+        inspected[nextIndex] = 1;
+        component[componentTail] = nextIndex;
+        componentTail += 1;
+      };
+      if (x > 0) inspect(index - 1);
+      if (x < width - 1) inspect(index + 1);
+      if (y > 0) inspect(index - width);
+      if (y < height - 1) inspect(index + width);
+    }
+    if (componentTail > maxHolePixels) continue;
+    for (let componentIndex = 0; componentIndex < componentTail; componentIndex += 1) {
+      const index = component[componentIndex];
+      mask[index] = 1;
+      confidence[index] = Math.max(confidence[index], 0.92);
+    }
+  }
+};
+
 const refineMaskAgainstUniformBackground = (source: ImageData, mask: ImageData, width: number, height: number, cleanupStrength: number) => {
   const sampleIndices: number[] = [];
   const step = Math.max(1, Math.floor(Math.min(width, height) / 48));
@@ -3922,6 +3991,7 @@ export default function Home() {
         foregroundMask[index] = confidence >= BACKGROUND_REMOVAL_MASK_THRESHOLD ? 1 : 0;
       }
       closeThinMaskGaps(foregroundMask, modelEdge, modelEdge);
+      repairSmallEnclosedMaskHoles(foregroundMask, confidenceMask, modelEdge, modelEdge);
       for (let index = 0; index < planeSize; index += 1) {
         const offset = index * 4;
         mask.data[offset] = 255;
