@@ -6115,9 +6115,9 @@ export default function Home() {
                 : "阿比丁經營《名偵探柯南》相關網站多年，常需調整圖片尺寸、加註文字、微調色彩。不想被昂貴的 Adobe 綁架，也嫌 Canva 臃腫又要註冊，於是自行開發了 AbiPaint。免付費、免註冊、免安裝，直接在瀏覽器完成縮放、調色、設計與匯出。"}</p>
             </div>
             <div className="product-footer-meta">
-              <p className="product-copyright">Copyright © 2026 <a href={isEnglish ? "/en" : "/"}>AbiPaint</a> · <a href={isEnglish ? "/en/guide/" : "/guide/"}>{isEnglish ? "Guide" : "使用說明"}</a></p>
+              <p className="product-copyright">Copyright © 2026 <a href={isEnglish ? "/en" : "/"}>AbiPaint</a></p>
               <div className="product-build-meta" aria-label="AbiPaint version 1.0.3">
-                <a className="product-version-label" href="https://abiting.cc/abipaint" target="_blank" rel="noopener noreferrer">v1.0.3</a>
+                <a className="product-version-label" href={isEnglish ? "/en/guide/" : "/guide/"} title={isEnglish ? "Read the AbiPaint guide" : "閱讀 AbiPaint 使用指南"}>v1.0.3</a>
                 <a
                   className="startupbase-badge"
                   href="https://startupbase.io/products/abipaint?utm_source=startupbase&utm_medium=badge&utm_campaign=launch-badge-light"
