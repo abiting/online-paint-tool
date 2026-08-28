@@ -1644,6 +1644,7 @@ export default function Home() {
   const [activeWorkingFileId, setActiveWorkingFileId] = useState("");
   const [snapGuides, setSnapGuides] = useState<SnapGuides>({ x: null, y: null });
   const [mobileSettingsPanel, setMobileSettingsPanel] = useState<MobileSettingsPanel>(null);
+  const [isMobileFocus, setIsMobileFocus] = useState(false);
   const [desktopToolPosition, setDesktopToolPosition] = useState<{ x: number; y: number } | null>(null);
   const [isDesktopToolDragging, setIsDesktopToolDragging] = useState(false);
   const [isFaqOpen, setIsFaqOpen] = useState(false);
@@ -3833,7 +3834,7 @@ export default function Home() {
     setFileMeta({ name: templateName, size: `${width} × ${height}` });
     setDocumentNameDraft(templateName);
     captureHistory({ inset: bleedInset });
-    window.requestAnimationFrame(fitCanvasToViewport);
+    window.requestAnimationFrame(() => fitCanvasToViewport());
     toast.success(tr(`${templateName} 已套用`, `${templateName} applied`));
   };
 
@@ -4905,7 +4906,7 @@ export default function Home() {
   };
 
   const currentZoomLabel = `${zoom}%`;
-  const fitCanvasToViewport = useCallback(() => {
+  const fitCanvasToViewport = useCallback((allowBelowMinimum = false) => {
     const viewport = viewportRef.current;
     if (!viewport) return;
     const bounds = viewport.getBoundingClientRect();
@@ -4914,7 +4915,11 @@ export default function Home() {
     const availableHeight = Math.max(120, bounds.height - bottomInset - 32);
     const mobileToolbarReserve = isMobileViewport ? 60 : 0;
     const canvasAvailableHeight = Math.max(120, availableHeight - mobileToolbarReserve);
-    const nextZoom = clamp(Math.floor(Math.min(availableWidth / canvasSize.width, canvasAvailableHeight / canvasSize.height) * 100), 25, 150);
+    const nextZoom = clamp(
+      Math.floor(Math.min(availableWidth / canvasSize.width, canvasAvailableHeight / canvasSize.height) * 100),
+      allowBelowMinimum && isMobileViewport ? 8 : 25,
+      150,
+    );
     const displayWidth = canvasSize.width * (nextZoom / 100);
     const displayHeight = canvasSize.height * (nextZoom / 100);
     const nextPan = {
@@ -4938,7 +4943,7 @@ export default function Home() {
 
   useEffect(() => {
     if (!isMobileViewport) return;
-    const frame = window.requestAnimationFrame(fitCanvasToViewport);
+    const frame = window.requestAnimationFrame(() => fitCanvasToViewport());
     let refitFrame: number | null = null;
     let rotationTimer: number | null = null;
     const refit = () => {
@@ -5086,23 +5091,10 @@ export default function Home() {
     ? undefined
     : ({ left: `${desktopToolPosition.x}px`, top: `${desktopToolPosition.y}px`, transform: "none" } as CSSProperties);
   const mobileMiniToolsStyle = ({ left: `${mobileMiniToolPosition.x}px`, top: `${mobileMiniToolPosition.y}px` } as CSSProperties);
-  const toggleMobileFullscreen = () => {
-    const fullscreenDocument = document as Document & { webkitFullscreenElement?: Element; webkitExitFullscreen?: () => void };
-    const fullscreenRoot = document.documentElement as HTMLElement & { webkitRequestFullscreen?: () => void };
-    if (document.fullscreenElement || fullscreenDocument.webkitFullscreenElement) {
-      if (document.exitFullscreen) void document.exitFullscreen().catch(() => undefined);
-      else fullscreenDocument.webkitExitFullscreen?.();
-      return;
-    }
-    if (fullscreenRoot.requestFullscreen) {
-      void fullscreenRoot.requestFullscreen().catch(() => toast.info(tr("瀏覽器目前無法進入全螢幕", "Fullscreen is unavailable in this browser")));
-      return;
-    }
-    if (fullscreenRoot.webkitRequestFullscreen) {
-      fullscreenRoot.webkitRequestFullscreen();
-      return;
-    }
-    toast.info(tr("瀏覽器目前無法進入全螢幕", "Fullscreen is unavailable in this browser"));
+  const toggleMobileFocus = () => {
+    const nextFocus = !isMobileFocus;
+    setIsMobileFocus(nextFocus);
+    if (nextFocus) window.requestAnimationFrame(() => fitCanvasToViewport(true));
   };
   const handleDesktopToolCreate = (nextTool: DesktopCreativeTool) => {
     setTool(nextTool === "outline" ? "move" : nextTool);
@@ -5209,7 +5201,7 @@ export default function Home() {
     : activeWorkspaceToolLabel;
 
   return (
-    <main className="studio-app">
+    <main className={`studio-app ${isMobileFocus ? "is-mobile-focus" : ""}`}>
       <header className="topbar">
         <div className="brand-lockup">
           <span className="brand-mark brand-logo">
@@ -5452,7 +5444,7 @@ export default function Home() {
                 <Plus size={14} />
               </button>
               <span className="top-divider" />
-              <button type="button" className="ghost-button view-action-button" onClick={fitCanvasToViewport} title={copy.fit}>
+              <button type="button" className="ghost-button view-action-button" onClick={() => fitCanvasToViewport()} title={copy.fit}>
                 <Fullscreen size={15} />
                 <span>{copy.fit}</span>
               </button>
@@ -6244,9 +6236,9 @@ export default function Home() {
           <SlidersHorizontal size={17} />
           <span>{copy.imageAdjustments}</span>
         </button>
-        <button type="button" onClick={toggleMobileFullscreen} aria-label={tr("全螢幕", "Fullscreen")}>
+        <button type="button" onClick={toggleMobileFocus} aria-label={isMobileFocus ? tr("離開專注模式", "Exit focus mode") : tr("完整檢視", "Fit long image")}>
           <Fullscreen size={17} />
-          <span>{tr("全螢幕", "Fullscreen")}</span>
+          <span>{isMobileFocus ? tr("離開專注", "Exit focus") : tr("完整檢視", "Fit image")}</span>
         </button>
       </div>
       <Drawer open={mobileSettingsPanel === "canvas"} onOpenChange={(open) => setMobileSettingsPanel(open ? "canvas" : null)}>

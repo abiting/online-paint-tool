@@ -519,6 +519,11 @@ input[type="range"]::-moz-range-thumb { width: 11px; height: 11px; border: 2px s
   .mobile-settings-drawer-body { overflow-y: auto; padding: 8px 20px calc(24px + env(safe-area-inset-bottom)); }
   .mobile-settings-drawer-body .range-control:first-child { margin-top: 8px; }
   .mobile-adjustments-drawer { max-height: min(76dvh, 660px); }
+  .studio-app.is-mobile-focus .topbar { display: none; }
+  .studio-app.is-mobile-focus .studio-layout { height: 100dvh; }
+  .studio-app.is-mobile-focus .mobile-mini-tools { top: 10px !important; }
+  .studio-app.is-mobile-focus .canvas-viewport { padding-top: 8px; }
+  .studio-app.is-mobile-focus .mobile-settings-dock { border-top-color: rgba(245,240,229,0.48); }
 }
 @media (max-width: 560px) {
   .topbar { padding: 0 10px; }
