@@ -57,7 +57,6 @@ import { toCanvas } from "html-to-image";
 import type * as Ort from "onnxruntime-web";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
-import { Drawer, DrawerContent, DrawerDescription, DrawerHeader, DrawerTitle } from "@/components/ui/drawer";
 
 type Tool = "brush" | "eraser" | "fill" | "text" | "shape" | "retouch" | "move" | "crop";
 type DesktopCreativeTool = Extract<Tool, "brush" | "shape" | "text"> | "outline";
@@ -6241,13 +6240,15 @@ export default function Home() {
           <span>{isMobileFocus ? tr("離開專注", "Exit focus") : tr("完整檢視", "Fit image")}</span>
         </button>
       </div>
-      <Drawer open={mobileSettingsPanel === "canvas"} onOpenChange={(open) => setMobileSettingsPanel(open ? "canvas" : null)}>
-        <DrawerContent className="mobile-settings-drawer" aria-describedby="mobile-canvas-drawer-description">
-          <DrawerHeader className="mobile-settings-drawer-header">
-            <DrawerTitle>{copy.canvasSize}</DrawerTitle>
-            <DrawerDescription id="mobile-canvas-drawer-description">{tr("只在需要時調整畫布；手機版不提供名片模板。", "Adjust the canvas when needed. Design templates are not shown on mobile.")}</DrawerDescription>
-          </DrawerHeader>
-          <div className="mobile-settings-drawer-body">
+      {mobileSettingsPanel === "canvas" && (
+        <div className="mobile-settings-overlay" role="dialog" aria-modal="true" aria-labelledby="mobile-canvas-settings-title">
+          <button type="button" className="mobile-settings-overlay-scrim" aria-label={tr("關閉", "Close")} onClick={() => setMobileSettingsPanel(null)} />
+          <section className="mobile-settings-sheet">
+            <header className="mobile-settings-sheet-header">
+              <div><h2 id="mobile-canvas-settings-title">{copy.canvasSize}</h2><p>{tr("只在需要時調整畫布；手機版不提供名片模板。", "Adjust the canvas when needed. Design templates are not shown on mobile.")}</p></div>
+              <button type="button" className="mobile-settings-sheet-close" onClick={() => setMobileSettingsPanel(null)} aria-label={tr("關閉", "Close")}>×</button>
+            </header>
+            <div className="mobile-settings-sheet-body">
             <div className="dimension-grid">
               <label><span>{copy.width}</span><input id="mobile-canvas-width" type="number" min={240} max={2400} defaultValue={canvasSize.width} key={`mobile-width-${canvasSize.width}`} /></label>
               <span className="dimension-mark">×</span>
@@ -6279,25 +6280,29 @@ export default function Home() {
               ))}
             </div>
             <div className="canvas-meta"><span>{isEnglish ? "Ratio" : "比例"}</span><span className="mono-value">{(canvasSize.width / canvasSize.height).toFixed(2)} : 1</span></div>
-          </div>
-        </DrawerContent>
-      </Drawer>
-      <Drawer open={mobileSettingsPanel === "adjustments"} onOpenChange={(open) => setMobileSettingsPanel(open ? "adjustments" : null)}>
-        <DrawerContent className="mobile-settings-drawer mobile-adjustments-drawer" aria-describedby="mobile-adjustments-drawer-description">
-          <DrawerHeader className="mobile-settings-drawer-header">
-            <DrawerTitle>{copy.imageAdjustments}</DrawerTitle>
-            <DrawerDescription id="mobile-adjustments-drawer-description">{tr("調整目前選取的素材，或調整畫布上的影像效果。", "Adjust the selected material, or the image appearance on the canvas.")}</DrawerDescription>
-          </DrawerHeader>
-          <div className="mobile-settings-drawer-body mobile-adjustments-drawer-body">
+            </div>
+          </section>
+        </div>
+      )}
+      {mobileSettingsPanel === "adjustments" && (
+        <div className="mobile-settings-overlay" role="dialog" aria-modal="true" aria-labelledby="mobile-adjustments-settings-title">
+          <button type="button" className="mobile-settings-overlay-scrim" aria-label={tr("關閉", "Close")} onClick={() => setMobileSettingsPanel(null)} />
+          <section className="mobile-settings-sheet mobile-adjustments-sheet">
+            <header className="mobile-settings-sheet-header">
+              <div><h2 id="mobile-adjustments-settings-title">{copy.imageAdjustments}</h2><p>{tr("調整目前選取的素材，或調整畫布上的影像效果。", "Adjust the selected material, or the image appearance on the canvas.")}</p></div>
+              <button type="button" className="mobile-settings-sheet-close" onClick={() => setMobileSettingsPanel(null)} aria-label={tr("關閉", "Close")}>×</button>
+            </header>
+            <div className="mobile-settings-sheet-body mobile-adjustments-sheet-body">
             <RangeControl label={copy.exposure} value={activeAdjustmentValues.exposure} min={-100} max={100} suffix="%" editable onChange={(value) => updateActiveAdjustment({ exposure: value })} />
             <RangeControl label={copy.contrast} value={activeAdjustmentValues.contrast} min={-100} max={100} suffix="%" editable onChange={(value) => updateActiveAdjustment({ contrast: value })} />
             <RangeControl label={copy.saturation} value={activeAdjustmentValues.saturation} min={-100} max={100} suffix="%" editable onChange={(value) => updateActiveAdjustment({ saturation: value })} />
             <RangeControl label={copy.vibrancy} value={activeAdjustmentValues.vibrancy} min={-100} max={100} suffix="%" editable onChange={(value) => updateActiveAdjustment({ vibrancy: value })} />
             <RangeControl label={copy.opacity} value={activeAdjustmentValues.opacity} min={1} max={100} suffix="%" editable onChange={(value) => updateActiveAdjustment({ opacity: value })} />
             <button type="button" className="link-button" onClick={resetActiveAdjustment}><RotateCcw size={13} /> {isEnglish ? "Reset adjustments" : "重設目前調整"}</button>
-          </div>
-        </DrawerContent>
-      </Drawer>
+            </div>
+          </section>
+        </div>
+      )}
       <AlertDialog open={resetWorkingFileDialogOpen} onOpenChange={setResetWorkingFileDialogOpen}>
         <AlertDialogContent className="reset-working-file-dialog max-h-[calc(100dvh-2rem)] w-[calc(100vw-2rem)] border-[rgba(228,81,59,0.56)] bg-[#24221d] text-[#f5f0e5] sm:w-full">
           <AlertDialogHeader>
