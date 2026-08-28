@@ -57,6 +57,7 @@ import { toCanvas } from "html-to-image";
 import type * as Ort from "onnxruntime-web";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
+import { Drawer, DrawerContent, DrawerDescription, DrawerHeader, DrawerTitle } from "@/components/ui/drawer";
 
 type Tool = "brush" | "eraser" | "fill" | "text" | "shape" | "retouch" | "move" | "crop";
 type DesktopCreativeTool = Extract<Tool, "brush" | "shape" | "text"> | "outline";
@@ -68,6 +69,7 @@ type Locale = "zh-Hant" | "en";
 type MaterialType = "stroke" | "image" | "shape" | "text";
 type DesktopToolPanel = DesktopCreativeTool | "object";
 type ExportFormat = "png" | "jpeg" | "pdf";
+type MobileSettingsPanel = "canvas" | "adjustments" | null;
 type KofiWidgetOverlay = {
   draw: (pageId: string, configuration: Record<string, string>) => void;
 };
@@ -1641,8 +1643,7 @@ export default function Home() {
   const [workingFiles, setWorkingFiles] = useState<WorkingFile[]>([]);
   const [activeWorkingFileId, setActiveWorkingFileId] = useState("");
   const [snapGuides, setSnapGuides] = useState<SnapGuides>({ x: null, y: null });
-  const [mobileDrawerHeight, setMobileDrawerHeight] = useState<number | null>(null);
-  const [isMobileDrawerDragging, setIsMobileDrawerDragging] = useState(false);
+  const [mobileSettingsPanel, setMobileSettingsPanel] = useState<MobileSettingsPanel>(null);
   const [desktopToolPosition, setDesktopToolPosition] = useState<{ x: number; y: number } | null>(null);
   const [isDesktopToolDragging, setIsDesktopToolDragging] = useState(false);
   const [isFaqOpen, setIsFaqOpen] = useState(false);
@@ -1677,8 +1678,6 @@ export default function Home() {
   const workspaceRef = useRef<HTMLElement>(null);
   const desktopToolPanelRef = useRef<HTMLElement>(null);
   const desktopToolDragRef = useRef<{ startX: number; startY: number; originX: number; originY: number } | null>(null);
-  const inspectorRef = useRef<HTMLElement>(null);
-  const drawerDragRef = useRef<{ startY: number; startHeight: number } | null>(null);
   const mobileMiniToolRef = useRef<HTMLDivElement>(null);
   const mobileMiniToolDragRef = useRef<{ startX: number; startY: number; originX: number; originY: number } | null>(null);
   const mobileMiniToolHasCustomPositionRef = useRef(false);
@@ -4967,7 +4966,7 @@ export default function Home() {
       window.removeEventListener("resize", refit);
       window.removeEventListener("orientationchange", refitAfterRotation);
     };
-  }, [fitCanvasToViewport, isMobileViewport, mobileDrawerHeight]);
+  }, [fitCanvasToViewport, isMobileViewport]);
   const resetCanvasView = () => {
     const viewport = viewportRef.current;
     const nextZoom = 58;
@@ -4985,29 +4984,6 @@ export default function Home() {
       y: Math.max(18, (bounds.height - displayHeight) / 2),
     });
   };
-
-  useEffect(() => {
-    const handleDrawerMove = (event: PointerEvent) => {
-      const drag = drawerDragRef.current;
-      if (!drag) return;
-      const maxHeight = Math.min(Math.round(window.innerHeight * 0.76), 560);
-      setMobileDrawerHeight(clamp(drag.startHeight + drag.startY - event.clientY, 72, maxHeight));
-    };
-    const finishDrawerDrag = () => {
-      if (!drawerDragRef.current) return;
-      setMobileDrawerHeight((height) => (height !== null && height < 118 ? 72 : height));
-      drawerDragRef.current = null;
-      setIsMobileDrawerDragging(false);
-    };
-    window.addEventListener("pointermove", handleDrawerMove);
-    window.addEventListener("pointerup", finishDrawerDrag);
-    window.addEventListener("pointercancel", finishDrawerDrag);
-    return () => {
-      window.removeEventListener("pointermove", handleDrawerMove);
-      window.removeEventListener("pointerup", finishDrawerDrag);
-      window.removeEventListener("pointercancel", finishDrawerDrag);
-    };
-  }, []);
 
   useEffect(() => {
     const handleDesktopToolDragMove = (event: PointerEvent) => {
@@ -5067,16 +5043,6 @@ export default function Home() {
     };
   }, []);
 
-  const handleMobileDrawerPointerDown = (event: ReactPointerEvent<HTMLButtonElement>) => {
-    if (event.pointerType === "mouse" && event.button !== 0) return;
-    event.preventDefault();
-    event.stopPropagation();
-    event.currentTarget.setPointerCapture(event.pointerId);
-    const startHeight = inspectorRef.current?.getBoundingClientRect().height ?? 0;
-    drawerDragRef.current = { startY: event.clientY, startHeight };
-    setIsMobileDrawerDragging(true);
-  };
-
   const handleMobileMiniToolPointerDown = (event: ReactPointerEvent<HTMLButtonElement>) => {
     if (event.pointerType === "mouse" && event.button !== 0) return;
     const toolbar = mobileMiniToolRef.current;
@@ -5116,13 +5082,28 @@ export default function Home() {
     setIsDesktopToolDragging(true);
   };
 
-  const mobileDrawerStyle = mobileDrawerHeight === null
-    ? undefined
-    : ({ "--mobile-drawer-height": `${mobileDrawerHeight}px` } as CSSProperties);
   const desktopToolPopoverStyle = desktopToolPosition === null
     ? undefined
     : ({ left: `${desktopToolPosition.x}px`, top: `${desktopToolPosition.y}px`, transform: "none" } as CSSProperties);
   const mobileMiniToolsStyle = ({ left: `${mobileMiniToolPosition.x}px`, top: `${mobileMiniToolPosition.y}px` } as CSSProperties);
+  const toggleMobileFullscreen = () => {
+    const fullscreenDocument = document as Document & { webkitFullscreenElement?: Element; webkitExitFullscreen?: () => void };
+    const fullscreenRoot = document.documentElement as HTMLElement & { webkitRequestFullscreen?: () => void };
+    if (document.fullscreenElement || fullscreenDocument.webkitFullscreenElement) {
+      if (document.exitFullscreen) void document.exitFullscreen().catch(() => undefined);
+      else fullscreenDocument.webkitExitFullscreen?.();
+      return;
+    }
+    if (fullscreenRoot.requestFullscreen) {
+      void fullscreenRoot.requestFullscreen().catch(() => toast.info(tr("瀏覽器目前無法進入全螢幕", "Fullscreen is unavailable in this browser")));
+      return;
+    }
+    if (fullscreenRoot.webkitRequestFullscreen) {
+      fullscreenRoot.webkitRequestFullscreen();
+      return;
+    }
+    toast.info(tr("瀏覽器目前無法進入全螢幕", "Fullscreen is unavailable in this browser"));
+  };
   const handleDesktopToolCreate = (nextTool: DesktopCreativeTool) => {
     setTool(nextTool === "outline" ? "move" : nextTool);
     setActiveDesktopTool(nextTool);
@@ -5228,7 +5209,7 @@ export default function Home() {
     : activeWorkspaceToolLabel;
 
   return (
-    <main className="studio-app" style={mobileDrawerStyle}>
+    <main className="studio-app">
       <header className="topbar">
         <div className="brand-lockup">
           <span className="brand-mark brand-logo">
@@ -6033,8 +6014,7 @@ export default function Home() {
 
         </section>
 
-        <aside ref={inspectorRef} className={`inspector ${isMobileDrawerDragging ? "is-dragging" : ""}`} aria-label="屬性與調整">
-          <button type="button" className="mobile-drawer-handle" onPointerDown={handleMobileDrawerPointerDown} aria-label="拖曳調整設定面板高度"><span /></button>
+        <aside className="inspector" aria-label="屬性與調整">
           <div className="inspector-scroll">
             {/*
               <div className="legacy-tool-settings">
@@ -6201,7 +6181,7 @@ export default function Home() {
 
             <div className="inspector-divider" />
 
-            <div className="inspector-section">
+            <div className="inspector-section mobile-settings-canvas-section">
               <SectionTitle eyebrow={copy.canvasSize} emphasis action={<Maximize2 size={15} className="section-icon" />} />
               <div className="dimension-grid">
                 <label><span>{copy.width}</span><input id="canvas-width" type="number" min={240} max={2400} defaultValue={canvasSize.width} key={`width-${canvasSize.width}`} /></label>
@@ -6236,7 +6216,7 @@ export default function Home() {
 
             <div className="inspector-divider" />
 
-            <div className="inspector-section">
+            <div className="inspector-section mobile-settings-adjustments-section">
               <SectionTitle eyebrow={copy.imageAdjustments} emphasis action={<SlidersHorizontal size={15} className="section-icon" />} />
               <RangeControl label={copy.exposure} value={activeAdjustmentValues.exposure} min={-100} max={100} suffix="%" editable onChange={(value) => updateActiveAdjustment({ exposure: value })} />
               <RangeControl label={copy.contrast} value={activeAdjustmentValues.contrast} min={-100} max={100} suffix="%" editable onChange={(value) => updateActiveAdjustment({ contrast: value })} />
@@ -6255,6 +6235,77 @@ export default function Home() {
           </div>
         </aside>
       </div>
+      <div className="mobile-settings-dock" aria-label={tr("手機設定目錄", "Mobile settings")}>
+        <button type="button" onClick={() => setMobileSettingsPanel("canvas")} aria-label={copy.canvasSize}>
+          <Maximize2 size={17} />
+          <span>{copy.canvasSize}</span>
+        </button>
+        <button type="button" onClick={() => setMobileSettingsPanel("adjustments")} aria-label={copy.imageAdjustments}>
+          <SlidersHorizontal size={17} />
+          <span>{copy.imageAdjustments}</span>
+        </button>
+        <button type="button" onClick={toggleMobileFullscreen} aria-label={tr("全螢幕", "Fullscreen")}>
+          <Fullscreen size={17} />
+          <span>{tr("全螢幕", "Fullscreen")}</span>
+        </button>
+      </div>
+      <Drawer open={mobileSettingsPanel === "canvas"} onOpenChange={(open) => setMobileSettingsPanel(open ? "canvas" : null)}>
+        <DrawerContent className="mobile-settings-drawer" aria-describedby="mobile-canvas-drawer-description">
+          <DrawerHeader className="mobile-settings-drawer-header">
+            <DrawerTitle>{copy.canvasSize}</DrawerTitle>
+            <DrawerDescription id="mobile-canvas-drawer-description">{tr("只在需要時調整畫布；手機版不提供名片模板。", "Adjust the canvas when needed. Design templates are not shown on mobile.")}</DrawerDescription>
+          </DrawerHeader>
+          <div className="mobile-settings-drawer-body">
+            <div className="dimension-grid">
+              <label><span>{copy.width}</span><input id="mobile-canvas-width" type="number" min={240} max={2400} defaultValue={canvasSize.width} key={`mobile-width-${canvasSize.width}`} /></label>
+              <span className="dimension-mark">×</span>
+              <label><span>{copy.height}</span><input id="mobile-canvas-height" type="number" min={180} max={1800} defaultValue={canvasSize.height} key={`mobile-height-${canvasSize.height}`} /></label>
+            </div>
+            <button type="button" className="secondary-button full-width" onClick={() => {
+              const widthInput = document.getElementById("mobile-canvas-width") as HTMLInputElement | null;
+              const heightInput = document.getElementById("mobile-canvas-height") as HTMLInputElement | null;
+              const desktopWidth = document.getElementById("canvas-width") as HTMLInputElement | null;
+              const desktopHeight = document.getElementById("canvas-height") as HTMLInputElement | null;
+              if (!widthInput || !heightInput || !desktopWidth || !desktopHeight) return;
+              desktopWidth.value = widthInput.value;
+              desktopHeight.value = heightInput.value;
+              resizeCanvas();
+              setMobileSettingsPanel(null);
+            }}>{copy.applyResolution}</button>
+            <label className="toggle-row resolution-scale-toggle"><span>{copy.scaleImages}</span><input type="checkbox" checked={scaleImagesWithCanvas} onChange={(event) => setScaleImagesWithCanvas(event.target.checked)} /></label>
+            <div className="resolution-preset-row">
+              {[{ width: 800, height: 800 }, { width: 1200, height: 800 }, { width: 1280, height: 720 }].map(({ width, height }) => (
+                <button key={`${width}-${height}`} type="button" className="resolution-preset" onClick={() => {
+                  const desktopWidth = document.getElementById("canvas-width") as HTMLInputElement | null;
+                  const desktopHeight = document.getElementById("canvas-height") as HTMLInputElement | null;
+                  if (!desktopWidth || !desktopHeight) return;
+                  desktopWidth.value = String(width);
+                  desktopHeight.value = String(height);
+                  resizeCanvas();
+                  setMobileSettingsPanel(null);
+                }}>{width} × {height}</button>
+              ))}
+            </div>
+            <div className="canvas-meta"><span>{isEnglish ? "Ratio" : "比例"}</span><span className="mono-value">{(canvasSize.width / canvasSize.height).toFixed(2)} : 1</span></div>
+          </div>
+        </DrawerContent>
+      </Drawer>
+      <Drawer open={mobileSettingsPanel === "adjustments"} onOpenChange={(open) => setMobileSettingsPanel(open ? "adjustments" : null)}>
+        <DrawerContent className="mobile-settings-drawer mobile-adjustments-drawer" aria-describedby="mobile-adjustments-drawer-description">
+          <DrawerHeader className="mobile-settings-drawer-header">
+            <DrawerTitle>{copy.imageAdjustments}</DrawerTitle>
+            <DrawerDescription id="mobile-adjustments-drawer-description">{tr("調整目前選取的素材，或調整畫布上的影像效果。", "Adjust the selected material, or the image appearance on the canvas.")}</DrawerDescription>
+          </DrawerHeader>
+          <div className="mobile-settings-drawer-body mobile-adjustments-drawer-body">
+            <RangeControl label={copy.exposure} value={activeAdjustmentValues.exposure} min={-100} max={100} suffix="%" editable onChange={(value) => updateActiveAdjustment({ exposure: value })} />
+            <RangeControl label={copy.contrast} value={activeAdjustmentValues.contrast} min={-100} max={100} suffix="%" editable onChange={(value) => updateActiveAdjustment({ contrast: value })} />
+            <RangeControl label={copy.saturation} value={activeAdjustmentValues.saturation} min={-100} max={100} suffix="%" editable onChange={(value) => updateActiveAdjustment({ saturation: value })} />
+            <RangeControl label={copy.vibrancy} value={activeAdjustmentValues.vibrancy} min={-100} max={100} suffix="%" editable onChange={(value) => updateActiveAdjustment({ vibrancy: value })} />
+            <RangeControl label={copy.opacity} value={activeAdjustmentValues.opacity} min={1} max={100} suffix="%" editable onChange={(value) => updateActiveAdjustment({ opacity: value })} />
+            <button type="button" className="link-button" onClick={resetActiveAdjustment}><RotateCcw size={13} /> {isEnglish ? "Reset adjustments" : "重設目前調整"}</button>
+          </div>
+        </DrawerContent>
+      </Drawer>
       <AlertDialog open={resetWorkingFileDialogOpen} onOpenChange={setResetWorkingFileDialogOpen}>
         <AlertDialogContent className="reset-working-file-dialog max-h-[calc(100dvh-2rem)] w-[calc(100vw-2rem)] border-[rgba(228,81,59,0.56)] bg-[#24221d] text-[#f5f0e5] sm:w-full">
           <AlertDialogHeader>
