@@ -31,6 +31,9 @@
       h3 { margin: 28px 0 7px; font-size: 1.06rem; }
       a { color: #a83c2c; text-decoration-thickness: 1px; text-underline-offset: 3px; }
       .lead { max-width: 690px; margin: 16px 0; color: #4c514e; font-size: 1.08rem; }
+      .guide-banner { position: relative; margin: 24px 0 20px; border: 1px solid #343833; box-shadow: 5px 5px 0 rgba(52,56,51,.15); overflow: hidden; }
+      .guide-banner::before { content: "ABIPAINT / V1.0.3"; position: absolute; z-index: 1; right: 9px; top: 8px; padding: 2px 5px; color: #fffaf1; background: #b53d2d; font: 700 9px "IBM Plex Mono", ui-monospace, monospace; letter-spacing: .06em; }
+      .guide-banner img { display: block; width: 100%; height: auto; aspect-ratio: 3 / 1; object-fit: cover; }
       .links { display: flex; flex-wrap: wrap; gap: 8px 14px; margin: 18px 0 0; font: 500 11px "IBM Plex Mono", ui-monospace, monospace; }
       .guide-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin: 22px 0 0; }
       .cta-primary, .cta-secondary { display: inline-flex; align-items: center; min-height: 42px; padding: 0 16px; font: 700 11px "IBM Plex Mono", ui-monospace, monospace; letter-spacing: .04em; text-decoration: none; transition: transform 160ms cubic-bezier(.23,1,.32,1), box-shadow 160ms cubic-bezier(.23,1,.32,1); }
@@ -45,10 +48,11 @@
       .card::after { content: ""; position: absolute; right: 11px; top: 11px; width: 9px; height: 9px; border-top: 2px solid #e4513b; border-right: 2px solid #e4513b; }
       .card h3 { margin: 8px 0; font-size: 1rem; }
       .card p { margin: 0; font-size: .94rem; color: #4f534e; }
+      .release-current { display: inline-block; margin: 0 0 15px; padding: 4px 8px; color: #5f3029; background: rgba(228,81,59,.11); border-left: 3px solid #e4513b; font: 700 11px "IBM Plex Mono", ui-monospace, monospace; letter-spacing: .03em; }
       main > section:not(:first-child) { position: relative; }
       main > section:not(:first-child)::before { content: "ABIPAINT / 使用說明"; position: absolute; top: 23px; right: 0; color: #8e8a80; font: 9px "IBM Plex Mono", ui-monospace, monospace; letter-spacing: .08em; }
       footer { display: flex; justify-content: space-between; gap: 18px; border-top: 1px solid #343833; margin-top: 64px; padding-top: 17px; color: #666; font: 11px "IBM Plex Mono", ui-monospace, monospace; }
-      @media (max-width: 560px) { body { padding: 34px 18px 56px; background-size: 18px 18px; } header { margin-bottom: 35px; } h2 { margin-top: 42px; } main > section:not(:first-child)::before { display: none; } .card { min-height: 0; } .guide-actions { align-items: stretch; } .cta-primary, .cta-secondary { justify-content: center; width: 100%; } footer { display: block; } }
+      @media (max-width: 560px) { body { padding: 34px 18px 56px; background-size: 18px 18px; } header { margin-bottom: 35px; } h2 { margin-top: 42px; } main > section:not(:first-child)::before { display: none; } .card { min-height: 0; } .guide-banner { margin-top: 20px; } .guide-actions { align-items: stretch; } .cta-primary, .cta-secondary { justify-content: center; width: 100%; } footer { display: block; } }
     </style>
     <script type="application/ld+json">
       {"@context":"https://schema.org","@graph":[
@@ -70,6 +74,7 @@
       <span class="kicker">免費 · 免註冊 · 免安裝</span>
       <h1>AbiPaint 使用說明：免費線上圖片尺寸修改器</h1>
       <p class="lead">AbiPaint 是免費線上圖片尺寸修改器，不用安裝 Adobe 或註冊 Canva，直接在瀏覽器調整照片尺寸、像素與解析度。</p>
+      <figure class="guide-banner"><img src="/manus-storage/abipaint-guide-banner_22dcab3e.webp" alt="abipaint" /></figure>
       <p class="guide-actions"><a class="cta-primary" href="/">開啟 AbiPaint</a><a class="cta-secondary" href="/en/guide/">English</a></p>
     </header>
     <main>
@@ -98,6 +103,7 @@
       </section>
       <section aria-labelledby="release-notes">
         <h2 id="release-notes">版本更新日誌</h2>
+        <p class="release-current">目前版本：v1.0.3</p>
         <p>查看 AbiPaint 各版本的新功能與修正紀錄。</p>
         <p><a class="cta-secondary" href="https://abiting.cc/abipaint" target="_blank" rel="noopener noreferrer">查看 AbiPaint 版本更新日誌</a></p>
       </section>
