@@ -386,7 +386,7 @@ kbd { min-width: 19px; padding: 3px 4px; text-align: center; color: #aab1aa; bac
 .floating-shape-grid .shape-choice { padding-top: 8px; padding-bottom: 7px; }
 
 @media (max-width: 960px), (pointer: coarse) and (max-height: 600px) {
-  .desktop-tool-popover { display: block; position: fixed; z-index: 42; top: auto !important; right: 12px; bottom: calc(var(--mobile-drawer-height, min(43vh, 390px)) + 12px); left: 12px !important; width: auto; max-height: min(52vh, 500px); padding: 15px 16px 17px; transform: none !important; border-radius: 10px; background: rgba(27,35,37,0.985); }
+  .desktop-tool-popover { display: block; position: fixed; z-index: 42; top: auto !important; right: 12px; bottom: calc(max(12px, env(safe-area-inset-bottom)) + 64px); left: 12px !important; width: auto; max-height: min(54dvh, 500px); padding: 15px 16px 17px; transform: none !important; border-radius: 10px; background: rgba(27,35,37,0.985); }
   .desktop-tool-popover-heading { margin-bottom: 11px; cursor: default; }
   .desktop-tool-popover .floating-shape-grid { grid-template-columns: repeat(3, 1fr); }
   .faq-panel { display: none !important; }
