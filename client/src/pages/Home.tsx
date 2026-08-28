@@ -1712,7 +1712,6 @@ export default function Home() {
   const [activeWorkingFileId, setActiveWorkingFileId] = useState("");
   const [snapGuides, setSnapGuides] = useState<SnapGuides>({ x: null, y: null });
   const [mobileSettingsPanel, setMobileSettingsPanel] = useState<MobileSettingsPanel>(null);
-  const [isMobileFocus, setIsMobileFocus] = useState(false);
   const [desktopToolPosition, setDesktopToolPosition] = useState<{ x: number; y: number } | null>(null);
   const [isDesktopToolDragging, setIsDesktopToolDragging] = useState(false);
   const [isFaqOpen, setIsFaqOpen] = useState(false);
@@ -5160,11 +5159,6 @@ export default function Home() {
     ? undefined
     : ({ left: `${desktopToolPosition.x}px`, top: `${desktopToolPosition.y}px`, transform: "none" } as CSSProperties);
   const mobileMiniToolsStyle = ({ left: `${mobileMiniToolPosition.x}px`, top: `${mobileMiniToolPosition.y}px` } as CSSProperties);
-  const toggleMobileFocus = () => {
-    const nextFocus = !isMobileFocus;
-    setIsMobileFocus(nextFocus);
-    if (nextFocus) window.requestAnimationFrame(() => fitCanvasToViewport(true));
-  };
   const handleDesktopToolCreate = (nextTool: DesktopCreativeTool) => {
     setTool(nextTool === "outline" ? "move" : nextTool);
     setActiveDesktopTool(nextTool);
@@ -5270,7 +5264,7 @@ export default function Home() {
     : activeWorkspaceToolLabel;
 
   return (
-    <main className={`studio-app ${isMobileFocus ? "is-mobile-focus" : ""}`}>
+    <main className="studio-app">
       <header className="topbar">
         <div className="brand-lockup">
           <span className="brand-mark brand-logo">
@@ -6304,10 +6298,6 @@ export default function Home() {
         <button type="button" onClick={() => setMobileSettingsPanel("adjustments")} aria-label={copy.imageAdjustments}>
           <SlidersHorizontal size={17} />
           <span>{copy.imageAdjustments}</span>
-        </button>
-        <button type="button" onClick={toggleMobileFocus} aria-label={isMobileFocus ? tr("離開專注模式", "Exit focus mode") : tr("完整檢視", "Fit long image")}>
-          <Fullscreen size={17} />
-          <span>{isMobileFocus ? tr("離開專注", "Exit focus") : tr("完整檢視", "Fit image")}</span>
         </button>
       </div>
       {mobileSettingsPanel === "canvas" && (
