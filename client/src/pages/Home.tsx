@@ -888,6 +888,92 @@ const removeBorderConnectedColorResiduals = (
   }
 };
 
+/**
+ * 水彩、紙紋等背景有時會被模型以高 alpha 保留，因而不能只看低信心像素。
+ * 取遮罩中最大的實心連通區當成主體，只清除不屬於該主體、且色彩符合圖片
+ * 外圍背景調色盤的殘留。這可處理分離的大片或碎點，並保留人物本身。
+ */
+const removeDetachedBorderPaletteResiduals = (source: ImageData, mask: ImageData, width: number, height: number) => {
+  const size = width * height;
+  const borderStep = Math.max(1, Math.floor(Math.min(width, height) / 64));
+  const buckets = new Map<string, { red: number; green: number; blue: number; count: number }>();
+  const sample = (index: number) => {
+    const offset = index * 4;
+    const red = source.data[offset];
+    const green = source.data[offset + 1];
+    const blue = source.data[offset + 2];
+    const key = `${Math.floor(red / 32)}:${Math.floor(green / 32)}:${Math.floor(blue / 32)}`;
+    const bucket = buckets.get(key) ?? { red: 0, green: 0, blue: 0, count: 0 };
+    bucket.red += red;
+    bucket.green += green;
+    bucket.blue += blue;
+    bucket.count += 1;
+    buckets.set(key, bucket);
+  };
+  for (let x = 0; x < width; x += borderStep) {
+    sample(x);
+    sample((height - 1) * width + x);
+  }
+  for (let y = borderStep; y < height - 1; y += borderStep) {
+    sample(y * width);
+    sample(y * width + width - 1);
+  }
+  const palette = Array.from(buckets.values())
+    .filter((bucket) => {
+      const chroma = Math.max(bucket.red / bucket.count, bucket.green / bucket.count, bucket.blue / bucket.count)
+        - Math.min(bucket.red / bucket.count, bucket.green / bucket.count, bucket.blue / bucket.count);
+      return chroma >= 18;
+    })
+    .sort((a, b) => b.count - a.count)
+    .slice(0, 5)
+    .map((bucket) => [bucket.red / bucket.count, bucket.green / bucket.count, bucket.blue / bucket.count]);
+  if (!palette.length) return;
+
+  const visited = new Uint8Array(size);
+  const largestComponent = new Uint8Array(size);
+  const queue = new Int32Array(size);
+  let largestSize = 0;
+  for (let start = 0; start < size; start += 1) {
+    if (visited[start] || mask.data[start * 4 + 3] < 176) continue;
+    let head = 0;
+    let tail = 0;
+    queue[tail] = start;
+    tail += 1;
+    visited[start] = 1;
+    while (head < tail) {
+      const index = queue[head];
+      head += 1;
+      const x = index % width;
+      const y = Math.floor(index / width);
+      const inspect = (nextIndex: number) => {
+        if (visited[nextIndex] || mask.data[nextIndex * 4 + 3] < 176) return;
+        visited[nextIndex] = 1;
+        queue[tail] = nextIndex;
+        tail += 1;
+      };
+      if (x > 0) inspect(index - 1);
+      if (x < width - 1) inspect(index + 1);
+      if (y > 0) inspect(index - width);
+      if (y < height - 1) inspect(index + width);
+    }
+    if (tail <= largestSize) continue;
+    largestComponent.fill(0);
+    for (let index = 0; index < tail; index += 1) largestComponent[queue[index]] = 1;
+    largestSize = tail;
+  }
+  if (!largestSize) return;
+
+  for (let index = 0; index < size; index += 1) {
+    if (largestComponent[index] || mask.data[index * 4 + 3] === 0) continue;
+    const offset = index * 4;
+    const red = source.data[offset];
+    const green = source.data[offset + 1];
+    const blue = source.data[offset + 2];
+    const matchesBorderPalette = palette.some((color) => Math.abs(red - color[0]) + Math.abs(green - color[1]) + Math.abs(blue - color[2]) <= 108);
+    if (matchesBorderPalette) mask.data[offset + 3] = 0;
+  }
+};
+
 const findUniformBorderBackground = (source: ImageData, width: number, height: number) => {
   const sampleIndices: number[] = [];
   const step = Math.max(1, Math.floor(Math.min(width, height) / 48));
@@ -4150,6 +4236,7 @@ export default function Home() {
       }
       const modelSource = modelContext.getImageData(0, 0, modelEdge, modelEdge);
       removeBorderConnectedColorResiduals(modelSource, mask, confidenceMask, modelEdge, modelEdge);
+      removeDetachedBorderPaletteResiduals(modelSource, mask, modelEdge, modelEdge);
       const uniformModelBackground = findUniformBorderBackground(modelSource, modelEdge, modelEdge);
       if (uniformModelBackground) {
         refineMaskAgainstUniformBackground(modelSource, mask, modelEdge, modelEdge, BACKGROUND_REMOVAL_DEFAULT_DECONTAMINATION);
