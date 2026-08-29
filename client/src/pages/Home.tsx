@@ -974,6 +974,113 @@ const removeDetachedBorderPaletteResiduals = (source: ImageData, mask: ImageData
   }
 };
 
+/**
+ * 有些水彩或紙紋會形成與主要人物完全分離的高不透明度色塊，模型信心與顏色
+ * 門檻都可能不足以辨識。只在畫面邊界存在有色調色盤時，將不接觸主要主體範圍
+ * 的小型分離連通區移除；人物、Logo 的主體區與相連細節會被保留。
+ */
+const removeDetachedTexturedBackgroundResiduals = (source: ImageData, mask: ImageData, width: number, height: number) => {
+  const size = width * height;
+  const borderStep = Math.max(1, Math.floor(Math.min(width, height) / 64));
+  let colorfulBorderSamples = 0;
+  const inspectBorder = (index: number) => {
+    const offset = index * 4;
+    const red = source.data[offset];
+    const green = source.data[offset + 1];
+    const blue = source.data[offset + 2];
+    if (Math.max(red, green, blue) - Math.min(red, green, blue) >= 24) colorfulBorderSamples += 1;
+  };
+  for (let x = 0; x < width; x += borderStep) {
+    inspectBorder(x);
+    inspectBorder((height - 1) * width + x);
+  }
+  for (let y = borderStep; y < height - 1; y += borderStep) {
+    inspectBorder(y * width);
+    inspectBorder(y * width + width - 1);
+  }
+  if (colorfulBorderSamples < 8) return;
+
+  const visited = new Uint8Array(size);
+  const mainSubject = new Uint8Array(size);
+  const queue = new Int32Array(size);
+  let mainSize = 0;
+  let mainBounds = { minX: width, minY: height, maxX: -1, maxY: -1 };
+  for (let start = 0; start < size; start += 1) {
+    if (visited[start] || mask.data[start * 4 + 3] < 176) continue;
+    let head = 0;
+    let tail = 0;
+    queue[tail] = start;
+    tail += 1;
+    visited[start] = 1;
+    let minX = width;
+    let minY = height;
+    let maxX = -1;
+    let maxY = -1;
+    while (head < tail) {
+      const index = queue[head];
+      head += 1;
+      const x = index % width;
+      const y = Math.floor(index / width);
+      minX = Math.min(minX, x); minY = Math.min(minY, y); maxX = Math.max(maxX, x); maxY = Math.max(maxY, y);
+      const inspect = (nextIndex: number) => {
+        if (visited[nextIndex] || mask.data[nextIndex * 4 + 3] < 176) return;
+        visited[nextIndex] = 1;
+        queue[tail] = nextIndex;
+        tail += 1;
+      };
+      if (x > 0) inspect(index - 1);
+      if (x < width - 1) inspect(index + 1);
+      if (y > 0) inspect(index - width);
+      if (y < height - 1) inspect(index + width);
+    }
+    if (tail <= mainSize) continue;
+    mainSubject.fill(0);
+    for (let index = 0; index < tail; index += 1) mainSubject[queue[index]] = 1;
+    mainSize = tail;
+    mainBounds = { minX, minY, maxX, maxY };
+  }
+  if (!mainSize) return;
+
+  const padding = Math.max(8, Math.round(Math.min(width, height) * 0.045));
+  const inspected = new Uint8Array(size);
+  const maxDetachedPixels = Math.max(900, Math.round(mainSize * 0.34));
+  for (let start = 0; start < size; start += 1) {
+    if (inspected[start] || mainSubject[start] || mask.data[start * 4 + 3] < 64) continue;
+    let head = 0;
+    let tail = 0;
+    queue[tail] = start;
+    tail += 1;
+    inspected[start] = 1;
+    let minX = width;
+    let minY = height;
+    let maxX = -1;
+    let maxY = -1;
+    while (head < tail) {
+      const index = queue[head];
+      head += 1;
+      const x = index % width;
+      const y = Math.floor(index / width);
+      minX = Math.min(minX, x); minY = Math.min(minY, y); maxX = Math.max(maxX, x); maxY = Math.max(maxY, y);
+      const inspect = (nextIndex: number) => {
+        if (inspected[nextIndex] || mainSubject[nextIndex] || mask.data[nextIndex * 4 + 3] < 64) return;
+        inspected[nextIndex] = 1;
+        queue[tail] = nextIndex;
+        tail += 1;
+      };
+      if (x > 0) inspect(index - 1);
+      if (x < width - 1) inspect(index + 1);
+      if (y > 0) inspect(index - width);
+      if (y < height - 1) inspect(index + width);
+    }
+    const outsideMainSubject = maxX < mainBounds.minX - padding
+      || minX > mainBounds.maxX + padding
+      || maxY < mainBounds.minY - padding
+      || minY > mainBounds.maxY + padding;
+    if (!outsideMainSubject || tail > maxDetachedPixels) continue;
+    for (let index = 0; index < tail; index += 1) mask.data[queue[index] * 4 + 3] = 0;
+  }
+};
+
 const findUniformBorderBackground = (source: ImageData, width: number, height: number) => {
   const sampleIndices: number[] = [];
   const step = Math.max(1, Math.floor(Math.min(width, height) / 48));
@@ -4237,6 +4344,7 @@ export default function Home() {
       const modelSource = modelContext.getImageData(0, 0, modelEdge, modelEdge);
       removeBorderConnectedColorResiduals(modelSource, mask, confidenceMask, modelEdge, modelEdge);
       removeDetachedBorderPaletteResiduals(modelSource, mask, modelEdge, modelEdge);
+      removeDetachedTexturedBackgroundResiduals(modelSource, mask, modelEdge, modelEdge);
       const uniformModelBackground = findUniformBorderBackground(modelSource, modelEdge, modelEdge);
       if (uniformModelBackground) {
         refineMaskAgainstUniformBackground(modelSource, mask, modelEdge, modelEdge, BACKGROUND_REMOVAL_DEFAULT_DECONTAMINATION);
@@ -4288,11 +4396,11 @@ export default function Home() {
       setBackgroundRepair({ imageId: image.id, mode: "keep", brushSize: 24 });
       setHasArtwork(true);
       captureHistory();
-      setBackgroundRemovalNotice({ kind: "success", message: tr("去背完成，可直接修補", "Background removed. Repair is ready.") });
+      setBackgroundRemovalNotice({ kind: "success", message: tr("去背完成", "Background removed") });
       window.setTimeout(() => {
         setBackgroundRemovalNotice((current) => current?.kind === "success" ? null : current);
       }, 2600);
-      toast.success(tr("去背完成，可直接修補", "Background removed. Repair is ready."));
+      toast.success(tr("去背完成", "Background removed"));
     } catch (error) {
       console.error("Background removal failed", error);
       const reason = error instanceof Error && error.message ? error.message : tr("無法初始化本機模型", "Unable to initialize the local model");
