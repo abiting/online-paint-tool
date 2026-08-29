@@ -1759,6 +1759,8 @@ export default function Home() {
   const [backgroundRemovalNotice, setBackgroundRemovalNotice] = useState<{ kind: "loading" | "processing" | "success" | "error"; message: string } | null>(null);
   const [backgroundRepair, setBackgroundRepair] = useState<BackgroundRepairState | null>(null);
   const [backgroundRepairUndoCount, setBackgroundRepairUndoCount] = useState(0);
+  const [backgroundRepairToolbarPosition, setBackgroundRepairToolbarPosition] = useState({ x: 0, y: 0 });
+  const [isBackgroundRepairToolbarDragging, setIsBackgroundRepairToolbarDragging] = useState(false);
   const [selectedStrokeId, setSelectedStrokeId] = useState<string | null>(null);
   const [resetWorkingFileDialogOpen, setResetWorkingFileDialogOpen] = useState(false);
   const [shapeKind, setShapeKind] = useState<ShapeKind>("rectangle");
@@ -1801,6 +1803,10 @@ export default function Home() {
   const backgroundRepairPointerRef = useRef<{ imageId: string; pointerId: number; x: number; y: number } | null>(null);
   const backgroundRepairCanvasRefs = useRef(new Map<string, HTMLCanvasElement>());
   const backgroundRepairUndoRef = useRef<ImageData[]>([]);
+  const backgroundRepairToolbarRef = useRef<HTMLElement>(null);
+  const backgroundRepairToolbarDragRef = useRef<{ startX: number; startY: number; originX: number; originY: number; minX: number; maxX: number; minY: number } | null>(null);
+  const backgroundRepairToolbarFrameRef = useRef<number | null>(null);
+  const pendingBackgroundRepairToolbarPositionRef = useRef({ x: 0, y: 0 });
   const backgroundQualityTimerRef = useRef<number | null>(null);
   const backgroundQualityRequestRef = useRef(0);
   const panDragRef = useRef<{ startX: number; startY: number; originX: number; originY: number } | null>(null);
@@ -4079,6 +4085,10 @@ export default function Home() {
         BACKGROUND_REMOVAL_DEFAULT_EDGE_SOFTNESS,
         BACKGROUND_REMOVAL_DEFAULT_DECONTAMINATION,
       );
+      const [current, repairMask] = await Promise.all([
+        loadImageElement(transparentSource),
+        loadImageElement(backgroundMask),
+      ]);
       syncImages(imagesRef.current.map((item) => item.id === image.id ? {
         ...item,
         src: transparentSource,
@@ -4088,13 +4098,19 @@ export default function Home() {
         backgroundDecontamination: BACKGROUND_REMOVAL_DEFAULT_DECONTAMINATION,
         crop: FULL_IMAGE_CROP,
       } : item));
+      backgroundRepairSessionRef.current = { imageId: image.id, source, current, mask: repairMask };
+      backgroundRepairUndoRef.current = [];
+      setBackgroundRepairUndoCount(0);
+      setBackgroundRepairToolbarPosition({ x: 0, y: 0 });
+      pendingBackgroundRepairToolbarPositionRef.current = { x: 0, y: 0 };
+      setBackgroundRepair({ imageId: image.id, mode: "keep", brushSize: 24 });
       setHasArtwork(true);
       captureHistory();
-      setBackgroundRemovalNotice({ kind: "success", message: tr("去背完成", "Background removed") });
+      setBackgroundRemovalNotice({ kind: "success", message: tr("去背完成，可直接修補", "Background removed. Repair is ready.") });
       window.setTimeout(() => {
         setBackgroundRemovalNotice((current) => current?.kind === "success" ? null : current);
       }, 2600);
-      toast.success(tr("去背完成", "Background removed"));
+      toast.success(tr("去背完成，可直接修補", "Background removed. Repair is ready."));
     } catch (error) {
       console.error("Background removal failed", error);
       const reason = error instanceof Error && error.message ? error.message : tr("無法初始化本機模型", "Unable to initialize the local model");
@@ -4161,6 +4177,8 @@ export default function Home() {
       backgroundRepairSessionRef.current = { imageId: image.id, source, current, mask };
       backgroundRepairUndoRef.current = [];
       setBackgroundRepairUndoCount(0);
+      setBackgroundRepairToolbarPosition({ x: 0, y: 0 });
+      pendingBackgroundRepairToolbarPositionRef.current = { x: 0, y: 0 };
       setCropDraft(null);
       setImageEditingId(image.id);
       setBackgroundRepair({ imageId: image.id, mode: "keep", brushSize: 24 });
@@ -4311,6 +4329,8 @@ export default function Home() {
       backgroundRepairPointerRef.current = null;
       backgroundRepairUndoRef.current = [];
       setBackgroundRepairUndoCount(0);
+      setBackgroundRepairToolbarPosition({ x: 0, y: 0 });
+      pendingBackgroundRepairToolbarPositionRef.current = { x: 0, y: 0 };
       toast.success(tr("去背修補已完成", "Background repair applied"));
     } catch {
       toast.error(tr("無法儲存去背修補", "Unable to save background repair"));
@@ -4322,6 +4342,8 @@ export default function Home() {
     backgroundRepairPointerRef.current = null;
     backgroundRepairUndoRef.current = [];
     setBackgroundRepairUndoCount(0);
+    setBackgroundRepairToolbarPosition({ x: 0, y: 0 });
+    pendingBackgroundRepairToolbarPositionRef.current = { x: 0, y: 0 };
   };
 
   const resetAdjustments = () => {
@@ -5246,6 +5268,44 @@ export default function Home() {
   }, []);
 
   useEffect(() => {
+    const scheduleBackgroundRepairToolbarPosition = (position: { x: number; y: number }) => {
+      pendingBackgroundRepairToolbarPositionRef.current = position;
+      if (backgroundRepairToolbarFrameRef.current !== null) return;
+      backgroundRepairToolbarFrameRef.current = window.requestAnimationFrame(() => {
+        backgroundRepairToolbarFrameRef.current = null;
+        setBackgroundRepairToolbarPosition(pendingBackgroundRepairToolbarPositionRef.current);
+      });
+    };
+    const moveBackgroundRepairToolbar = (event: PointerEvent) => {
+      const drag = backgroundRepairToolbarDragRef.current;
+      if (!drag) return;
+      scheduleBackgroundRepairToolbarPosition({
+        x: clamp(drag.originX + event.clientX - drag.startX, drag.minX, drag.maxX),
+        y: clamp(drag.originY + event.clientY - drag.startY, drag.minY, 0),
+      });
+    };
+    const finishBackgroundRepairToolbarDrag = () => {
+      if (!backgroundRepairToolbarDragRef.current) return;
+      backgroundRepairToolbarDragRef.current = null;
+      if (backgroundRepairToolbarFrameRef.current !== null) {
+        window.cancelAnimationFrame(backgroundRepairToolbarFrameRef.current);
+        backgroundRepairToolbarFrameRef.current = null;
+        setBackgroundRepairToolbarPosition(pendingBackgroundRepairToolbarPositionRef.current);
+      }
+      setIsBackgroundRepairToolbarDragging(false);
+    };
+    window.addEventListener("pointermove", moveBackgroundRepairToolbar);
+    window.addEventListener("pointerup", finishBackgroundRepairToolbarDrag);
+    window.addEventListener("pointercancel", finishBackgroundRepairToolbarDrag);
+    return () => {
+      window.removeEventListener("pointermove", moveBackgroundRepairToolbar);
+      window.removeEventListener("pointerup", finishBackgroundRepairToolbarDrag);
+      window.removeEventListener("pointercancel", finishBackgroundRepairToolbarDrag);
+      if (backgroundRepairToolbarFrameRef.current !== null) window.cancelAnimationFrame(backgroundRepairToolbarFrameRef.current);
+    };
+  }, []);
+
+  useEffect(() => {
     const scheduleMobileSettingsDockLift = (nextLift: number) => {
       pendingMobileSettingsDockLiftRef.current = nextLift;
       if (mobileSettingsDockFrameRef.current !== null) return;
@@ -5301,6 +5361,27 @@ export default function Home() {
     setIsMobileMiniToolDragging(true);
   };
 
+  const handleBackgroundRepairToolbarPointerDown = (event: ReactPointerEvent<HTMLButtonElement>) => {
+    if (event.pointerType === "mouse" && event.button !== 0) return;
+    const toolbar = backgroundRepairToolbarRef.current;
+    if (!toolbar) return;
+    event.preventDefault();
+    event.stopPropagation();
+    event.currentTarget.setPointerCapture(event.pointerId);
+    const bounds = toolbar.getBoundingClientRect();
+    const origin = pendingBackgroundRepairToolbarPositionRef.current;
+    backgroundRepairToolbarDragRef.current = {
+      startX: event.clientX,
+      startY: event.clientY,
+      originX: origin.x,
+      originY: origin.y,
+      minX: origin.x + 8 - bounds.left,
+      maxX: origin.x + window.innerWidth - bounds.right - 8,
+      minY: origin.y + 72 - bounds.top,
+    };
+    setIsBackgroundRepairToolbarDragging(true);
+  };
+
   const handleMobileSettingsDockPointerDown = (event: ReactPointerEvent<HTMLButtonElement>) => {
     if (event.pointerType === "mouse" && event.button !== 0) return;
     const dock = mobileSettingsDockRef.current;
@@ -5344,6 +5425,10 @@ export default function Home() {
   const mobileWorkspaceStyle = ({
     "--mobile-settings-dock-lift": `${mobileSettingsDockLift}px`,
     "--mobile-settings-dock-offset": `-${mobileSettingsDockLift}px`,
+  } as CSSProperties);
+  const backgroundRepairToolbarStyle = ({
+    "--background-repair-toolbar-x": `${backgroundRepairToolbarPosition.x}px`,
+    "--background-repair-toolbar-y": `${backgroundRepairToolbarPosition.y}px`,
   } as CSSProperties);
   const handleDesktopToolCreate = (nextTool: DesktopCreativeTool) => {
     setTool(nextTool === "outline" ? "move" : nextTool);
@@ -5569,7 +5654,6 @@ export default function Home() {
             <ToolButton label={tr("輪廓", "Outline")} active={activeDesktopTool === "outline"} icon={<SquareDashed size={18} />} onClick={() => handleDesktopToolSettings("outline")} disabled={!hasSelectedObject} />
             <ToolButton label={cropDraft ? tr("套用裁切", "Apply crop") : tr("裁切", "Crop")} active={tool === "crop"} icon={<Crop size={18} />} onClick={handleCropTool} disabled={!isCropToolAvailable} />
             <ToolButton label={tr("去背", "Remove BG")} icon={<WandSparkles size={18} />} onClick={() => void removeSelectedImageBackground()} disabled={!selectedImage || selectedMaterialIsLocked || backgroundRemovalImageId === selectedImage.id} />
-            <ToolButton label={tr("修補去背", "Repair BG")} active={Boolean(backgroundRepair)} icon={<Pencil size={18} />} onClick={() => void startBackgroundRepair()} disabled={!selectedImage?.backgroundMask || selectedMaterialIsLocked || Boolean(backgroundRepair)} />
             <button type="button" className="tool-button tool-settings-entry" onClick={handleSelectedObjectSettings} disabled={!hasSelectedObject} aria-label={copy.openSettings} title={copy.openSettings}><SlidersHorizontal size={18} /><span>{copy.settings}</span></button>
           </div>
           <div className="rail-support-group" aria-label={tr("輔助資訊", "Help and information")}>
@@ -5874,7 +5958,8 @@ export default function Home() {
               </div>
             )}
             {backgroundRepair && (
-              <section className="background-repair-toolbar" onPointerDown={(event) => event.stopPropagation()} aria-label={tr("去背修補控制", "Background repair controls")}>
+              <section ref={backgroundRepairToolbarRef} className={`background-repair-toolbar ${isBackgroundRepairToolbarDragging ? "is-dragging" : ""}`} style={backgroundRepairToolbarStyle} onPointerDown={(event) => event.stopPropagation()} aria-label={tr("去背修補控制", "Background repair controls")}>
+                <button type="button" className="background-repair-toolbar-drag-handle" onPointerDown={handleBackgroundRepairToolbarPointerDown} aria-label={tr("拖拽移動修補長條", "Move repair toolbar")} title={tr("拖拽移動修補長條", "Move repair toolbar")}><GripVertical size={16} /></button>
                 <div className="background-repair-toolbar-title">
                   <Pencil size={16} />
                   <div>
@@ -5914,12 +5999,12 @@ export default function Home() {
               <button
                 type="button"
                 className={`mobile-mini-tool mobile-mini-background-remove ${backgroundRepair ? "is-active" : ""}`}
-                onClick={() => void (selectedImage?.backgroundMask ? startBackgroundRepair() : removeSelectedImageBackground())}
+                onClick={() => void removeSelectedImageBackground()}
                 disabled={!selectedImage || selectedMaterialIsLocked || backgroundRemovalImageId === selectedImage.id || Boolean(backgroundRepair)}
-                aria-label={selectedImage?.backgroundMask ? tr("修補去背", "Repair background") : tr("去背", "Remove background")}
-                title={selectedImage?.backgroundMask ? tr("修補去背", "Repair background") : tr("去背", "Remove background")}
+                aria-label={tr("去背", "Remove background")}
+                title={tr("去背", "Remove background")}
               >
-                {selectedImage?.backgroundMask ? <Pencil size={16} /> : <WandSparkles size={16} />}
+                <WandSparkles size={16} />
               </button>
               <span className="mobile-mini-separator" />
               <button type="button" className="mobile-mini-tool mobile-mini-settings" onClick={hasSelectedObject ? handleSelectedObjectSettings : handleMobileMiniToolSettings} disabled={!hasSelectedObject && !activeDesktopTool} aria-label="開啟工具設定" title="開啟工具設定"><SlidersHorizontal size={16} /></button>
@@ -6378,7 +6463,6 @@ export default function Home() {
                 {!imageEditingId && <button type="button" className="secondary-button full-width" onClick={startImageEditing}><ImagePlus size={14} /> {tr("開始編輯圖片", "Edit image")}</button>}
                 {imageEditingId === selectedImage.id && !cropDraft && <><button type="button" className="secondary-button full-width" onClick={beginImageCrop}><Crop size={14} /> {tr("裁切圖片", "Crop image")}</button><button type="button" className="secondary-button full-width" onClick={() => setImageEditingId(null)}><Lock size={14} /> {tr("完成編輯並鎖定", "Finish editing & lock")}</button></>}
                 {cropDraft?.imageId === selectedImage.id && <><RangeControl label={tr("裁切左側", "Crop left")} value={Math.round(cropDraft.x * 100)} min={0} max={90} suffix="%" onChange={(value) => updateCropDraft({ x: value / 100 })} /><RangeControl label={tr("裁切上方", "Crop top")} value={Math.round(cropDraft.y * 100)} min={0} max={90} suffix="%" onChange={(value) => updateCropDraft({ y: value / 100 })} /><RangeControl label={tr("裁切寬度", "Crop width")} value={Math.round(cropDraft.width * 100)} min={10} max={Math.max(10, Math.round((1 - cropDraft.x) * 100))} suffix="%" onChange={(value) => updateCropDraft({ width: value / 100 })} /><RangeControl label={tr("裁切高度", "Crop height")} value={Math.round(cropDraft.height * 100)} min={10} max={Math.max(10, Math.round((1 - cropDraft.y) * 100))} suffix="%" onChange={(value) => updateCropDraft({ height: value / 100 })} /><button type="button" className="primary-button full-width" onClick={() => void applyImageCrop()}><Check size={14} /> {tr("套用裁切", "Apply crop")}</button><button type="button" className="secondary-button full-width" onClick={cancelImageCrop}>{tr("取消裁切", "Cancel crop")}</button></>}
-                {selectedImage.backgroundSource && !backgroundRepair && <button type="button" className="secondary-button full-width" onClick={() => void startBackgroundRepair()}><Pencil size={14} /> {tr("修補去背", "Repair background")}</button>}
                 {selectedImage.backgroundMask && !backgroundRepair && (
                   <div className="background-repair-controls background-quality-controls">
                     <RangeControl label={tr("邊緣柔化", "Edge softness")} value={selectedImage.backgroundEdgeSoftness ?? BACKGROUND_REMOVAL_DEFAULT_EDGE_SOFTNESS} min={0} max={100} suffix="%" onChange={(value) => scheduleBackgroundQualityUpdate({ backgroundEdgeSoftness: value })} />
