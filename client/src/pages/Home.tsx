@@ -5544,6 +5544,7 @@ export default function Home() {
             <ToolButton label={tr("輪廓", "Outline")} active={activeDesktopTool === "outline"} icon={<SquareDashed size={18} />} onClick={() => handleDesktopToolSettings("outline")} disabled={!hasSelectedObject} />
             <ToolButton label={cropDraft ? tr("套用裁切", "Apply crop") : tr("裁切", "Crop")} active={tool === "crop"} icon={<Crop size={18} />} onClick={handleCropTool} disabled={!isCropToolAvailable} />
             <ToolButton label={tr("去背", "Remove BG")} icon={<WandSparkles size={18} />} onClick={() => void removeSelectedImageBackground()} disabled={!selectedImage || selectedMaterialIsLocked || backgroundRemovalImageId === selectedImage.id} />
+            <ToolButton label={tr("修補去背", "Repair BG")} active={Boolean(backgroundRepair)} icon={<Pencil size={18} />} onClick={() => void startBackgroundRepair()} disabled={!selectedImage?.backgroundMask || selectedMaterialIsLocked || Boolean(backgroundRepair)} />
             <button type="button" className="tool-button tool-settings-entry" onClick={handleSelectedObjectSettings} disabled={!hasSelectedObject} aria-label={copy.openSettings} title={copy.openSettings}><SlidersHorizontal size={18} /><span>{copy.settings}</span></button>
           </div>
           <div className="rail-support-group" aria-label={tr("輔助資訊", "Help and information")}>
@@ -5862,7 +5863,16 @@ export default function Home() {
               <button type="button" className={`mobile-mini-tool ${activeDesktopTool === "text" ? "is-active" : ""}`} onClick={() => handleMobileMiniToolCreate("text")} aria-label="新增文字" title="新增文字"><Type size={16} /></button>
               <button type="button" className={`mobile-mini-tool ${activeDesktopTool === "outline" ? "is-active" : ""}`} onClick={() => handleDesktopToolSettings("outline")} disabled={!hasSelectedObject} aria-label="輪廓" title="輪廓"><SquareDashed size={16} /></button>
               <button type="button" className={`mobile-mini-tool ${tool === "crop" ? "is-active" : ""}`} onClick={handleCropTool} disabled={!isCropToolAvailable} aria-label="裁切" title="裁切"><Crop size={16} /></button>
-              <button type="button" className="mobile-mini-tool mobile-mini-background-remove" onClick={() => void removeSelectedImageBackground()} disabled={!selectedImage || selectedMaterialIsLocked || backgroundRemovalImageId === selectedImage.id} aria-label={tr("去背", "Remove background")} title={tr("去背", "Remove background")}><WandSparkles size={16} /></button>
+              <button
+                type="button"
+                className={`mobile-mini-tool mobile-mini-background-remove ${backgroundRepair ? "is-active" : ""}`}
+                onClick={() => void (selectedImage?.backgroundMask ? startBackgroundRepair() : removeSelectedImageBackground())}
+                disabled={!selectedImage || selectedMaterialIsLocked || backgroundRemovalImageId === selectedImage.id || Boolean(backgroundRepair)}
+                aria-label={selectedImage?.backgroundMask ? tr("修補去背", "Repair background") : tr("去背", "Remove background")}
+                title={selectedImage?.backgroundMask ? tr("修補去背", "Repair background") : tr("去背", "Remove background")}
+              >
+                {selectedImage?.backgroundMask ? <Pencil size={16} /> : <WandSparkles size={16} />}
+              </button>
               <span className="mobile-mini-separator" />
               <button type="button" className="mobile-mini-tool mobile-mini-settings" onClick={hasSelectedObject ? handleSelectedObjectSettings : handleMobileMiniToolSettings} disabled={!hasSelectedObject && !activeDesktopTool} aria-label="開啟工具設定" title="開啟工具設定"><SlidersHorizontal size={16} /></button>
             </div>
