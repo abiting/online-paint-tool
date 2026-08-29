@@ -5848,6 +5848,28 @@ export default function Home() {
                 <span>{backgroundRemovalNotice.kind === "loading" || backgroundRemovalNotice.kind === "processing" ? tr("請稍待片刻", "Please wait a moment") : backgroundRemovalNotice.message}</span>
               </div>
             )}
+            {backgroundRepair && (
+              <section className="background-repair-toolbar" onPointerDown={(event) => event.stopPropagation()} aria-label={tr("去背修補控制", "Background repair controls")}>
+                <div className="background-repair-toolbar-title">
+                  <Pencil size={16} />
+                  <div>
+                    <strong>{tr("修補去背", "Repair background")}</strong>
+                    <span>{backgroundRepair.mode === "keep" ? tr("刷過誤刪的主體區域", "Brush over removed subject areas") : tr("刷過殘留的背景區域", "Brush over leftover background")}</span>
+                  </div>
+                </div>
+                <div className="background-repair-toolbar-actions">
+                  <button type="button" className={backgroundRepair.mode === "keep" ? "is-active" : ""} onClick={() => setBackgroundRepair((current) => current ? { ...current, mode: "keep" } : current)} aria-pressed={backgroundRepair.mode === "keep"}><Pencil size={14} /> {tr("保留", "Keep")}</button>
+                  <button type="button" className={backgroundRepair.mode === "remove" ? "is-active" : ""} onClick={() => setBackgroundRepair((current) => current ? { ...current, mode: "remove" } : current)} aria-pressed={backgroundRepair.mode === "remove"}><Eraser size={14} /> {tr("移除", "Remove")}</button>
+                  <span className="background-repair-toolbar-size" aria-label={tr("筆刷大小", "Brush size")}>
+                    <button type="button" onClick={() => setBackgroundRepair((current) => current ? { ...current, brushSize: clamp(current.brushSize - 6, 4, 120) } : current)} aria-label={tr("縮小筆刷", "Decrease brush size")}><Minus size={13} /></button>
+                    <output>{backgroundRepair.brushSize}</output>
+                    <button type="button" onClick={() => setBackgroundRepair((current) => current ? { ...current, brushSize: clamp(current.brushSize + 6, 4, 120) } : current)} aria-label={tr("放大筆刷", "Increase brush size")}><Plus size={13} /></button>
+                  </span>
+                  <button type="button" className="is-confirm" onClick={() => void commitBackgroundRepair()}><Check size={14} /> {tr("完成", "Apply")}</button>
+                  <button type="button" className="is-cancel" onClick={cancelBackgroundRepair}>{tr("取消", "Cancel")}</button>
+                </div>
+              </section>
+            )}
             <div
               ref={mobileMiniToolRef}
               className={`mobile-mini-tools ${isMobileMiniToolDragging ? "is-dragging" : ""}`}

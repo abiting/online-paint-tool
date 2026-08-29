@@ -454,6 +454,20 @@ input[type="range"]::-moz-range-thumb { width: 11px; height: 11px; border: 2px s
 .inspector-tip svg { flex: none; margin-top: 2px; color: #e4513b; }
 .inspector-tip p { margin: 0; font-size: 10px; line-height: 1.65; }
 .inspector-tip strong { color: #d6d1c3; font-weight: 500; }
+.background-repair-toolbar { position: absolute; z-index: 52; bottom: 20px; left: 50%; display: flex; align-items: center; gap: 13px; width: max-content; max-width: calc(100% - 32px); padding: 9px 11px 9px 13px; color: #ede7da; border: 1px solid rgba(228,81,59,0.56); border-radius: 10px; background: rgba(34,33,29,0.97); box-shadow: 0 14px 32px rgba(8,12,13,0.44); transform: translateX(-50%); backdrop-filter: blur(14px); }
+.background-repair-toolbar-title { display: flex; align-items: center; min-width: 0; gap: 8px; color: #e4513b; }
+.background-repair-toolbar-title div { display: grid; gap: 2px; }
+.background-repair-toolbar-title strong { color: #f6f0e4; font: 700 11px "Noto Sans TC", "DM Sans", sans-serif; white-space: nowrap; }
+.background-repair-toolbar-title span { color: #9da49d; font: 9px/1.3 "Noto Sans TC", "DM Sans", sans-serif; white-space: nowrap; }
+.background-repair-toolbar-actions { display: flex; align-items: center; gap: 5px; }
+.background-repair-toolbar-actions > button, .background-repair-toolbar-size button { display: inline-flex; align-items: center; justify-content: center; gap: 4px; min-height: 30px; padding: 0 8px; color: #bbbdb3; border: 1px solid rgba(227,213,187,0.16); border-radius: 5px; background: rgba(245,240,229,0.04); font: 700 10px "Noto Sans TC", "DM Sans", sans-serif; transition: transform 140ms ease-out, color 140ms ease-out, border-color 140ms ease-out, background 140ms ease-out; }
+.background-repair-toolbar-actions > button:hover, .background-repair-toolbar-actions > button.is-active { color: #fff6e9; border-color: rgba(228,81,59,0.64); background: rgba(228,81,59,0.16); }
+.background-repair-toolbar-actions > button:active, .background-repair-toolbar-size button:active { transform: scale(0.96); }
+.background-repair-toolbar-actions > button.is-confirm { color: #fff9ef; border-color: rgba(228,81,59,0.86); background: #d84c3b; }
+.background-repair-toolbar-actions > button.is-cancel { color: #9da49d; border-color: transparent; background: transparent; }
+.background-repair-toolbar-size { display: inline-flex; align-items: center; height: 30px; overflow: hidden; border: 1px solid rgba(227,213,187,0.16); border-radius: 5px; }
+.background-repair-toolbar-size button { width: 27px; min-height: 28px; padding: 0; border: 0; border-radius: 0; background: transparent; }
+.background-repair-toolbar-size output { display: grid; width: 26px; place-items: center; color: #e2dbcd; font: 700 10px/1 "IBM Plex Mono", monospace; }
 
 @media (max-width: 1120px) {
   .studio-layout { grid-template-columns: 74px minmax(0, 1fr) 286px; }
@@ -525,6 +539,12 @@ input[type="range"]::-moz-range-thumb { width: 11px; height: 11px; border: 2px s
   .mobile-settings-sheet-body { max-height: calc(min(68dvh, 600px) - 91px); overflow-y: auto; padding: 8px 20px calc(24px + env(safe-area-inset-bottom)); overscroll-behavior: contain; -webkit-overflow-scrolling: touch; }
   .mobile-adjustments-sheet-body { max-height: calc(min(76dvh, 660px) - 91px); }
   .mobile-settings-sheet-body .range-control:first-child { margin-top: 8px; }
+  .background-repair-toolbar { right: 12px; bottom: calc(82px - var(--mobile-settings-dock-offset, 0px)); left: 12px; width: auto; max-width: none; padding: 9px 10px; gap: 8px; }
+  .background-repair-toolbar-title { display: none; }
+  .background-repair-toolbar-actions { width: 100%; justify-content: space-between; gap: 4px; }
+  .background-repair-toolbar-actions > button { min-height: 34px; padding: 0 8px; font-size: 10px; }
+  .background-repair-toolbar-size { height: 34px; }
+  .background-repair-toolbar-size button { min-height: 32px; }
 }
 @media (max-width: 560px) {
   .topbar { padding: 0 10px; }
