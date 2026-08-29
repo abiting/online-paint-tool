@@ -32,6 +32,7 @@ import {
   Minus,
   MoreHorizontal,
   PaintBucket,
+  Paintbrush,
   Pencil,
   Plus,
   Redo2,
@@ -5520,7 +5521,7 @@ export default function Home() {
         : tool === "brush"
           ? "筆刷工具"
           : tool === "eraser"
-            ? "橡皮擦工具"
+            ? tr("擦布", "Eraser")
             : tool === "fill"
               ? "填色桶工具"
               : tool === "text"
@@ -5649,6 +5650,7 @@ export default function Home() {
           <div className="tool-group">
             <ToolButton label={copy.select} active={tool === "move"} icon={<Move size={18} />} onClick={activateStrokeMoveMode} disabled={!hasMovableArtwork} />
             <ToolButton label={copy.brush} active={activeDesktopTool === "brush"} icon={<Pencil size={18} />} onClick={() => handleDesktopToolCreate("brush")} onDoubleActivate={() => handleDesktopToolSettings("brush")} />
+            <ToolButton label={tr("擦布", "Eraser")} active={tool === "eraser"} icon={<Eraser size={18} />} onClick={() => { clearSelectedObjects(); setTool("eraser"); setActiveDesktopTool(null); setOpenDesktopTool(null); }} />
             <ToolButton label={copy.shape} active={activeDesktopTool === "shape"} icon={<Shapes size={18} />} onClick={() => handleDesktopToolCreate("shape")} onDoubleActivate={() => handleDesktopToolSettings("shape")} />
             <ToolButton label={copy.text} active={activeDesktopTool === "text"} icon={<Type size={18} />} onClick={() => handleDesktopToolCreate("text")} onDoubleActivate={() => handleDesktopToolSettings("text")} />
             <ToolButton label={tr("輪廓", "Outline")} active={activeDesktopTool === "outline"} icon={<SquareDashed size={18} />} onClick={() => handleDesktopToolSettings("outline")} disabled={!hasSelectedObject} />
@@ -5961,14 +5963,11 @@ export default function Home() {
               <section ref={backgroundRepairToolbarRef} className={`background-repair-toolbar ${isBackgroundRepairToolbarDragging ? "is-dragging" : ""}`} style={backgroundRepairToolbarStyle} onPointerDown={(event) => event.stopPropagation()} aria-label={tr("去背修補控制", "Background repair controls")}>
                 <button type="button" className="background-repair-toolbar-drag-handle" onPointerDown={handleBackgroundRepairToolbarPointerDown} aria-label={tr("拖拽移動修補長條", "Move repair toolbar")} title={tr("拖拽移動修補長條", "Move repair toolbar")}><GripVertical size={16} /></button>
                 <div className="background-repair-toolbar-title">
-                  <Pencil size={16} />
-                  <div>
-                    <strong>{tr("修補去背", "Repair background")}</strong>
-                    <span>{backgroundRepair.mode === "keep" ? tr("刷過誤刪的主體區域", "Brush over removed subject areas") : tr("刷過殘留的背景區域", "Brush over leftover background")}</span>
-                  </div>
+                  <Paintbrush size={18} />
+                  <strong>{tr("魔法筆刷", "Magic Brush")}</strong>
                 </div>
                 <div className="background-repair-toolbar-actions">
-                  <button type="button" className={backgroundRepair.mode === "keep" ? "is-active" : ""} onClick={() => setBackgroundRepair((current) => current ? { ...current, mode: "keep" } : current)} aria-pressed={backgroundRepair.mode === "keep"}><Pencil size={14} /> {tr("保留", "Keep")}</button>
+                  <button type="button" className={backgroundRepair.mode === "keep" ? "is-active" : ""} onClick={() => setBackgroundRepair((current) => current ? { ...current, mode: "keep" } : current)} aria-pressed={backgroundRepair.mode === "keep"}><Pencil size={14} /> {tr("修補", "Repair")}</button>
                   <button type="button" className={backgroundRepair.mode === "remove" ? "is-active" : ""} onClick={() => setBackgroundRepair((current) => current ? { ...current, mode: "remove" } : current)} aria-pressed={backgroundRepair.mode === "remove"}><Eraser size={14} /> {tr("移除", "Remove")}</button>
                   <button type="button" onClick={undoBackgroundRepairStroke} disabled={backgroundRepairUndoCount === 0} title={tr("復原上一筆修補", "Undo last repair stroke")}><Undo2 size={14} /> {tr("上一步", "Undo")}</button>
                   <span className="background-repair-toolbar-size" aria-label={tr("筆刷大小", "Brush size")}>
@@ -5992,6 +5991,7 @@ export default function Home() {
               <span className="mobile-mini-separator" />
               <button type="button" className={`mobile-mini-tool ${tool === "move" ? "is-active" : ""}`} onClick={activateStrokeMoveMode} disabled={!hasMovableArtwork} aria-label="選取並移動筆觸" title="選取並移動筆觸"><Move size={16} /></button>
               <button type="button" className={`mobile-mini-tool ${activeDesktopTool === "brush" ? "is-active" : ""}`} onClick={() => handleMobileMiniToolCreate("brush")} aria-label="畫筆" title="畫筆"><Pencil size={16} /></button>
+              <button type="button" className={`mobile-mini-tool ${tool === "eraser" ? "is-active" : ""}`} onClick={() => { clearSelectedObjects(); setTool("eraser"); setActiveDesktopTool(null); setOpenDesktopTool(null); }} aria-label={tr("擦布", "Eraser")} title={tr("擦布", "Eraser")}><Eraser size={16} /></button>
               <button type="button" className={`mobile-mini-tool ${activeDesktopTool === "shape" ? "is-active" : ""}`} onClick={() => handleMobileMiniToolCreate("shape")} aria-label="新增圖形" title="新增圖形"><Shapes size={16} /></button>
               <button type="button" className={`mobile-mini-tool ${activeDesktopTool === "text" ? "is-active" : ""}`} onClick={() => handleMobileMiniToolCreate("text")} aria-label="新增文字" title="新增文字"><Type size={16} /></button>
               <button type="button" className={`mobile-mini-tool ${activeDesktopTool === "outline" ? "is-active" : ""}`} onClick={() => handleDesktopToolSettings("outline")} disabled={!hasSelectedObject} aria-label="輪廓" title="輪廓"><SquareDashed size={16} /></button>
@@ -6385,8 +6385,8 @@ export default function Home() {
 
             {(tool === "brush" || tool === "eraser") && !selectedText && !selectedShape && !selectedImage && (
               <div className="inspector-section">
-                <div className="tool-panel-callout brush-lockup"><span className="field-label">油線筆</span><p>目前保留的繪筆工具，適合在調整尺寸後做簡單修飾。</p></div>
-                <div className="color-row">
+                <div className="tool-panel-callout brush-lockup"><span className="field-label">{tool === "eraser" ? tr("擦布", "Eraser") : tr("筆刷", "Brush")}</span><p>{tool === "eraser" ? tr("在目前筆刷圖層上擦除內容，可用上方復原還原。", "Erase from the active brush layer. Use Undo above to restore it.") : tr("在目前筆刷圖層上繪製，可調整顏色、大小與透明度。", "Draw on the active brush layer and adjust color, size, and opacity.")}</p></div>
+                {tool === "brush" && <div className="color-row">
                   <div>
                     <span className="field-label">前景色</span>
                     <span className="field-help">點擊色票選擇顏色</span>
@@ -6395,14 +6395,14 @@ export default function Home() {
                     <input type="color" value={brushColor} onChange={(event) => setBrushColor(event.target.value)} aria-label={tr("顏色", "Color")} />
                     <span style={{ backgroundColor: brushColor }} />
                   </label>
-                </div>
-                <RangeControl label={tr("大小", "Size")} value={brushSize} min={2} max={160} suffix=" px" onChange={setBrushSize} />
-                <RangeControl label={tr("透明度", "Opacity")} value={brushOpacity} min={1} max={100} suffix="%" onChange={setBrushOpacity} />
+                </div>}
+                <RangeControl label={tool === "eraser" ? tr("擦布大小", "Eraser size") : tr("大小", "Size")} value={brushSize} min={2} max={160} suffix=" px" onChange={setBrushSize} />
+                {tool === "brush" && <><RangeControl label={tr("透明度", "Opacity")} value={brushOpacity} min={1} max={100} suffix="%" onChange={setBrushOpacity} />
                 <div className="swatch-row">
                   {["#000000", "#1F2528", "#555B5D", "#FFFFFF", "#FFFDF8", "#E4513B", "#B72F34", "#F07C41", "#D59B42", "#F4C95D", "#2F855A", "#82A480", "#426B8A", "#2D5B9B", "#8B5CF6", "#D26A9C"].map((color) => (
                     <button key={color} type="button" className={`swatch ${brushColor === color ? "is-selected" : ""}`} style={{ backgroundColor: color }} onClick={() => setBrushColor(color)} aria-label={`選擇顏色 ${color}`} />
                   ))}
-                </div>
+                </div></>}
               </div>
             )}
 
