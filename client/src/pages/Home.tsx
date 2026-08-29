@@ -979,27 +979,8 @@ const removeDetachedBorderPaletteResiduals = (source: ImageData, mask: ImageData
  * 門檻都可能不足以辨識。只在畫面邊界存在有色調色盤時，將不接觸主要主體範圍
  * 的小型分離連通區移除；人物、Logo 的主體區與相連細節會被保留。
  */
-const removeDetachedTexturedBackgroundResiduals = (source: ImageData, mask: ImageData, width: number, height: number) => {
+const removeDetachedTexturedBackgroundResiduals = (mask: ImageData, width: number, height: number) => {
   const size = width * height;
-  const borderStep = Math.max(1, Math.floor(Math.min(width, height) / 64));
-  let colorfulBorderSamples = 0;
-  const inspectBorder = (index: number) => {
-    const offset = index * 4;
-    const red = source.data[offset];
-    const green = source.data[offset + 1];
-    const blue = source.data[offset + 2];
-    if (Math.max(red, green, blue) - Math.min(red, green, blue) >= 24) colorfulBorderSamples += 1;
-  };
-  for (let x = 0; x < width; x += borderStep) {
-    inspectBorder(x);
-    inspectBorder((height - 1) * width + x);
-  }
-  for (let y = borderStep; y < height - 1; y += borderStep) {
-    inspectBorder(y * width);
-    inspectBorder(y * width + width - 1);
-  }
-  if (colorfulBorderSamples < 8) return;
-
   const visited = new Uint8Array(size);
   const mainSubject = new Uint8Array(size);
   const queue = new Int32Array(size);
@@ -4344,7 +4325,7 @@ export default function Home() {
       const modelSource = modelContext.getImageData(0, 0, modelEdge, modelEdge);
       removeBorderConnectedColorResiduals(modelSource, mask, confidenceMask, modelEdge, modelEdge);
       removeDetachedBorderPaletteResiduals(modelSource, mask, modelEdge, modelEdge);
-      removeDetachedTexturedBackgroundResiduals(modelSource, mask, modelEdge, modelEdge);
+      removeDetachedTexturedBackgroundResiduals(mask, modelEdge, modelEdge);
       const uniformModelBackground = findUniformBorderBackground(modelSource, modelEdge, modelEdge);
       if (uniformModelBackground) {
         refineMaskAgainstUniformBackground(modelSource, mask, modelEdge, modelEdge, BACKGROUND_REMOVAL_DEFAULT_DECONTAMINATION);
