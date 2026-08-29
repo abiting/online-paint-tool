@@ -788,6 +788,36 @@ const findUniformBorderBackground = (source: ImageData, width: number, height: n
   return deviation <= 16 ? color : null;
 };
 
+/**
+ * 當圖片四周是穩定的有色背景時，補回與背景顏色明顯不同、卻被模型整片判成透明的主體。
+ * 此規則僅作用於背景色夠明顯且非近白的圖片，避免把白底或複雜背景中的雜訊誤補為前景。
+ */
+const restoreDistinctSubjectOnUniformColorBackground = (
+  source: ImageData,
+  mask: ImageData,
+  width: number,
+  height: number,
+  background: number[],
+) => {
+  const backgroundBrightness = (background[0] + background[1] + background[2]) / 3;
+  const backgroundChroma = Math.max(...background) - Math.min(...background);
+  if (backgroundBrightness >= 232 || backgroundChroma < 18) return;
+
+  for (let index = 0; index < width * height; index += 1) {
+    const offset = index * 4;
+    if (mask.data[offset + 3] > 12) continue;
+    const red = source.data[offset];
+    const green = source.data[offset + 1];
+    const blue = source.data[offset + 2];
+    const distance = Math.abs(red - background[0]) + Math.abs(green - background[1]) + Math.abs(blue - background[2]);
+    const brightness = (red + green + blue) / 3;
+    const chroma = Math.max(red, green, blue) - Math.min(red, green, blue);
+    const brightnessDifference = Math.abs(brightness - backgroundBrightness);
+    const chromaDifference = Math.abs(chroma - backgroundChroma);
+    if (distance >= 92 && (brightnessDifference >= 26 || chromaDifference >= 14)) mask.data[offset + 3] = 255;
+  }
+};
+
 const softenBackgroundMaskAlpha = (alpha: number, edgeSoftness: number) => {
   const normalized = alpha / 255;
   if (normalized <= 0.002 || normalized >= 0.998) return normalized >= 0.998 ? 255 : 0;
@@ -810,7 +840,7 @@ const removeLightMatteFringe = (source: ImageData, mask: ImageData, width: numbe
     const blue = source.data[offset + 2];
     const brightness = (red + green + blue) / 3;
     const chroma = Math.max(red, green, blue) - Math.min(red, green, blue);
-    return brightness >= 190 - strength * 0.14 && chroma <= 66 + strength * 0.16;
+    return brightness >= 238 - strength * 0.08 && chroma <= 32 + strength * 0.12;
   };
   const reachable = new Uint8Array(width * height);
   const queue = new Int32Array(width * height);
@@ -4005,6 +4035,12 @@ export default function Home() {
         mask.data[offset + 3] = foregroundMask[index]
           ? Math.round(Math.max(confidenceMask[index], BACKGROUND_REMOVAL_MASK_THRESHOLD) * 255)
           : 0;
+      }
+      const modelSource = modelContext.getImageData(0, 0, modelEdge, modelEdge);
+      const uniformModelBackground = findUniformBorderBackground(modelSource, modelEdge, modelEdge);
+      if (uniformModelBackground) {
+        refineMaskAgainstUniformBackground(modelSource, mask, modelEdge, modelEdge, BACKGROUND_REMOVAL_DEFAULT_DECONTAMINATION);
+        restoreDistinctSubjectOnUniformColorBackground(modelSource, mask, modelEdge, modelEdge, uniformModelBackground);
       }
       modelContext.putImageData(mask, 0, 0);
 
