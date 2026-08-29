@@ -227,9 +227,11 @@ export default defineConfig({
         enGuide: path.resolve(import.meta.dirname, "client", "en", "guide", "index.html"),
       },
       output: {
-        entryFileNames: "assets/[name].js",
-        chunkFileNames: "assets/chunk-[name].js",
-        assetFileNames: "assets/[name][extname]",
+        // 紙上工作室工作台會在公開網域長時間快取；以內容雜湊區分每一版，
+        // 確保 HTML 一律載入與其相符的去背與畫布程式，而非舊的固定檔名資產。
+        entryFileNames: "assets/[name]-[hash].js",
+        chunkFileNames: "assets/chunk-[name]-[hash].js",
+        assetFileNames: "assets/[name]-[hash][extname]",
       },
     },
   },

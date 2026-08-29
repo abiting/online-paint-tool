@@ -481,7 +481,6 @@ const MOBILE_VIEWPORT_MEDIA_QUERY = "(max-width: 960px), (pointer: coarse) and (
 const TEXT_RASTER_VERSION = 4;
 const BASE_PAINT_LAYER_ID = "paint-layer-base";
 const ISNET_GENERAL_USE_MODEL_URL = "https://huggingface.co/SacredNoir/isnet-general-use-onnx/resolve/main/isnet-general-use-q8.onnx";
-const U2NETP_FALLBACK_MODEL_URL = "https://cdn.jsdelivr.net/npm/modern-rembg@0.1.2/dist/u2netp.onnx";
 const ONNX_RUNTIME_WASM_URL = "https://cdn.jsdelivr.net/npm/onnxruntime-web@1.27.0/dist/";
 const BACKGROUND_REMOVAL_MAX_EDGE = 2560;
 const BACKGROUND_REMOVAL_MODEL_EDGE = 1024;
@@ -805,7 +804,7 @@ const restoreDistinctSubjectOnUniformColorBackground = (
 
   for (let index = 0; index < width * height; index += 1) {
     const offset = index * 4;
-    if (mask.data[offset + 3] > 12) continue;
+    if (mask.data[offset + 3] > 208) continue;
     const red = source.data[offset];
     const green = source.data[offset + 1];
     const blue = source.data[offset + 2];
@@ -840,7 +839,7 @@ const removeLightMatteFringe = (source: ImageData, mask: ImageData, width: numbe
     const blue = source.data[offset + 2];
     const brightness = (red + green + blue) / 3;
     const chroma = Math.max(red, green, blue) - Math.min(red, green, blue);
-    return brightness >= 238 - strength * 0.08 && chroma <= 32 + strength * 0.12;
+    return brightness >= 220 - strength * 0.04 && chroma <= 46 + strength * 0.06;
   };
   const reachable = new Uint8Array(width * height);
   const queue = new Int32Array(width * height);
@@ -3962,7 +3961,7 @@ export default function Home() {
         runtime.env.wasm.numThreads = 1;
         runtime.env.wasm.proxy = true;
         runtime.env.wasm.wasmPaths = ONNX_RUNTIME_WASM_URL;
-        const sessionOptions = { executionProviders: ["wasm"] as const, graphOptimizationLevel: "all" as const };
+      const sessionOptions = { executionProviders: ["wasm"] as const, graphOptimizationLevel: "all" as const };
         setBackgroundRemovalNotice({ kind: "loading", message: tr("去背中，請稍等…", "Removing background, please wait…") });
         try {
           backgroundRemovalSessionRef.current = await runtime.InferenceSession.create(ISNET_GENERAL_USE_MODEL_URL, sessionOptions);
@@ -3970,11 +3969,9 @@ export default function Home() {
           setBackgroundRemovalNotice({ kind: "loading", message: tr("去背中，請稍等…", "Removing background, please wait…") });
           try {
             backgroundRemovalSessionRef.current = await runtime.InferenceSession.create(ISNET_GENERAL_USE_MODEL_URL, sessionOptions);
-          } catch {
-            setBackgroundRemovalNotice({ kind: "loading", message: tr("去背中，請稍等…", "Removing background, please wait…") });
-            backgroundRemovalSessionRef.current = await runtime.InferenceSession.create(U2NETP_FALLBACK_MODEL_URL, sessionOptions);
-            backgroundRemovalUsesFallbackRef.current = true;
-          }
+        } catch {
+          throw new Error(tr("高品質去背模型暫時無法載入，請確認網路後再試一次", "The high-quality background removal model is temporarily unavailable. Check your connection and try again."));
+        }
         }
       }
 
