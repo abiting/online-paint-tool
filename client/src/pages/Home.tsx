@@ -3225,14 +3225,15 @@ export default function Home() {
           const isCorner = (movesLeft || movesRight) && (movesTop || movesBottom);
           let nextWidth = movesLeft ? imageResize.startWidth - deltaX : movesRight ? imageResize.startWidth + deltaX : imageResize.startWidth;
           let nextHeight = movesTop ? imageResize.startHeight - deltaY : movesBottom ? imageResize.startHeight + deltaY : imageResize.startHeight;
+          let lockedScale: number | null = null;
           if (isCorner) {
             const widthScale = nextWidth / imageResize.startWidth;
             const heightScale = nextHeight / imageResize.startHeight;
             const dominantScale = Math.abs(deltaX / Math.max(1, imageResize.startWidth)) >= Math.abs(deltaY / Math.max(1, imageResize.startHeight)) ? widthScale : heightScale;
             const minimumScale = Math.max(60 / imageResize.startWidth, 60 / imageResize.startHeight);
-            const scale = Math.max(minimumScale, dominantScale);
-            nextWidth = imageResize.startWidth * scale;
-            nextHeight = imageResize.startHeight * scale;
+            lockedScale = Math.max(minimumScale, dominantScale);
+            nextWidth = imageResize.startWidth * lockedScale;
+            nextHeight = imageResize.startHeight * lockedScale;
           } else if (event.shiftKey) {
             if (movesLeft || movesRight) nextHeight = nextWidth / imageResize.aspectRatio;
             if (movesTop || movesBottom) nextWidth = nextHeight * imageResize.aspectRatio;
@@ -3245,21 +3246,37 @@ export default function Home() {
           let nextY = event.altKey ? centerY - nextHeight / 2 : movesTop ? imageResize.startY + imageResize.startHeight - nextHeight : imageResize.startY;
           if (!event.altKey) {
             const snapThreshold = 14 / Math.max(0.25, zoom / 100);
-            if (movesLeft && point.x <= snapThreshold) {
-              nextWidth = imageResize.startX + imageResize.startWidth;
-              nextX = 0;
-              resizeGuides.x = 0;
-            } else if (movesRight && point.x >= canvasSize.width - snapThreshold) {
-              nextWidth = canvasSize.width - nextX;
-              resizeGuides.x = canvasSize.width;
-            }
-            if (movesTop && point.y <= snapThreshold) {
-              nextHeight = imageResize.startY + imageResize.startHeight;
-              nextY = 0;
-              resizeGuides.y = 0;
-            } else if (movesBottom && point.y >= canvasSize.height - snapThreshold) {
-              nextHeight = canvasSize.height - nextY;
-              resizeGuides.y = canvasSize.height;
+            const snapX = movesLeft && point.x <= snapThreshold ? 0 : movesRight && point.x >= canvasSize.width - snapThreshold ? canvasSize.width : null;
+            const snapY = movesTop && point.y <= snapThreshold ? 0 : movesBottom && point.y >= canvasSize.height - snapThreshold ? canvasSize.height : null;
+            if (isCorner && lockedScale !== null && (snapX !== null || snapY !== null)) {
+              const snapScales = [
+                snapX === null ? null : (movesLeft ? imageResize.startX + imageResize.startWidth : canvasSize.width - imageResize.startX) / imageResize.startWidth,
+                snapY === null ? null : (movesTop ? imageResize.startY + imageResize.startHeight : canvasSize.height - imageResize.startY) / imageResize.startHeight,
+              ].filter((scale): scale is number => scale !== null && Number.isFinite(scale));
+              const snappedScale = snapScales.reduce((closest, candidate) => Math.abs(candidate - lockedScale!) < Math.abs(closest - lockedScale!) ? candidate : closest, snapScales[0] ?? lockedScale);
+              nextWidth = imageResize.startWidth * snappedScale;
+              nextHeight = imageResize.startHeight * snappedScale;
+              nextX = movesLeft ? imageResize.startX + imageResize.startWidth - nextWidth : imageResize.startX;
+              nextY = movesTop ? imageResize.startY + imageResize.startHeight - nextHeight : imageResize.startY;
+              if (snapX !== null && Math.abs((movesLeft ? nextX : nextX + nextWidth) - snapX) < 0.5) resizeGuides.x = snapX;
+              if (snapY !== null && Math.abs((movesTop ? nextY : nextY + nextHeight) - snapY) < 0.5) resizeGuides.y = snapY;
+            } else {
+              if (movesLeft && snapX === 0) {
+                nextWidth = imageResize.startX + imageResize.startWidth;
+                nextX = 0;
+                resizeGuides.x = 0;
+              } else if (movesRight && snapX === canvasSize.width) {
+                nextWidth = canvasSize.width - nextX;
+                resizeGuides.x = canvasSize.width;
+              }
+              if (movesTop && snapY === 0) {
+                nextHeight = imageResize.startY + imageResize.startHeight;
+                nextY = 0;
+                resizeGuides.y = 0;
+              } else if (movesBottom && snapY === canvasSize.height) {
+                nextHeight = canvasSize.height - nextY;
+                resizeGuides.y = canvasSize.height;
+              }
             }
           }
           return {

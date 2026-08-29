@@ -707,9 +707,13 @@ input[type="range"]::-moz-range-thumb { width: 11px; height: 11px; border: 2px s
   .top-actions .top-divider { margin: 0 1px; }
   .view-action-button { min-width: 32px; height: 32px; padding: 0 5px; }
   .view-action-button span { display: none; }
-  .image-resize-handle { width: 22px; height: 22px; margin: -11px; }
-  .image-rotation-handle { width: 22px; height: 22px; margin: -11px; }
-.image-layer, .image-resize-handle, .image-rotation-handle { touch-action: none; }
+  .image-resize-handle,
+  .shape-control-handle { width: 26px; height: 26px; margin: -13px; touch-action: none; -webkit-touch-callout: none; user-select: none; }
+  .image-rotation-handle { width: 24px; height: 24px; margin: -12px; touch-action: none; -webkit-touch-callout: none; user-select: none; }
+  .image-layer,
+  .image-resize-handle,
+  .image-rotation-handle,
+  .shape-control-handle { touch-action: none; }
   .shape-choice-grid { gap: 5px; }
   .align-button-row .secondary-button { padding-left: 5px; padding-right: 5px; }
 }
