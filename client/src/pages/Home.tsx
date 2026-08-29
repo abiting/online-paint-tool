@@ -513,9 +513,15 @@ const MATERIAL_STACK_BASE: Record<MaterialType, number> = {
 const clamp = (value: number, min: number, max: number) =>
   Math.min(max, Math.max(min, value));
 
+const isMobileChromeRuntime = () => {
+  if (typeof navigator === "undefined") return false;
+  const agent = navigator.userAgent;
+  return /(?:Chrome|CriOS)\//.test(agent) && /(?:Android|iPhone|iPad|iPod|Mobile)/.test(agent);
+};
+
 /**
- * 先以標準 fetch 完整取得高解析度模型，再交給 ONNX Runtime 建立 session。
- * 這可避開公開瀏覽器對跨網域重新導向下載的偶發失敗，且兩次嘗試都使用同一品質模型。
+ * 直接由 ONNX Runtime 以模型 URL 建立 session，避免先在 JavaScript 堆積完整 ArrayBuffer。
+ * 手機 Chrome 可少一份大型模型副本，降低分頁因記憶體尖峰中斷的風險。
  */
 const createHighQualityBackgroundRemovalSession = async (runtime: typeof import("onnxruntime-web")) => {
   const sessionOptions = { executionProviders: ["wasm"] as const, graphOptimizationLevel: "all" as const };
@@ -523,11 +529,7 @@ const createHighQualityBackgroundRemovalSession = async (runtime: typeof import(
     let lastError: unknown = null;
     for (const modelUrl of ISNET_GENERAL_USE_MODEL_URLS) {
       try {
-        const response = await fetch(modelUrl, { cache: "force-cache", credentials: "omit" });
-        if (!response.ok) throw new Error(`Model download failed (${response.status})`);
-        const model = await response.arrayBuffer();
-        if (!model.byteLength) throw new Error("Model download was empty");
-        return await runtime.InferenceSession.create(model, sessionOptions);
+        return await runtime.InferenceSession.create(modelUrl, sessionOptions);
       } catch (error) {
         lastError = error;
       }
@@ -1804,6 +1806,7 @@ export default function Home() {
   const backgroundRepairPointerRef = useRef<{ imageId: string; pointerId: number; x: number; y: number } | null>(null);
   const backgroundRepairCanvasRefs = useRef(new Map<string, HTMLCanvasElement>());
   const backgroundRepairUndoRef = useRef<ImageData[]>([]);
+  const backgroundRepairUndoHandlerRef = useRef<() => void>(() => undefined);
   const backgroundRepairToolbarRef = useRef<HTMLElement>(null);
   const backgroundRepairToolbarDragRef = useRef<{ startX: number; startY: number; originX: number; originY: number; minX: number; maxX: number; minY: number } | null>(null);
   const backgroundRepairToolbarFrameRef = useRef<number | null>(null);
@@ -3136,7 +3139,13 @@ export default function Home() {
       }
       if (modifier && key === "z") {
         event.preventDefault();
-        if (event.shiftKey) redo(); else undo();
+        if (backgroundRepair) {
+          if (!event.shiftKey) backgroundRepairUndoHandlerRef.current();
+        } else if (event.shiftKey) {
+          redo();
+        } else {
+          undo();
+        }
         return;
       }
       if (modifier && key === "c") {
@@ -3164,7 +3173,7 @@ export default function Home() {
     };
     window.addEventListener("keydown", handleShortcut);
     return () => window.removeEventListener("keydown", handleShortcut);
-  }, [captureHistory, cropDraft, isPaintLayerLocked, selectedImageId, selectedShapeId, selectedStrokeId, selectedTextId, syncStrokes]);
+  }, [backgroundRepair, captureHistory, cropDraft, isPaintLayerLocked, selectedImageId, selectedShapeId, selectedStrokeId, selectedTextId, syncStrokes]);
 
   const drawStroke = (from: CanvasPoint, to: CanvasPoint) => {
     const context = canvasRef.current?.getContext("2d");
@@ -4006,15 +4015,16 @@ export default function Home() {
       const runtime = backgroundRemovalRuntimeRef.current ?? await import("onnxruntime-web/wasm");
       backgroundRemovalRuntimeRef.current = runtime;
       if (!backgroundRemovalSessionRef.current) {
+        const mobileChrome = isMobileChromeRuntime();
         runtime.env.wasm.numThreads = 1;
-        runtime.env.wasm.proxy = true;
+        runtime.env.wasm.proxy = !mobileChrome;
         runtime.env.wasm.wasmPaths = ONNX_RUNTIME_WASM_URL;
         setBackgroundRemovalNotice({ kind: "loading", message: tr("去背中，請稍等…", "Removing background, please wait…") });
         backgroundRemovalSessionRef.current = await createHighQualityBackgroundRemovalSession(runtime);
       }
 
       const session = backgroundRemovalSessionRef.current;
-      const modelEdge = BACKGROUND_REMOVAL_MODEL_EDGE;
+      const modelEdge = isMobileChromeRuntime() ? 768 : BACKGROUND_REMOVAL_MODEL_EDGE;
       const modelCanvas = document.createElement("canvas");
       modelCanvas.width = modelEdge;
       modelCanvas.height = modelEdge;
@@ -4264,6 +4274,10 @@ export default function Home() {
     context.putImageData(snapshot, 0, 0);
     setBackgroundRepairUndoCount(backgroundRepairUndoRef.current.length);
   };
+
+  useEffect(() => {
+    backgroundRepairUndoHandlerRef.current = undoBackgroundRepairStroke;
+  }, [backgroundRepair]);
 
   const commitBackgroundRepair = async () => {
     const repair = backgroundRepair;
