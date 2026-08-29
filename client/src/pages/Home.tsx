@@ -5964,7 +5964,7 @@ export default function Home() {
                 <button type="button" className="background-repair-toolbar-drag-handle" onPointerDown={handleBackgroundRepairToolbarPointerDown} aria-label={tr("拖拽移動修補長條", "Move repair toolbar")} title={tr("拖拽移動修補長條", "Move repair toolbar")}><GripVertical size={16} /></button>
                 <div className="background-repair-toolbar-title">
                   <Paintbrush size={18} />
-                  <strong>{tr("魔法筆刷", "Magic Brush")}</strong>
+                  <strong>{tr("細節微調", "Refine")}</strong>
                 </div>
                 <div className="background-repair-toolbar-actions">
                   <button type="button" className={backgroundRepair.mode === "keep" ? "is-active" : ""} onClick={() => setBackgroundRepair((current) => current ? { ...current, mode: "keep" } : current)} aria-pressed={backgroundRepair.mode === "keep"}><Pencil size={14} /> {tr("修補", "Repair")}</button>
