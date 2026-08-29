@@ -491,9 +491,20 @@ const ISNET_GENERAL_USE_MODEL_URLS = typeof window !== "undefined" && window.loc
       "https://painttool-uwbnkjhm.manus.space/manus-storage/isnet-general-use-q8_93800145.onnx",
       "https://huggingface.co/SacredNoir/isnet-general-use-onnx/resolve/main/isnet-general-use-q8.onnx",
     ];
+const U2NETP_MODEL_URLS = typeof window !== "undefined" && window.location.hostname.endsWith(".manus.computer")
+  ? [
+      "/manus-storage/u2netp_legacy-fallback_ffe7b976.onnx",
+      "https://painttool-uwbnkjhm.manus.space/manus-storage/u2netp_legacy-fallback_ffe7b976.onnx",
+      "https://cdn.jsdelivr.net/npm/modern-rembg@0.1.2/dist/u2netp.onnx",
+    ]
+  : [
+      "https://painttool-uwbnkjhm.manus.space/manus-storage/u2netp_legacy-fallback_ffe7b976.onnx",
+      "https://cdn.jsdelivr.net/npm/modern-rembg@0.1.2/dist/u2netp.onnx",
+    ];
 const ONNX_RUNTIME_WASM_URL = "https://cdn.jsdelivr.net/npm/onnxruntime-web@1.27.0/dist/";
 const BACKGROUND_REMOVAL_MAX_EDGE = 2560;
 const BACKGROUND_REMOVAL_MODEL_EDGE = 1024;
+const BACKGROUND_REMOVAL_FALLBACK_MODEL_EDGE = 320;
 const BACKGROUND_REMOVAL_MASK_THRESHOLD = 0.2;
 const BACKGROUND_REMOVAL_DETAIL_THRESHOLD = 0.15;
 const BACKGROUND_REMOVAL_DEFAULT_EDGE_SOFTNESS = 48;
@@ -544,6 +555,62 @@ const createHighQualityBackgroundRemovalSession = async (runtime: typeof import(
     await new Promise<void>((resolve) => window.setTimeout(resolve, 700));
     return loadSession();
   }
+};
+
+const createFallbackBackgroundRemovalSession = async (runtime: typeof import("onnxruntime-web")) => {
+  const sessionOptions = { executionProviders: ["wasm"] as const, graphOptimizationLevel: "all" as const };
+  let lastError: unknown = null;
+  for (const modelUrl of U2NETP_MODEL_URLS) {
+    try {
+      return await runtime.InferenceSession.create(modelUrl, sessionOptions);
+    } catch (error) {
+      lastError = error;
+    }
+  }
+  throw lastError instanceof Error ? lastError : new Error("Fallback model download failed");
+};
+
+const shouldTryFallbackBackgroundMask = (mask: ImageData, width: number, height: number) => {
+  const size = width * height;
+  const active = new Uint8Array(size);
+  let foregroundPixels = 0;
+  for (let index = 0; index < size; index += 1) {
+    if (mask.data[index * 4 + 3] < 128) continue;
+    active[index] = 1;
+    foregroundPixels += 1;
+  }
+  if (!foregroundPixels) return false;
+  if (foregroundPixels / size >= 0.58) return true;
+
+  const visited = new Uint8Array(size);
+  const queue = new Int32Array(size);
+  let largestComponent = 0;
+  for (let start = 0; start < size; start += 1) {
+    if (!active[start] || visited[start]) continue;
+    let head = 0;
+    let tail = 0;
+    queue[tail] = start;
+    tail += 1;
+    visited[start] = 1;
+    while (head < tail) {
+      const index = queue[head];
+      head += 1;
+      const x = index % width;
+      const y = Math.floor(index / width);
+      const inspect = (nextIndex: number) => {
+        if (!active[nextIndex] || visited[nextIndex]) return;
+        visited[nextIndex] = 1;
+        queue[tail] = nextIndex;
+        tail += 1;
+      };
+      if (x > 0) inspect(index - 1);
+      if (x < width - 1) inspect(index + 1);
+      if (y > 0) inspect(index - width);
+      if (y < height - 1) inspect(index + width);
+    }
+    largestComponent = Math.max(largestComponent, tail);
+  }
+  return foregroundPixels - largestComponent >= Math.max(256, foregroundPixels * 0.035);
 };
 
 const fillEnclosedMaskHoles = (mask: Uint8Array, width: number, height: number) => {
@@ -2058,6 +2125,7 @@ export default function Home() {
   const [exportPreview, setExportPreview] = useState<{ url: string; format: ExportFormat; width: number; height: number } | null>(null);
   const objectClipboardRef = useRef<ObjectClipboard | null>(null);
   const backgroundRemovalSessionRef = useRef<Ort.InferenceSession | null>(null);
+  const backgroundRemovalFallbackSessionRef = useRef<Ort.InferenceSession | null>(null);
   const backgroundRemovalRuntimeRef = useRef<typeof import("onnxruntime-web") | null>(null);
   const backgroundRepairSessionRef = useRef<{ imageId: string; source: HTMLImageElement; current: HTMLImageElement; mask: HTMLImageElement } | null>(null);
   const backgroundRepairPointerRef = useRef<{ imageId: string; pointerId: number; x: number; y: number } | null>(null);
@@ -4281,11 +4349,11 @@ export default function Home() {
       }
 
       const session = backgroundRemovalSessionRef.current;
-      const modelEdge = isMobileChromeRuntime() ? 768 : BACKGROUND_REMOVAL_MODEL_EDGE;
-      const modelCanvas = document.createElement("canvas");
+      let modelEdge = isMobileChromeRuntime() ? 768 : BACKGROUND_REMOVAL_MODEL_EDGE;
+      let modelCanvas = document.createElement("canvas");
       modelCanvas.width = modelEdge;
       modelCanvas.height = modelEdge;
-      const modelContext = modelCanvas.getContext("2d", { willReadFrequently: true });
+      let modelContext = modelCanvas.getContext("2d", { willReadFrequently: true });
       if (!modelContext) throw new Error("Canvas is unavailable");
       modelContext.drawImage(source, 0, 0, modelEdge, modelEdge);
       const pixels = modelContext.getImageData(0, 0, modelEdge, modelEdge).data;
@@ -4303,13 +4371,71 @@ export default function Home() {
       if (!output?.data) throw new Error("Subject mask is unavailable");
 
       const values = output.data as Float32Array;
-      const mask = modelContext.createImageData(modelEdge, modelEdge);
-      const foregroundMask = new Uint8Array(planeSize);
-      const confidenceMask = new Float32Array(planeSize);
+      let mask = modelContext.createImageData(modelEdge, modelEdge);
+      let foregroundMask = new Uint8Array(planeSize);
+      let confidenceMask = new Float32Array(planeSize);
       for (let index = 0; index < planeSize; index += 1) {
         const confidence = clamp(values[index], 0, 1);
         confidenceMask[index] = confidence;
         foregroundMask[index] = confidence >= BACKGROUND_REMOVAL_MASK_THRESHOLD ? 1 : 0;
+      }
+      if (shouldTryFallbackBackgroundMask(mask, modelEdge, modelEdge)) {
+        const fallbackSession = backgroundRemovalFallbackSessionRef.current
+          ?? await createFallbackBackgroundRemovalSession(runtime);
+        backgroundRemovalFallbackSessionRef.current = fallbackSession;
+        const fallbackEdge = BACKGROUND_REMOVAL_FALLBACK_MODEL_EDGE;
+        const fallbackCanvas = document.createElement("canvas");
+        fallbackCanvas.width = fallbackEdge;
+        fallbackCanvas.height = fallbackEdge;
+        const fallbackContext = fallbackCanvas.getContext("2d", { willReadFrequently: true });
+        if (!fallbackContext) throw new Error("Canvas is unavailable");
+        fallbackContext.drawImage(source, 0, 0, fallbackEdge, fallbackEdge);
+        const fallbackPixels = fallbackContext.getImageData(0, 0, fallbackEdge, fallbackEdge).data;
+        const fallbackPlaneSize = fallbackEdge * fallbackEdge;
+        const fallbackInput = new Float32Array(1 * 3 * fallbackPlaneSize);
+        for (let index = 0; index < fallbackPlaneSize; index += 1) {
+          const offset = index * 4;
+          fallbackInput[index] = (fallbackPixels[offset] / 255 - 0.485) / 0.229;
+          fallbackInput[fallbackPlaneSize + index] = (fallbackPixels[offset + 1] / 255 - 0.456) / 0.224;
+          fallbackInput[fallbackPlaneSize * 2 + index] = (fallbackPixels[offset + 2] / 255 - 0.406) / 0.225;
+        }
+        const fallbackResults = await fallbackSession.run({ [fallbackSession.inputNames[0]]: new runtime.Tensor("float32", fallbackInput, [1, 3, fallbackEdge, fallbackEdge]) });
+        const fallbackOutput = fallbackResults[fallbackSession.outputNames.includes("output") ? "output" : fallbackSession.outputNames.includes("d0") ? "d0" : fallbackSession.outputNames[0]];
+        if (fallbackOutput?.data) {
+          const fallbackValues = fallbackOutput.data as Float32Array;
+          let minimum = Number.POSITIVE_INFINITY;
+          let maximum = Number.NEGATIVE_INFINITY;
+          for (let index = 0; index < fallbackPlaneSize; index += 1) {
+            minimum = Math.min(minimum, fallbackValues[index]);
+            maximum = Math.max(maximum, fallbackValues[index]);
+          }
+          const range = Math.max(0.00001, maximum - minimum);
+          const fallbackMask = fallbackContext.createImageData(fallbackEdge, fallbackEdge);
+          const fallbackForeground = new Uint8Array(fallbackPlaneSize);
+          const fallbackConfidence = new Float32Array(fallbackPlaneSize);
+          for (let index = 0; index < fallbackPlaneSize; index += 1) {
+            const confidence = clamp((fallbackValues[index] - minimum) / range, 0, 1);
+            fallbackConfidence[index] = confidence;
+            fallbackForeground[index] = confidence >= BACKGROUND_REMOVAL_MASK_THRESHOLD ? 1 : 0;
+            const offset = index * 4;
+            fallbackMask.data[offset] = 255;
+            fallbackMask.data[offset + 1] = 255;
+            fallbackMask.data[offset + 2] = 255;
+            fallbackMask.data[offset + 3] = fallbackForeground[index]
+              ? Math.round(Math.max(confidence, BACKGROUND_REMOVAL_MASK_THRESHOLD) * 255)
+              : 0;
+          }
+          const primaryCoverage = foregroundMask.reduce((total, value) => total + value, 0) / foregroundMask.length;
+          const fallbackCoverage = fallbackForeground.reduce((total, value) => total + value, 0) / fallbackForeground.length;
+          if (fallbackCoverage >= 0.012 && fallbackCoverage < primaryCoverage * 0.86) {
+            modelEdge = fallbackEdge;
+            modelCanvas = fallbackCanvas;
+            modelContext = fallbackContext;
+            mask = fallbackMask;
+            foregroundMask = fallbackForeground;
+            confidenceMask = fallbackConfidence;
+          }
+        }
       }
       closeThinMaskGaps(foregroundMask, modelEdge, modelEdge);
       repairSmallEnclosedMaskHoles(foregroundMask, confidenceMask, modelEdge, modelEdge);
