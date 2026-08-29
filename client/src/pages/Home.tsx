@@ -570,13 +570,12 @@ const createFallbackBackgroundRemovalSession = async (runtime: typeof import("on
   throw lastError instanceof Error ? lastError : new Error("Fallback model download failed");
 };
 
-const shouldTryFallbackBackgroundMask = (mask: ImageData, width: number, height: number) => {
+const shouldTryFallbackBackgroundMask = (foregroundMask: Uint8Array, width: number, height: number) => {
   const size = width * height;
-  const active = new Uint8Array(size);
+  const active = foregroundMask;
   let foregroundPixels = 0;
   for (let index = 0; index < size; index += 1) {
-    if (mask.data[index * 4 + 3] < 128) continue;
-    active[index] = 1;
+    if (!active[index]) continue;
     foregroundPixels += 1;
   }
   if (!foregroundPixels) return false;
@@ -4379,7 +4378,7 @@ export default function Home() {
         confidenceMask[index] = confidence;
         foregroundMask[index] = confidence >= BACKGROUND_REMOVAL_MASK_THRESHOLD ? 1 : 0;
       }
-      if (shouldTryFallbackBackgroundMask(mask, modelEdge, modelEdge)) {
+      if (shouldTryFallbackBackgroundMask(foregroundMask, modelEdge, modelEdge)) {
         const fallbackSession = backgroundRemovalFallbackSessionRef.current
           ?? await createFallbackBackgroundRemovalSession(runtime);
         backgroundRemovalFallbackSessionRef.current = fallbackSession;
@@ -4439,7 +4438,8 @@ export default function Home() {
       }
       closeThinMaskGaps(foregroundMask, modelEdge, modelEdge);
       repairSmallEnclosedMaskHoles(foregroundMask, confidenceMask, modelEdge, modelEdge);
-      for (let index = 0; index < planeSize; index += 1) {
+      const activePlaneSize = modelEdge * modelEdge;
+      for (let index = 0; index < activePlaneSize; index += 1) {
         const offset = index * 4;
         mask.data[offset] = 255;
         mask.data[offset + 1] = 255;
