@@ -1758,6 +1758,7 @@ export default function Home() {
   const [backgroundRemovalImageId, setBackgroundRemovalImageId] = useState<string | null>(null);
   const [backgroundRemovalNotice, setBackgroundRemovalNotice] = useState<{ kind: "loading" | "processing" | "success" | "error"; message: string } | null>(null);
   const [backgroundRepair, setBackgroundRepair] = useState<BackgroundRepairState | null>(null);
+  const [backgroundRepairUndoCount, setBackgroundRepairUndoCount] = useState(0);
   const [selectedStrokeId, setSelectedStrokeId] = useState<string | null>(null);
   const [resetWorkingFileDialogOpen, setResetWorkingFileDialogOpen] = useState(false);
   const [shapeKind, setShapeKind] = useState<ShapeKind>("rectangle");
@@ -1799,6 +1800,7 @@ export default function Home() {
   const backgroundRepairSessionRef = useRef<{ imageId: string; source: HTMLImageElement; current: HTMLImageElement; mask: HTMLImageElement } | null>(null);
   const backgroundRepairPointerRef = useRef<{ imageId: string; pointerId: number; x: number; y: number } | null>(null);
   const backgroundRepairCanvasRefs = useRef(new Map<string, HTMLCanvasElement>());
+  const backgroundRepairUndoRef = useRef<ImageData[]>([]);
   const backgroundQualityTimerRef = useRef<number | null>(null);
   const backgroundQualityRequestRef = useRef(0);
   const panDragRef = useRef<{ startX: number; startY: number; originX: number; originY: number } | null>(null);
@@ -4157,6 +4159,8 @@ export default function Home() {
         loadImageElement(image.backgroundMask),
       ]);
       backgroundRepairSessionRef.current = { imageId: image.id, source, current, mask };
+      backgroundRepairUndoRef.current = [];
+      setBackgroundRepairUndoCount(0);
       setCropDraft(null);
       setImageEditingId(image.id);
       setBackgroundRepair({ imageId: image.id, mode: "keep", brushSize: 24 });
@@ -4207,6 +4211,12 @@ export default function Home() {
     if (!backgroundRepair || backgroundRepair.imageId !== image.id || event.button !== 0) return;
     event.stopPropagation();
     event.currentTarget.setPointerCapture(event.pointerId);
+    const context = event.currentTarget.getContext("2d", { willReadFrequently: true });
+    if (context) {
+      const snapshot = context.getImageData(0, 0, event.currentTarget.width, event.currentTarget.height);
+      backgroundRepairUndoRef.current = [...backgroundRepairUndoRef.current.slice(-7), snapshot];
+      setBackgroundRepairUndoCount(backgroundRepairUndoRef.current.length);
+    }
     const point = getBackgroundRepairPoint(event);
     backgroundRepairPointerRef.current = { imageId: image.id, pointerId: event.pointerId, ...point };
     paintBackgroundRepair(event.currentTarget, point, point);
@@ -4223,6 +4233,17 @@ export default function Home() {
   const finishBackgroundRepairStroke = (event?: ReactPointerEvent<HTMLCanvasElement>) => {
     if (event && backgroundRepairPointerRef.current?.pointerId !== event.pointerId) return;
     backgroundRepairPointerRef.current = null;
+  };
+
+  const undoBackgroundRepairStroke = () => {
+    const repair = backgroundRepair;
+    if (!repair) return;
+    const snapshot = backgroundRepairUndoRef.current.pop();
+    const canvas = backgroundRepairCanvasRefs.current.get(repair.imageId);
+    const context = canvas?.getContext("2d");
+    if (!snapshot || !context) return;
+    context.putImageData(snapshot, 0, 0);
+    setBackgroundRepairUndoCount(backgroundRepairUndoRef.current.length);
   };
 
   const commitBackgroundRepair = async () => {
@@ -4288,6 +4309,8 @@ export default function Home() {
       captureHistory();
       setBackgroundRepair(null);
       backgroundRepairPointerRef.current = null;
+      backgroundRepairUndoRef.current = [];
+      setBackgroundRepairUndoCount(0);
       toast.success(tr("去背修補已完成", "Background repair applied"));
     } catch {
       toast.error(tr("無法儲存去背修補", "Unable to save background repair"));
@@ -4297,6 +4320,8 @@ export default function Home() {
   const cancelBackgroundRepair = () => {
     setBackgroundRepair(null);
     backgroundRepairPointerRef.current = null;
+    backgroundRepairUndoRef.current = [];
+    setBackgroundRepairUndoCount(0);
   };
 
   const resetAdjustments = () => {
@@ -5494,7 +5519,7 @@ export default function Home() {
         </div>
 
         <div className="top-actions">
-          <button type="button" className="icon-button" onClick={undo} title="復原" aria-label="復原">
+          <button type="button" className="icon-button" onClick={backgroundRepair ? undoBackgroundRepairStroke : undo} disabled={Boolean(backgroundRepair) && backgroundRepairUndoCount === 0} title={backgroundRepair ? tr("復原修補筆觸", "Undo repair stroke") : copy.undo} aria-label={backgroundRepair ? tr("復原修補筆觸", "Undo repair stroke") : copy.undo}>
             <Undo2 size={17} />
           </button>
           <button type="button" className="icon-button" onClick={redo} title="重做" aria-label="重做">
@@ -5860,6 +5885,7 @@ export default function Home() {
                 <div className="background-repair-toolbar-actions">
                   <button type="button" className={backgroundRepair.mode === "keep" ? "is-active" : ""} onClick={() => setBackgroundRepair((current) => current ? { ...current, mode: "keep" } : current)} aria-pressed={backgroundRepair.mode === "keep"}><Pencil size={14} /> {tr("保留", "Keep")}</button>
                   <button type="button" className={backgroundRepair.mode === "remove" ? "is-active" : ""} onClick={() => setBackgroundRepair((current) => current ? { ...current, mode: "remove" } : current)} aria-pressed={backgroundRepair.mode === "remove"}><Eraser size={14} /> {tr("移除", "Remove")}</button>
+                  <button type="button" onClick={undoBackgroundRepairStroke} disabled={backgroundRepairUndoCount === 0} title={tr("復原上一筆修補", "Undo last repair stroke")}><Undo2 size={14} /> {tr("上一步", "Undo")}</button>
                   <span className="background-repair-toolbar-size" aria-label={tr("筆刷大小", "Brush size")}>
                     <button type="button" onClick={() => setBackgroundRepair((current) => current ? { ...current, brushSize: clamp(current.brushSize - 6, 4, 120) } : current)} aria-label={tr("縮小筆刷", "Decrease brush size")}><Minus size={13} /></button>
                     <output>{backgroundRepair.brushSize}</output>
