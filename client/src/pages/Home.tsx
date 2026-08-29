@@ -503,6 +503,29 @@ const MATERIAL_STACK_BASE: Record<MaterialType, number> = {
 const clamp = (value: number, min: number, max: number) =>
   Math.min(max, Math.max(min, value));
 
+/**
+ * 先以標準 fetch 完整取得高解析度模型，再交給 ONNX Runtime 建立 session。
+ * 這可避開公開瀏覽器對跨網域重新導向下載的偶發失敗，且兩次嘗試都使用同一品質模型。
+ */
+const createHighQualityBackgroundRemovalSession = async (runtime: typeof import("onnxruntime-web")) => {
+  const sessionOptions = { executionProviders: ["wasm"] as const, graphOptimizationLevel: "all" as const };
+  const loadSession = async () => {
+    const response = await fetch(ISNET_GENERAL_USE_MODEL_URL, { cache: "force-cache", credentials: "omit" });
+    if (!response.ok) throw new Error(`Model download failed (${response.status})`);
+    const model = await response.arrayBuffer();
+    if (!model.byteLength) throw new Error("Model download was empty");
+    return runtime.InferenceSession.create(model, sessionOptions);
+  };
+
+  try {
+    return await loadSession();
+  } catch (firstError) {
+    console.warn("High-quality background model download failed; retrying once.", firstError);
+    await new Promise<void>((resolve) => window.setTimeout(resolve, 700));
+    return loadSession();
+  }
+};
+
 const fillEnclosedMaskHoles = (mask: Uint8Array, width: number, height: number) => {
   const reachableBackground = new Uint8Array(mask.length);
   const queue = new Int32Array(mask.length);
@@ -1755,7 +1778,6 @@ export default function Home() {
   const [exportPreview, setExportPreview] = useState<{ url: string; format: ExportFormat; width: number; height: number } | null>(null);
   const objectClipboardRef = useRef<ObjectClipboard | null>(null);
   const backgroundRemovalSessionRef = useRef<Ort.InferenceSession | null>(null);
-  const backgroundRemovalUsesFallbackRef = useRef(false);
   const backgroundRemovalRuntimeRef = useRef<typeof import("onnxruntime-web") | null>(null);
   const backgroundRepairSessionRef = useRef<{ imageId: string; source: HTMLImageElement; current: HTMLImageElement } | null>(null);
   const backgroundRepairPointerRef = useRef<{ imageId: string; pointerId: number; x: number; y: number } | null>(null);
@@ -3961,23 +3983,12 @@ export default function Home() {
         runtime.env.wasm.numThreads = 1;
         runtime.env.wasm.proxy = true;
         runtime.env.wasm.wasmPaths = ONNX_RUNTIME_WASM_URL;
-      const sessionOptions = { executionProviders: ["wasm"] as const, graphOptimizationLevel: "all" as const };
         setBackgroundRemovalNotice({ kind: "loading", message: tr("去背中，請稍等…", "Removing background, please wait…") });
-        try {
-          backgroundRemovalSessionRef.current = await runtime.InferenceSession.create(ISNET_GENERAL_USE_MODEL_URL, sessionOptions);
-        } catch {
-          setBackgroundRemovalNotice({ kind: "loading", message: tr("去背中，請稍等…", "Removing background, please wait…") });
-          try {
-            backgroundRemovalSessionRef.current = await runtime.InferenceSession.create(ISNET_GENERAL_USE_MODEL_URL, sessionOptions);
-        } catch {
-          throw new Error(tr("高品質去背模型暫時無法載入，請確認網路後再試一次", "The high-quality background removal model is temporarily unavailable. Check your connection and try again."));
-        }
-        }
+        backgroundRemovalSessionRef.current = await createHighQualityBackgroundRemovalSession(runtime);
       }
 
       const session = backgroundRemovalSessionRef.current;
-      const usesFallback = backgroundRemovalUsesFallbackRef.current;
-      const modelEdge = usesFallback ? 320 : BACKGROUND_REMOVAL_MODEL_EDGE;
+      const modelEdge = BACKGROUND_REMOVAL_MODEL_EDGE;
       const modelCanvas = document.createElement("canvas");
       modelCanvas.width = modelEdge;
       modelCanvas.height = modelEdge;
@@ -3989,15 +4000,9 @@ export default function Home() {
       const planeSize = modelEdge * modelEdge;
       for (let index = 0; index < planeSize; index += 1) {
         const offset = index * 4;
-        if (usesFallback) {
-          input[index] = (pixels[offset] / 255 - 0.485) / 0.229;
-          input[planeSize + index] = (pixels[offset + 1] / 255 - 0.456) / 0.224;
-          input[planeSize * 2 + index] = (pixels[offset + 2] / 255 - 0.406) / 0.225;
-        } else {
-          input[index] = (pixels[offset] - 128) / 256;
-          input[planeSize + index] = (pixels[offset + 1] - 128) / 256;
-          input[planeSize * 2 + index] = (pixels[offset + 2] - 128) / 256;
-        }
+        input[index] = (pixels[offset] - 128) / 256;
+        input[planeSize + index] = (pixels[offset + 1] - 128) / 256;
+        input[planeSize * 2 + index] = (pixels[offset + 2] - 128) / 256;
       }
       setBackgroundRemovalNotice({ kind: "processing", message: tr("去背中，請稍等…", "Removing background, please wait…") });
       const results = await session.run({ [session.inputNames[0]]: new runtime.Tensor("float32", input, [1, 3, modelEdge, modelEdge]) });
@@ -4005,20 +4010,11 @@ export default function Home() {
       if (!output?.data) throw new Error("Subject mask is unavailable");
 
       const values = output.data as Float32Array;
-      let min = Number.POSITIVE_INFINITY;
-      let max = Number.NEGATIVE_INFINITY;
-      if (usesFallback) {
-        for (let index = 0; index < planeSize; index += 1) {
-          min = Math.min(min, values[index]);
-          max = Math.max(max, values[index]);
-        }
-      }
-      const range = Math.max(0.00001, max - min);
       const mask = modelContext.createImageData(modelEdge, modelEdge);
       const foregroundMask = new Uint8Array(planeSize);
       const confidenceMask = new Float32Array(planeSize);
       for (let index = 0; index < planeSize; index += 1) {
-        const confidence = usesFallback ? clamp((values[index] - min) / range, 0, 1) : clamp(values[index], 0, 1);
+        const confidence = clamp(values[index], 0, 1);
         confidenceMask[index] = confidence;
         foregroundMask[index] = confidence >= BACKGROUND_REMOVAL_MASK_THRESHOLD ? 1 : 0;
       }
