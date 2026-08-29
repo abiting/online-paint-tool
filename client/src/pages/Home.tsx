@@ -480,7 +480,10 @@ const MAX_PAINT_LAYERS = 5;
 const MOBILE_VIEWPORT_MEDIA_QUERY = "(max-width: 960px), (pointer: coarse) and (max-height: 600px)";
 const TEXT_RASTER_VERSION = 4;
 const BASE_PAINT_LAYER_ID = "paint-layer-base";
-const ISNET_GENERAL_USE_MODEL_URL = "https://huggingface.co/SacredNoir/isnet-general-use-onnx/resolve/main/isnet-general-use-q8.onnx";
+const ISNET_GENERAL_USE_MODEL_URLS = [
+  "https://painttool-uwbnkjhm.manus.space/manus-storage/isnet-general-use-q8_93800145.onnx",
+  "https://huggingface.co/SacredNoir/isnet-general-use-onnx/resolve/main/isnet-general-use-q8.onnx",
+] as const;
 const ONNX_RUNTIME_WASM_URL = "https://cdn.jsdelivr.net/npm/onnxruntime-web@1.27.0/dist/";
 const BACKGROUND_REMOVAL_MAX_EDGE = 2560;
 const BACKGROUND_REMOVAL_MODEL_EDGE = 1024;
@@ -510,11 +513,19 @@ const clamp = (value: number, min: number, max: number) =>
 const createHighQualityBackgroundRemovalSession = async (runtime: typeof import("onnxruntime-web")) => {
   const sessionOptions = { executionProviders: ["wasm"] as const, graphOptimizationLevel: "all" as const };
   const loadSession = async () => {
-    const response = await fetch(ISNET_GENERAL_USE_MODEL_URL, { cache: "force-cache", credentials: "omit" });
-    if (!response.ok) throw new Error(`Model download failed (${response.status})`);
-    const model = await response.arrayBuffer();
-    if (!model.byteLength) throw new Error("Model download was empty");
-    return runtime.InferenceSession.create(model, sessionOptions);
+    let lastError: unknown = null;
+    for (const modelUrl of ISNET_GENERAL_USE_MODEL_URLS) {
+      try {
+        const response = await fetch(modelUrl, { cache: "force-cache", credentials: "omit" });
+        if (!response.ok) throw new Error(`Model download failed (${response.status})`);
+        const model = await response.arrayBuffer();
+        if (!model.byteLength) throw new Error("Model download was empty");
+        return await runtime.InferenceSession.create(model, sessionOptions);
+      } catch (error) {
+        lastError = error;
+      }
+    }
+    throw lastError instanceof Error ? lastError : new Error("Model download failed");
   };
 
   try {
