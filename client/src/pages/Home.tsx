@@ -1796,7 +1796,7 @@ export default function Home() {
   const objectClipboardRef = useRef<ObjectClipboard | null>(null);
   const backgroundRemovalSessionRef = useRef<Ort.InferenceSession | null>(null);
   const backgroundRemovalRuntimeRef = useRef<typeof import("onnxruntime-web") | null>(null);
-  const backgroundRepairSessionRef = useRef<{ imageId: string; source: HTMLImageElement; current: HTMLImageElement } | null>(null);
+  const backgroundRepairSessionRef = useRef<{ imageId: string; source: HTMLImageElement; current: HTMLImageElement; mask: HTMLImageElement } | null>(null);
   const backgroundRepairPointerRef = useRef<{ imageId: string; pointerId: number; x: number; y: number } | null>(null);
   const backgroundRepairCanvasRefs = useRef(new Map<string, HTMLCanvasElement>());
   const backgroundQualityTimerRef = useRef<number | null>(null);
@@ -4147,8 +4147,16 @@ export default function Home() {
     const image = selectedImage;
     if (!image?.backgroundSource || isPaintLayerLocked(image.paintLayerId)) return;
     try {
-      const [source, current] = await Promise.all([loadImageElement(image.backgroundSource), loadImageElement(image.src)]);
-      backgroundRepairSessionRef.current = { imageId: image.id, source, current };
+      if (!image.backgroundMask) {
+        toast.error(tr("找不到可修補的去背遮罩，請重新執行去背", "The repair mask is unavailable. Run background removal again."));
+        return;
+      }
+      const [source, current, mask] = await Promise.all([
+        loadImageElement(image.backgroundSource),
+        loadImageElement(image.src),
+        loadImageElement(image.backgroundMask),
+      ]);
+      backgroundRepairSessionRef.current = { imageId: image.id, source, current, mask };
       setCropDraft(null);
       setImageEditingId(image.id);
       setBackgroundRepair({ imageId: image.id, mode: "keep", brushSize: 24 });
@@ -4177,13 +4185,11 @@ export default function Home() {
     context.lineTo(from.x + Math.cos(angle - Math.PI / 2) * radius, from.y + Math.sin(angle - Math.PI / 2) * radius);
     context.arc(from.x, from.y, radius, angle - Math.PI / 2, angle + Math.PI / 2, false);
     context.closePath();
+    context.clip();
     if (repair.mode === "keep") {
-      context.clip();
       context.drawImage(session.source, 0, 0, canvas.width, canvas.height);
     } else {
-      context.globalCompositeOperation = "destination-out";
-      context.strokeStyle = "#000";
-      context.fill();
+      context.clearRect(0, 0, canvas.width, canvas.height);
     }
     context.restore();
   };
@@ -4223,15 +4229,61 @@ export default function Home() {
     const repair = backgroundRepair;
     const session = backgroundRepairSessionRef.current;
     if (!repair || !session || repair.imageId !== session.imageId) return;
+    const targetImage = imagesRef.current.find((image) => image.id === repair.imageId);
+    if (!targetImage) return;
     const canvas = document.querySelector<HTMLCanvasElement>(`canvas[data-background-repair-id="${repair.imageId}"]`);
     if (!canvas) return;
-    const nextSource = canvas.toDataURL("image/png");
     try {
+      const maskCanvas = document.createElement("canvas");
+      maskCanvas.width = canvas.width;
+      maskCanvas.height = canvas.height;
+      const maskContext = maskCanvas.getContext("2d", { willReadFrequently: true });
+      if (!maskContext) throw new Error("Canvas is unavailable");
+      maskContext.drawImage(session.mask, 0, 0, maskCanvas.width, maskCanvas.height);
+      // 修補畫布在視覺層直接合成；提交時以像素差異回寫 alpha mask，保留日後的邊緣調整能力。
+      const beforeCanvas = document.createElement("canvas");
+      beforeCanvas.width = canvas.width;
+      beforeCanvas.height = canvas.height;
+      const beforeContext = beforeCanvas.getContext("2d", { willReadFrequently: true });
+      if (!beforeContext) throw new Error("Canvas is unavailable");
+      beforeContext.drawImage(session.current, 0, 0, canvas.width, canvas.height);
+      const beforeData = beforeContext.getImageData(0, 0, canvas.width, canvas.height);
+      const afterData = canvas.getContext("2d", { willReadFrequently: true })?.getImageData(0, 0, canvas.width, canvas.height);
+      const sourceCanvas = document.createElement("canvas");
+      sourceCanvas.width = canvas.width;
+      sourceCanvas.height = canvas.height;
+      const sourceContext = sourceCanvas.getContext("2d", { willReadFrequently: true });
+      if (!afterData || !sourceContext) throw new Error("Canvas is unavailable");
+      sourceContext.drawImage(session.source, 0, 0, canvas.width, canvas.height);
+      const sourceData = sourceContext.getImageData(0, 0, canvas.width, canvas.height);
+      const maskData = maskContext.getImageData(0, 0, canvas.width, canvas.height);
+      for (let offset = 0; offset < afterData.data.length; offset += 4) {
+        const beforeAlpha = beforeData.data[offset + 3];
+        const afterAlpha = afterData.data[offset + 3];
+        if (afterAlpha < 4 && beforeAlpha > 3) {
+          maskData.data[offset + 3] = 0;
+          continue;
+        }
+        if (afterAlpha > beforeAlpha + 8) {
+          const difference = Math.abs(afterData.data[offset] - sourceData.data[offset])
+            + Math.abs(afterData.data[offset + 1] - sourceData.data[offset + 1])
+            + Math.abs(afterData.data[offset + 2] - sourceData.data[offset + 2]);
+          if (difference < 6) maskData.data[offset + 3] = 255;
+        }
+      }
+      maskContext.putImageData(maskData, 0, 0);
+      const nextMask = maskCanvas.toDataURL("image/png");
+      const nextSource = compositeBackgroundRemoval(
+        session.source,
+        maskCanvas,
+        targetImage.backgroundEdgeSoftness ?? BACKGROUND_REMOVAL_DEFAULT_EDGE_SOFTNESS,
+        targetImage.backgroundDecontamination ?? BACKGROUND_REMOVAL_DEFAULT_DECONTAMINATION,
+      );
       session.current = await loadImageElement(nextSource);
       syncImages(imagesRef.current.map((image) => image.id === repair.imageId ? {
         ...image,
         src: nextSource,
-        backgroundMask: undefined,
+        backgroundMask: nextMask,
       } : image));
       captureHistory();
       setBackgroundRepair(null);
