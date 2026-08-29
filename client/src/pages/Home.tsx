@@ -475,7 +475,7 @@ type AbiPaintWorkspace = {
 };
 
 const BRAND_RED = "#E4513B";
-const PAPER = "#FFFDF8";
+const PAPER = "#F7F2E8";
 const GRAPHITE = "#1F2528";
 const MAX_PAINT_LAYERS = 5;
 const MOBILE_VIEWPORT_MEDIA_QUERY = "(max-width: 960px), (pointer: coarse) and (max-height: 600px)";
@@ -802,6 +802,89 @@ const refineMaskAgainstUniformBackground = (source: ImageData, mask: ImageData, 
     for (let componentIndex = 0; componentIndex < componentTail; componentIndex += 1) {
       mask.data[componentQueue[componentIndex] * 4 + 3] = 0;
     }
+  }
+};
+
+/**
+ * 斑駁或帶紋理的背景不一定能通過「四周顏色均勻」判定。此處只從圖片外圍
+ * 沿著和外圍主色相近、且模型信心偏低的像素追蹤，清除仍被保留的背景殘留。
+ * 它不會依亮度全圖清除，因此白色主體不會因這個步驟被當成背景移除。
+ */
+const removeBorderConnectedColorResiduals = (
+  source: ImageData,
+  mask: ImageData,
+  confidence: Float32Array,
+  width: number,
+  height: number,
+) => {
+  const borderStep = Math.max(1, Math.floor(Math.min(width, height) / 64));
+  const buckets = new Map<string, { red: number; green: number; blue: number; count: number }>();
+  const sample = (index: number) => {
+    const offset = index * 4;
+    const red = source.data[offset];
+    const green = source.data[offset + 1];
+    const blue = source.data[offset + 2];
+    const key = `${Math.floor(red / 32)}:${Math.floor(green / 32)}:${Math.floor(blue / 32)}`;
+    const current = buckets.get(key) ?? { red: 0, green: 0, blue: 0, count: 0 };
+    current.red += red;
+    current.green += green;
+    current.blue += blue;
+    current.count += 1;
+    buckets.set(key, current);
+  };
+  for (let x = 0; x < width; x += borderStep) {
+    sample(x);
+    sample((height - 1) * width + x);
+  }
+  for (let y = borderStep; y < height - 1; y += borderStep) {
+    sample(y * width);
+    sample(y * width + width - 1);
+  }
+  const palette = Array.from(buckets.values())
+    .sort((a, b) => b.count - a.count)
+    .slice(0, 5)
+    .map((bucket) => [bucket.red / bucket.count, bucket.green / bucket.count, bucket.blue / bucket.count]);
+  if (!palette.length) return;
+
+  const isCandidate = (index: number) => {
+    const offset = index * 4;
+    if (mask.data[offset + 3] > 212 || confidence[index] > 0.72) return false;
+    const red = source.data[offset];
+    const green = source.data[offset + 1];
+    const blue = source.data[offset + 2];
+    return palette.some((color) => Math.abs(red - color[0]) + Math.abs(green - color[1]) + Math.abs(blue - color[2]) <= 92);
+  };
+
+  const reachable = new Uint8Array(width * height);
+  const queue = new Int32Array(width * height);
+  let head = 0;
+  let tail = 0;
+  const enqueue = (index: number) => {
+    if (reachable[index] || !isCandidate(index)) return;
+    reachable[index] = 1;
+    queue[tail] = index;
+    tail += 1;
+  };
+  for (let x = 0; x < width; x += 1) {
+    enqueue(x);
+    enqueue((height - 1) * width + x);
+  }
+  for (let y = 1; y < height - 1; y += 1) {
+    enqueue(y * width);
+    enqueue(y * width + width - 1);
+  }
+  while (head < tail) {
+    const index = queue[head];
+    head += 1;
+    const x = index % width;
+    const y = Math.floor(index / width);
+    if (x > 0) enqueue(index - 1);
+    if (x < width - 1) enqueue(index + 1);
+    if (y > 0) enqueue(index - width);
+    if (y < height - 1) enqueue(index + width);
+  }
+  for (let index = 0; index < reachable.length; index += 1) {
+    if (reachable[index]) mask.data[index * 4 + 3] = 0;
   }
 };
 
@@ -4066,6 +4149,7 @@ export default function Home() {
           : 0;
       }
       const modelSource = modelContext.getImageData(0, 0, modelEdge, modelEdge);
+      removeBorderConnectedColorResiduals(modelSource, mask, confidenceMask, modelEdge, modelEdge);
       const uniformModelBackground = findUniformBorderBackground(modelSource, modelEdge, modelEdge);
       if (uniformModelBackground) {
         refineMaskAgainstUniformBackground(modelSource, mask, modelEdge, modelEdge, BACKGROUND_REMOVAL_DEFAULT_DECONTAMINATION);
