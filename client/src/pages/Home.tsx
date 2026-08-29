@@ -480,10 +480,16 @@ const MAX_PAINT_LAYERS = 5;
 const MOBILE_VIEWPORT_MEDIA_QUERY = "(max-width: 960px), (pointer: coarse) and (max-height: 600px)";
 const TEXT_RASTER_VERSION = 4;
 const BASE_PAINT_LAYER_ID = "paint-layer-base";
-const ISNET_GENERAL_USE_MODEL_URLS = [
-  "https://painttool-uwbnkjhm.manus.space/manus-storage/isnet-general-use-q8_93800145.onnx",
-  "https://huggingface.co/SacredNoir/isnet-general-use-onnx/resolve/main/isnet-general-use-q8.onnx",
-] as const;
+const ISNET_GENERAL_USE_MODEL_URLS = typeof window !== "undefined" && window.location.hostname.endsWith(".manus.computer")
+  ? [
+      "/manus-storage/isnet-general-use-q8_93800145.onnx",
+      "https://painttool-uwbnkjhm.manus.space/manus-storage/isnet-general-use-q8_93800145.onnx",
+      "https://huggingface.co/SacredNoir/isnet-general-use-onnx/resolve/main/isnet-general-use-q8.onnx",
+    ]
+  : [
+      "https://painttool-uwbnkjhm.manus.space/manus-storage/isnet-general-use-q8_93800145.onnx",
+      "https://huggingface.co/SacredNoir/isnet-general-use-onnx/resolve/main/isnet-general-use-q8.onnx",
+    ];
 const ONNX_RUNTIME_WASM_URL = "https://cdn.jsdelivr.net/npm/onnxruntime-web@1.27.0/dist/";
 const BACKGROUND_REMOVAL_MAX_EDGE = 2560;
 const BACKGROUND_REMOVAL_MODEL_EDGE = 1024;
