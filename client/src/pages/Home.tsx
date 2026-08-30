@@ -6172,12 +6172,14 @@ export default function Home() {
     "--background-repair-toolbar-y": `${backgroundRepairToolbarPosition.y}px`,
   } as CSSProperties);
   const handleDesktopToolCreate = (nextTool: DesktopCreativeTool) => {
+    if (nextTool !== "eraser" && imageErase) cancelImageErase();
     setTool(nextTool === "outline" ? "move" : nextTool);
     setActiveDesktopTool(nextTool);
     setOpenDesktopTool(nextTool);
     if (nextTool === "text") addTextLayer();
   };
   const handleDesktopToolSettings = (nextTool: DesktopCreativeTool) => {
+    if (nextTool !== "eraser" && imageErase) cancelImageErase();
     setTool(nextTool === "outline" ? "move" : nextTool);
     setActiveDesktopTool(nextTool);
     if (nextTool === "text" && !selectedText && layersRef.current.length > 0) {
@@ -6188,6 +6190,7 @@ export default function Home() {
     setOpenDesktopTool(nextTool);
   };
   const handleMobileMiniToolCreate = (nextTool: DesktopCreativeTool) => {
+    if (nextTool !== "eraser" && imageErase) cancelImageErase();
     setTool(nextTool === "outline" ? "move" : nextTool);
     setActiveDesktopTool(nextTool);
     setOpenDesktopTool(nextTool);
@@ -6201,6 +6204,7 @@ export default function Home() {
     handleDesktopToolSettings(activeDesktopTool);
   };
   const activateStrokeMoveMode = () => {
+    if (imageErase) cancelImageErase();
     setTool("move");
     setActiveDesktopTool(null);
     setOpenDesktopTool(null);
@@ -6212,6 +6216,7 @@ export default function Home() {
   const isCropToolAvailable = Boolean(selectedImage && imageEditingId === selectedImage.id && !isPaintLayerLocked(selectedImage.paintLayerId));
   const handleCropTool = () => {
     if (!isCropToolAvailable) return;
+    if (imageErase) cancelImageErase();
     if (cropDraft?.imageId === selectedImage?.id) {
       void applyImageCrop();
       return;
