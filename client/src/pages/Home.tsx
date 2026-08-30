@@ -2083,6 +2083,7 @@ export default function Home() {
   const [backgroundRepair, setBackgroundRepair] = useState<BackgroundRepairState | null>(null);
   const [backgroundRepairUndoCount, setBackgroundRepairUndoCount] = useState(0);
   const [imageErase, setImageErase] = useState<ImageEraseState | null>(null);
+  const [imageErasePendingId, setImageErasePendingId] = useState<string | null>(null);
   const [imageEraseReadyId, setImageEraseReadyId] = useState<string | null>(null);
   const [imageEraseUndoCount, setImageEraseUndoCount] = useState(0);
   const [backgroundRepairToolbarPosition, setBackgroundRepairToolbarPosition] = useState({ x: 0, y: 0 });
@@ -3796,6 +3797,10 @@ export default function Home() {
     event.stopPropagation();
     const point = getCanvasPoint(event.clientX, event.clientY);
     if (tool === "move") return;
+    if (tool === "eraser" && selectedImage && !isPaintLayerLocked(selectedImage.paintLayerId)) {
+      if (imageErase?.imageId !== selectedImage.id && imageErasePendingId !== selectedImage.id) void startImageErase(selectedImage);
+      return;
+    }
     if (tool === "fill") {
       floodFill(point);
       return;
@@ -3804,6 +3809,7 @@ export default function Home() {
       return;
     }
     if (tool === "text") return;
+    if (tool === "eraser" && imageErasePendingId) return;
     if ((tool === "brush" || tool === "eraser") && activePaintLayer?.locked) {
       toast.info(tr("目前圖層已鎖定，請先解除鎖定", "This layer is locked. Unlock it before drawing"));
       return;
@@ -4701,9 +4707,11 @@ export default function Home() {
   const startImageErase = async (targetImage: ImageLayer | null = selectedImage) => {
     const image = targetImage;
     if (!image || isPaintLayerLocked(image.paintLayerId)) return;
+    if (imageErasePendingId === image.id) return;
     if (imageErase && imageErase.imageId !== image.id) cancelImageErase();
     try {
       if (backgroundRepair) cancelBackgroundRepair();
+      setImageErasePendingId(image.id);
       const source = await loadImageElement(image.src);
       imageEraseSessionRef.current = { imageId: image.id, source };
       imageEraseUndoRef.current = [];
@@ -4712,10 +4720,12 @@ export default function Home() {
       setCropDraft(null);
       setImageEditingId(image.id);
       setImageErase({ imageId: image.id, brushSize });
+      setImageErasePendingId(null);
       setTool("eraser");
       setActiveDesktopTool("eraser");
       setOpenDesktopTool(null);
     } catch {
+      setImageErasePendingId(null);
       toast.error(tr("無法準備圖片擦布", "Unable to prepare the image eraser"));
     }
   };
@@ -4739,6 +4749,11 @@ export default function Home() {
     context.moveTo(from.x / scaleX, from.y / scaleY);
     context.lineTo(to.x / scaleX, to.y / scaleY);
     context.stroke();
+    if (Math.abs(to.x - from.x) < 0.5 && Math.abs(to.y - from.y) < 0.5) {
+      context.beginPath();
+      context.arc(to.x / scaleX, to.y / scaleY, erase.brushSize / 2, 0, Math.PI * 2);
+      context.fill();
+    }
     context.restore();
   };
 
@@ -4786,6 +4801,11 @@ export default function Home() {
       // 觸控瀏覽器若不支援捕捉，仍可透過元素上的移動事件完成筆觸。
     }
     const point = getImageErasePoint(event, canvas);
+    const context = canvas.getContext("2d", { willReadFrequently: true });
+    if (context) {
+      imageEraseUndoRef.current.push(context.getImageData(0, 0, canvas.width, canvas.height));
+      setImageEraseUndoCount(imageEraseUndoRef.current.length);
+    }
     imageErasePointerRef.current = { imageId: image.id, pointerId: event.pointerId, ...point };
     paintImageErase(canvas, image, point, point);
   };
@@ -4822,6 +4842,7 @@ export default function Home() {
   const leaveImageEraseMode = () => {
     flushImageEraseStroke();
     setImageErase(null);
+    setImageErasePendingId(null);
     imageErasePointerRef.current = null;
     imageEraseSessionRef.current = null;
     imageEraseUndoRef.current = [];
@@ -5298,7 +5319,11 @@ export default function Home() {
         const strokeContext = strokeSurface.getContext("2d");
         if (!strokeContext) continue;
         renderBrushStroke(strokeContext, entry.item);
-        const eraserStrokes = strokesRef.current.filter((stroke) => stroke.isEraser && stroke.paintLayerId === entry.item.paintLayerId);
+        const eraserStrokes = strokesRef.current.filter((stroke, index) => (
+          stroke.isEraser
+          && stroke.paintLayerId === entry.item.paintLayerId
+          && getMaterialStackOrder("stroke", stroke, index) > entry.stackOrder
+        ));
         if (eraserStrokes.length > 0) {
           strokeContext.save();
           strokeContext.globalCompositeOperation = "destination-out";
@@ -6837,8 +6862,15 @@ export default function Home() {
                   )}
                   {snapGuides.x !== null && <div className="snap-guide snap-guide-vertical" style={{ left: `${snapGuides.x}px` }} />}
                   {snapGuides.y !== null && <div className="snap-guide snap-guide-horizontal" style={{ top: `${snapGuides.y}px` }} />}
-                  {[...strokes, ...(drawingStroke ? [drawingStroke] : [])].map((stroke, index) => {
-                    const eraserStrokes = [...strokes, ...(drawingStroke ? [drawingStroke] : [])].filter((candidate) => candidate.isEraser && candidate.paintLayerId === stroke.paintLayerId);
+                  {(() => {
+                    const visibleStrokes = [...strokes, ...(drawingStroke ? [drawingStroke] : [])];
+                    return visibleStrokes.map((stroke, index) => {
+                    const strokeStackOrder = getMaterialStackOrder("stroke", stroke, index);
+                    const eraserStrokes = visibleStrokes.filter((candidate, candidateIndex) => (
+                      candidate.isEraser
+                      && candidate.paintLayerId === stroke.paintLayerId
+                      && getMaterialStackOrder("stroke", candidate, candidateIndex) > strokeStackOrder
+                    ));
                     if (stroke.isEraser) return null;
                     const isDraftStroke = drawingStroke?.id === stroke.id;
                     const isStrokeLayerLocked = paintLayers.find((layer) => layer.id === stroke.paintLayerId)?.locked ?? false;
@@ -6897,7 +6929,8 @@ export default function Home() {
                         </g>
                       </svg>
                     );
-                  })}
+                    });
+                  })()}
                   {images.map((image, index) => {
                     const hasOutline = (image.outlineWidth ?? 0) > 0;
                     return (
