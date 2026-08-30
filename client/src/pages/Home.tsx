@@ -2420,7 +2420,11 @@ export default function Home() {
   const selectedMaterialIsLocked = selectedMaterialStackEntry ? isPaintLayerLocked(selectedMaterialStackEntry.paintLayerId) : true;
   const canUseImageEraser = Boolean(selectedImage && !isPaintLayerLocked(selectedImage.paintLayerId));
   const hasErasableBrushStrokes = strokes.some((stroke) => !stroke.isEraser && !isPaintLayerLocked(stroke.paintLayerId));
-  const canUseEraser = canUseImageEraser || hasErasableBrushStrokes;
+  const selectedShapeOrText = Boolean(selectedShape || selectedText);
+  const canUseEraser = !selectedShapeOrText && (canUseImageEraser || hasErasableBrushStrokes);
+  const eraserDisabledHint = selectedShapeOrText
+    ? tr("請先取消圖形或文字選取", "Deselect the shape or text first")
+    : tr("請先選取圖片或建立筆刷內容", "Select an image or create brush marks first");
   const canBringSelectedMaterialForward = selectedMaterialStackIndex >= 0 && selectedMaterialStackIndex < selectedLayerStackEntries.length - 1 && !selectedMaterialIsLocked;
   const canSendSelectedMaterialBackward = selectedMaterialStackIndex > 0 && !selectedMaterialIsLocked;
 
@@ -4694,7 +4698,7 @@ export default function Home() {
 
   const activateEraserTool = () => {
     if (!canUseEraser) {
-      toast.info(tr("請先選取圖片或建立筆刷內容", "Select an image or create brush marks first"));
+      toast.info(eraserDisabledHint);
       return;
     }
     if (backgroundRepair) cancelBackgroundRepair();
@@ -4714,7 +4718,7 @@ export default function Home() {
       setOpenDesktopTool(null);
       return;
     }
-    toast.info(tr("請先選取圖片或建立筆刷內容", "Select an image or create brush marks first"));
+    toast.info(eraserDisabledHint);
     setTool("move");
     setActiveDesktopTool(null);
     setOpenDesktopTool(null);
@@ -6463,7 +6467,7 @@ export default function Home() {
           <div className="tool-group">
             <ToolButton label={copy.select} active={tool === "move"} icon={<Move size={18} />} onClick={activateStrokeMoveMode} disabled={!hasMovableArtwork} />
             <ToolButton label={copy.brush} active={activeDesktopTool === "brush"} icon={<Pencil size={18} />} onClick={() => handleDesktopToolCreate("brush")} onDoubleActivate={() => handleDesktopToolSettings("brush")} />
-            <ToolButton label={tr("擦布", "Eraser")} active={tool === "eraser"} icon={<Eraser size={18} />} onClick={activateEraserTool} disabled={!canUseEraser} disabledHint={tr("請先選取圖片或建立筆刷內容", "Select an image or create brush marks first")} />
+            <ToolButton label={tr("擦布", "Eraser")} active={tool === "eraser"} icon={<Eraser size={18} />} onClick={activateEraserTool} disabled={!canUseEraser} disabledHint={eraserDisabledHint} />
             <ToolButton label={copy.shape} active={activeDesktopTool === "shape"} icon={<Shapes size={18} />} onClick={() => handleDesktopToolCreate("shape")} onDoubleActivate={() => handleDesktopToolSettings("shape")} />
             <ToolButton label={copy.text} active={activeDesktopTool === "text"} icon={<Type size={18} />} onClick={() => handleDesktopToolCreate("text")} onDoubleActivate={() => handleDesktopToolSettings("text")} />
             <ToolButton label={tr("輪廓", "Outline")} active={activeDesktopTool === "outline"} icon={<SquareDashed size={18} />} onClick={() => handleDesktopToolSettings("outline")} disabled={!hasSelectedObject} />
@@ -6822,7 +6826,7 @@ export default function Home() {
               <span className="mobile-mini-separator" />
               <button type="button" className={`mobile-mini-tool ${tool === "move" ? "is-active" : ""}`} onClick={activateStrokeMoveMode} disabled={!hasMovableArtwork} aria-label="選取並移動筆觸" title="選取並移動筆觸"><Move size={16} /></button>
               <button type="button" className={`mobile-mini-tool ${activeDesktopTool === "brush" ? "is-active" : ""}`} onClick={() => handleMobileMiniToolCreate("brush")} aria-label="畫筆" title="畫筆"><Pencil size={16} /></button>
-              <button type="button" className={`mobile-mini-tool ${tool === "eraser" ? "is-active" : ""}`} onClick={activateEraserTool} disabled={!canUseEraser} aria-label={tr("擦布", "Eraser")} title={canUseEraser ? tr("擦布", "Eraser") : tr("請先選取圖片或建立筆刷內容", "Select an image or create brush marks first")}><Eraser size={16} /></button>
+              <button type="button" className={`mobile-mini-tool ${tool === "eraser" ? "is-active" : ""}`} onClick={activateEraserTool} disabled={!canUseEraser} aria-label={tr("擦布", "Eraser")} title={canUseEraser ? tr("擦布", "Eraser") : eraserDisabledHint}><Eraser size={16} /></button>
               <button type="button" className={`mobile-mini-tool ${activeDesktopTool === "shape" ? "is-active" : ""}`} onClick={() => handleMobileMiniToolCreate("shape")} aria-label="新增圖形" title="新增圖形"><Shapes size={16} /></button>
               <button type="button" className={`mobile-mini-tool ${activeDesktopTool === "text" ? "is-active" : ""}`} onClick={() => handleMobileMiniToolCreate("text")} aria-label="新增文字" title="新增文字"><Type size={16} /></button>
               <button type="button" className={`mobile-mini-tool ${activeDesktopTool === "outline" ? "is-active" : ""}`} onClick={() => handleDesktopToolSettings("outline")} disabled={!hasSelectedObject} aria-label="輪廓" title="輪廓"><SquareDashed size={16} /></button>
