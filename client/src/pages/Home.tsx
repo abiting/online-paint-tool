@@ -4674,6 +4674,10 @@ export default function Home() {
 
   const confirmEraserTool = () => {
     if (backgroundRepair) cancelBackgroundRepair();
+    if (selectedImage && !isPaintLayerLocked(selectedImage.paintLayerId)) {
+      void startImageErase(selectedImage);
+      return;
+    }
     setTool("eraser");
     setActiveDesktopTool("eraser");
     setOpenDesktopTool(null);
@@ -6283,7 +6287,7 @@ export default function Home() {
             <img src="/favicon.webp" alt="AbiPaint" />
           </span>
           <div className="brand-copy">
-            <h1 className="brand-name">AbiPaint<span className="brand-vermilion-slash" aria-hidden="true" /></h1>
+            <h1 className="brand-name">AbiPaint</h1>
           </div>
         </div>
 
