@@ -6616,7 +6616,7 @@ export default function Home() {
                 </div>
               </div>
 
-              {openDesktopTool === "object" && selectedMaterialStackEntry && (
+              {selectedMaterialStackEntry && (openDesktopTool === "object" || (openDesktopTool === "shape" && selectedShape) || (openDesktopTool === "text" && selectedText)) && (
                 <div className="material-stack-controls" aria-label={tr("素材位置", "Stack order")}>
                   <span className="field-label">{tr("素材位置", "Stack order")}</span>
                   <div className="material-stack-actions">
@@ -6791,6 +6791,8 @@ export default function Home() {
             >
               <button type="button" className="mobile-mini-drag-handle" onPointerDown={handleMobileMiniToolPointerDown} aria-label="拖曳移動工具欄" title="拖曳移動工具欄"><GripVertical size={16} /></button>
               <span className="mobile-mini-separator" />
+              <button type="button" className="mobile-mini-tool mobile-mini-settings" onClick={openDesktopTool ? handleMobileMiniToolSettings : hasSelectedObject ? handleSelectedObjectSettings : handleMobileMiniToolSettings} disabled={!hasSelectedObject && !activeDesktopTool} aria-label="開啟工具設定" title="開啟工具設定"><SlidersHorizontal size={16} /></button>
+              <span className="mobile-mini-separator" />
               <button type="button" className={`mobile-mini-tool ${tool === "move" ? "is-active" : ""}`} onClick={activateStrokeMoveMode} disabled={!hasMovableArtwork} aria-label="選取並移動筆觸" title="選取並移動筆觸"><Move size={16} /></button>
               <button type="button" className={`mobile-mini-tool ${activeDesktopTool === "brush" ? "is-active" : ""}`} onClick={() => handleMobileMiniToolCreate("brush")} aria-label="畫筆" title="畫筆"><Pencil size={16} /></button>
               <button type="button" className={`mobile-mini-tool ${tool === "eraser" ? "is-active" : ""}`} onClick={activateEraserTool} aria-label={tr("擦布", "Eraser")} title={tr("擦布", "Eraser")}><Eraser size={16} /></button>
@@ -6808,8 +6810,6 @@ export default function Home() {
               >
                 <WandSparkles size={16} />
               </button>
-              <span className="mobile-mini-separator" />
-              <button type="button" className="mobile-mini-tool mobile-mini-settings" onClick={hasSelectedObject ? handleSelectedObjectSettings : handleMobileMiniToolSettings} disabled={!hasSelectedObject && !activeDesktopTool} aria-label="開啟工具設定" title="開啟工具設定"><SlidersHorizontal size={16} /></button>
             </div>
             <div className="stage-notes stage-note-bottom">{canvasSize.width} × {canvasSize.height}</div>
             <div
@@ -7008,7 +7008,6 @@ export default function Home() {
                           style={{ left: `${cropDraft.x * 100}%`, top: `${cropDraft.y * 100}%`, width: `${cropDraft.width * 100}%`, height: `${cropDraft.height * 100}%` }}
                           onPointerDown={(event) => handleCropHandlePointerDown(event, image, "move")}
                         >
-                          <span>{tr("拖曳控制點調整裁切範圍", "Drag handles to adjust crop")}</span>
                           <div className="crop-handle crop-handle-left" onPointerDown={(event) => handleCropHandlePointerDown(event, image, "left")} />
                           <div className="crop-handle crop-handle-right" onPointerDown={(event) => handleCropHandlePointerDown(event, image, "right")} />
                           <div className="crop-handle crop-handle-top" onPointerDown={(event) => handleCropHandlePointerDown(event, image, "top")} />
