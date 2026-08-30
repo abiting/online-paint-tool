@@ -4575,8 +4575,8 @@ export default function Home() {
     }, 180);
   };
 
-  const startBackgroundRepair = async () => {
-    const image = selectedImage;
+  const startBackgroundRepair = async (targetImage: ImageLayer | null = selectedImage, initialMode: "keep" | "remove" = "keep") => {
+    const image = targetImage;
     if (!image?.backgroundSource || isPaintLayerLocked(image.paintLayerId)) return;
     try {
       if (!image.backgroundMask) {
@@ -4595,11 +4595,25 @@ export default function Home() {
       pendingBackgroundRepairToolbarPositionRef.current = { x: 0, y: 0 };
       setCropDraft(null);
       setImageEditingId(image.id);
-      setBackgroundRepair({ imageId: image.id, mode: "keep", brushSize: 24 });
-      toast.info(tr("使用保留筆補回主體，移除筆清除殘留背景", "Use Keep to restore the subject and Remove to erase leftover background"));
+      setBackgroundRepair({ imageId: image.id, mode: initialMode, brushSize: 24 });
+      toast.info(initialMode === "remove"
+        ? tr("擦布已切換為移除模式", "Eraser switched to Remove mode")
+        : tr("使用修補筆補回主體，移除筆清除殘留背景", "Use Repair to restore the subject and Remove to erase leftover background"));
     } catch {
       toast.error(tr("無法準備去背修補畫布", "Unable to prepare the background repair canvas"));
     }
+  };
+
+  const activateEraserTool = () => {
+    const image = selectedImage;
+    setActiveDesktopTool(null);
+    setOpenDesktopTool(null);
+    if (image?.backgroundMask && !isPaintLayerLocked(image.paintLayerId)) {
+      void startBackgroundRepair(image, "remove");
+      return;
+    }
+    clearSelectedObjects();
+    setTool("eraser");
   };
 
   const paintBackgroundRepair = (canvas: HTMLCanvasElement, from: { x: number; y: number }, to: { x: number; y: number }) => {
@@ -5316,11 +5330,15 @@ export default function Home() {
     } catch {
       // 部分觸控與合成指標環境不支援捕捉，裁切仍由全域指標事件持續追蹤。
     }
-    const point = getCanvasPoint(event.clientX, event.clientY, true);
     setSnapGuides({ x: null, y: null });
     setSelectedImageId(image.id);
     setSelectedTextId(null);
     setSelectedShapeId(null);
+    if (tool === "eraser" && image.backgroundMask) {
+      void startBackgroundRepair(image, "remove");
+      return;
+    }
+    const point = getCanvasPoint(event.clientX, event.clientY, true);
     if (tool === "crop" && cropDraft?.imageId === image.id) return;
     if (imageEditingId !== image.id) {
       setImageEditingId(image.id);
@@ -6067,7 +6085,7 @@ export default function Home() {
           <div className="tool-group">
             <ToolButton label={copy.select} active={tool === "move"} icon={<Move size={18} />} onClick={activateStrokeMoveMode} disabled={!hasMovableArtwork} />
             <ToolButton label={copy.brush} active={activeDesktopTool === "brush"} icon={<Pencil size={18} />} onClick={() => handleDesktopToolCreate("brush")} onDoubleActivate={() => handleDesktopToolSettings("brush")} />
-            <ToolButton label={tr("擦布", "Eraser")} active={tool === "eraser"} icon={<Eraser size={18} />} onClick={() => { clearSelectedObjects(); setTool("eraser"); setActiveDesktopTool(null); setOpenDesktopTool(null); }} />
+            <ToolButton label={tr("擦布", "Eraser")} active={tool === "eraser"} icon={<Eraser size={18} />} onClick={activateEraserTool} />
             <ToolButton label={copy.shape} active={activeDesktopTool === "shape"} icon={<Shapes size={18} />} onClick={() => handleDesktopToolCreate("shape")} onDoubleActivate={() => handleDesktopToolSettings("shape")} />
             <ToolButton label={copy.text} active={activeDesktopTool === "text"} icon={<Type size={18} />} onClick={() => handleDesktopToolCreate("text")} onDoubleActivate={() => handleDesktopToolSettings("text")} />
             <ToolButton label={tr("輪廓", "Outline")} active={activeDesktopTool === "outline"} icon={<SquareDashed size={18} />} onClick={() => handleDesktopToolSettings("outline")} disabled={!hasSelectedObject} />
@@ -6408,7 +6426,7 @@ export default function Home() {
               <span className="mobile-mini-separator" />
               <button type="button" className={`mobile-mini-tool ${tool === "move" ? "is-active" : ""}`} onClick={activateStrokeMoveMode} disabled={!hasMovableArtwork} aria-label="選取並移動筆觸" title="選取並移動筆觸"><Move size={16} /></button>
               <button type="button" className={`mobile-mini-tool ${activeDesktopTool === "brush" ? "is-active" : ""}`} onClick={() => handleMobileMiniToolCreate("brush")} aria-label="畫筆" title="畫筆"><Pencil size={16} /></button>
-              <button type="button" className={`mobile-mini-tool ${tool === "eraser" ? "is-active" : ""}`} onClick={() => { clearSelectedObjects(); setTool("eraser"); setActiveDesktopTool(null); setOpenDesktopTool(null); }} aria-label={tr("擦布", "Eraser")} title={tr("擦布", "Eraser")}><Eraser size={16} /></button>
+              <button type="button" className={`mobile-mini-tool ${tool === "eraser" ? "is-active" : ""}`} onClick={activateEraserTool} aria-label={tr("擦布", "Eraser")} title={tr("擦布", "Eraser")}><Eraser size={16} /></button>
               <button type="button" className={`mobile-mini-tool ${activeDesktopTool === "shape" ? "is-active" : ""}`} onClick={() => handleMobileMiniToolCreate("shape")} aria-label="新增圖形" title="新增圖形"><Shapes size={16} /></button>
               <button type="button" className={`mobile-mini-tool ${activeDesktopTool === "text" ? "is-active" : ""}`} onClick={() => handleMobileMiniToolCreate("text")} aria-label="新增文字" title="新增文字"><Type size={16} /></button>
               <button type="button" className={`mobile-mini-tool ${activeDesktopTool === "outline" ? "is-active" : ""}`} onClick={() => handleDesktopToolSettings("outline")} disabled={!hasSelectedObject} aria-label="輪廓" title="輪廓"><SquareDashed size={16} /></button>
@@ -6802,7 +6820,7 @@ export default function Home() {
 
             {(tool === "brush" || tool === "eraser") && !selectedText && !selectedShape && !selectedImage && (
               <div className="inspector-section">
-                <div className="tool-panel-callout brush-lockup"><span className="field-label">{tool === "eraser" ? tr("擦布", "Eraser") : tr("筆刷", "Brush")}</span><p>{tool === "eraser" ? tr("在目前筆刷圖層上擦除內容，可用上方復原還原。", "Erase from the active brush layer. Use Undo above to restore it.") : tr("在目前筆刷圖層上繪製，可調整顏色、大小與透明度。", "Draw on the active brush layer and adjust color, size, and opacity.")}</p></div>
+                <div className="tool-panel-callout brush-lockup"><span className="field-label">{tool === "eraser" ? tr("擦布", "Eraser") : tr("筆刷", "Brush")}</span><p>{tool === "eraser" ? tr("選取已去背圖片時，擦布會開啟移除模式；未選取圖片時，則擦除目前筆刷圖層內容。", "On a background-removed image, Eraser opens Remove mode; otherwise it erases the active brush layer.") : tr("在目前筆刷圖層上繪製，可調整顏色、大小與透明度。", "Draw on the active brush layer and adjust color, size, and opacity.")}</p></div>
                 {tool === "brush" && <div className="color-row">
                   <div>
                     <span className="field-label">前景色</span>
