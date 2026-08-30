@@ -76,6 +76,28 @@
   </head>
 
   <body>
+    <script>
+      // GitHub Pages 自訂網域可能短暫保留舊 HTML；若其雜湊模組已更新，僅以帶時間戳的網址重新取得一次文件。
+      (() => {
+        const retryKey = "abipaint-asset-retry";
+        const params = new URLSearchParams(window.location.search);
+        if (params.has("abipaint_asset_retry")) {
+          params.delete("abipaint_asset_retry");
+          const query = params.toString();
+          window.history.replaceState(null, "", `${window.location.pathname}${query ? `?${query}` : ""}${window.location.hash}`);
+        }
+        window.addEventListener("error", (event) => {
+          const target = event.target;
+          const source = target instanceof HTMLScriptElement ? target.src : "";
+          if (!source.includes("/assets/") || sessionStorage.getItem(retryKey) === "1") return;
+          sessionStorage.setItem(retryKey, "1");
+          const nextUrl = new URL(window.location.href);
+          nextUrl.searchParams.set("abipaint_asset_retry", String(Date.now()));
+          window.location.replace(nextUrl.toString());
+        }, true);
+        window.setTimeout(() => sessionStorage.removeItem(retryKey), 15_000);
+      })();
+    </script>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
     <script>
