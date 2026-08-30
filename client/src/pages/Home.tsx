@@ -351,6 +351,11 @@ type BackgroundRepairState = {
   brushSize: number;
 };
 
+type ImageEraseState = {
+  imageId: string;
+  brushSize: number;
+};
+
 type BrushStroke = {
   id: string;
   paintLayerId: string;
@@ -1442,16 +1447,7 @@ const makeOutlineColor = (hex: string, exposure = 0, contrast = 0, saturation = 
   return `rgba(${adjusted(exposed.r)}, ${adjusted(exposed.g)}, ${adjusted(exposed.b)}, ${clamp(opacity, 0, 100) / 100})`;
 };
 
-const makeAlphaOutlineFilter = (color: string, width: number) => {
-  if (width <= 0) return "";
-  const segments = Math.max(16, Math.min(48, Math.ceil(width * 2)));
-  return Array.from({ length: segments }, (_, index) => {
-    const angle = (Math.PI * 2 * index) / segments;
-    return `drop-shadow(${Math.cos(angle) * width}px ${Math.sin(angle) * width}px 0 ${color})`;
-  }).join(" ");
-};
-
-const drawAlphaOutline = (context: CanvasRenderingContext2D, image: HTMLImageElement, width: number, height: number, color: string, thickness: number) => {
+const drawAlphaOutline = (context: CanvasRenderingContext2D, image: CanvasImageSource, width: number, height: number, color: string, thickness: number, x = 0, y = 0) => {
   if (thickness <= 0) return;
   const surface = document.createElement("canvas");
   surface.width = Math.max(1, Math.ceil(width));
@@ -1465,7 +1461,7 @@ const drawAlphaOutline = (context: CanvasRenderingContext2D, image: HTMLImageEle
   const segments = Math.max(16, Math.min(48, Math.ceil(thickness * 2)));
   for (let index = 0; index < segments; index += 1) {
     const angle = (Math.PI * 2 * index) / segments;
-    context.drawImage(surface, -width / 2 + Math.cos(angle) * thickness, -height / 2 + Math.sin(angle) * thickness, width, height);
+    context.drawImage(surface, x + Math.cos(angle) * thickness, y + Math.sin(angle) * thickness, width, height);
   }
 };
 
@@ -2085,6 +2081,8 @@ export default function Home() {
   const [backgroundRemovalNotice, setBackgroundRemovalNotice] = useState<{ kind: "loading" | "processing" | "success" | "error"; message: string } | null>(null);
   const [backgroundRepair, setBackgroundRepair] = useState<BackgroundRepairState | null>(null);
   const [backgroundRepairUndoCount, setBackgroundRepairUndoCount] = useState(0);
+  const [imageErase, setImageErase] = useState<ImageEraseState | null>(null);
+  const [imageEraseUndoCount, setImageEraseUndoCount] = useState(0);
   const [backgroundRepairToolbarPosition, setBackgroundRepairToolbarPosition] = useState({ x: 0, y: 0 });
   const [isBackgroundRepairToolbarDragging, setIsBackgroundRepairToolbarDragging] = useState(false);
   const [selectedStrokeId, setSelectedStrokeId] = useState<string | null>(null);
@@ -2131,6 +2129,15 @@ export default function Home() {
   const backgroundRepairCanvasRefs = useRef(new Map<string, HTMLCanvasElement>());
   const backgroundRepairUndoRef = useRef<ImageData[]>([]);
   const backgroundRepairUndoHandlerRef = useRef<() => void>(() => undefined);
+  const imageEraseSessionRef = useRef<{ imageId: string; source: HTMLImageElement } | null>(null);
+  const imageErasePointerRef = useRef<{ imageId: string; pointerId: number; x: number; y: number } | null>(null);
+  const imageEraseCanvasRefs = useRef(new Map<string, HTMLCanvasElement>());
+  const imageOutlineCanvasRefs = useRef(new Map<string, HTMLCanvasElement>());
+  const imageContentRefs = useRef(new Map<string, HTMLImageElement>());
+  const imageEraseUndoRef = useRef<ImageData[]>([]);
+  const imageEraseUndoHandlerRef = useRef<() => void>(() => undefined);
+  const imageErasePaintFrameRef = useRef<number | null>(null);
+  const pendingImageEraseStrokeRef = useRef<{ canvas: HTMLCanvasElement; image: ImageLayer; from: CanvasPoint; to: CanvasPoint } | null>(null);
   const backgroundRepairToolbarRef = useRef<HTMLElement>(null);
   const backgroundRepairToolbarDragRef = useRef<{ startX: number; startY: number; originX: number; originY: number; minX: number; maxX: number; minY: number } | null>(null);
   const backgroundRepairToolbarFrameRef = useRef<number | null>(null);
@@ -2184,6 +2191,51 @@ export default function Home() {
     context.clearRect(0, 0, width, height);
     context.drawImage(session.current, 0, 0, width, height);
   }, [backgroundRepair?.imageId]);
+
+  useEffect(() => {
+    const erase = imageErase;
+    const session = imageEraseSessionRef.current;
+    if (!erase || !session || erase.imageId !== session.imageId) return;
+    const canvas = imageEraseCanvasRefs.current.get(erase.imageId);
+    if (!canvas) return;
+    const width = Math.max(1, session.source.naturalWidth || session.source.width);
+    const height = Math.max(1, session.source.naturalHeight || session.source.height);
+    canvas.width = width;
+    canvas.height = height;
+    const context = canvas.getContext("2d");
+    if (!context) return;
+    context.clearRect(0, 0, width, height);
+    context.drawImage(session.source, 0, 0, width, height);
+  }, [imageErase?.imageId]);
+
+  const renderImageAlphaOutline = useCallback((image: ImageLayer) => {
+    const canvas = imageOutlineCanvasRefs.current.get(image.id);
+    const source = imageContentRefs.current.get(image.id);
+    if (!canvas || !source || !source.complete || source.naturalWidth < 1 || source.naturalHeight < 1) return;
+    canvas.width = source.naturalWidth;
+    canvas.height = source.naturalHeight;
+    const context = canvas.getContext("2d");
+    if (!context) return;
+    context.clearRect(0, 0, canvas.width, canvas.height);
+    const outlineWidth = image.outlineWidth ?? 0;
+    if (outlineWidth <= 0) return;
+    const scale = Math.sqrt(
+      (source.naturalWidth / Math.max(1, image.width))
+      * (source.naturalHeight / Math.max(1, image.height)),
+    );
+    drawAlphaOutline(
+      context,
+      source,
+      source.naturalWidth,
+      source.naturalHeight,
+      makeOutlineColor(image.outlineColor ?? "#FFFDF8", image.outlineExposure, image.outlineContrast, image.outlineSaturation, image.outlineVibrancy, image.outlineOpacity),
+      outlineWidth * scale,
+    );
+  }, []);
+
+  useEffect(() => {
+    images.forEach(renderImageAlphaOutline);
+  }, [images, renderImageAlphaOutline]);
 
   const selectedText = useMemo(
     () => layers.find((layer) => layer.id === selectedTextId) ?? null,
@@ -3480,7 +3532,9 @@ export default function Home() {
       }
       if (modifier && key === "z") {
         event.preventDefault();
-        if (backgroundRepair) {
+        if (imageErase) {
+          if (!event.shiftKey) imageEraseUndoHandlerRef.current();
+        } else if (backgroundRepair) {
           if (!event.shiftKey) backgroundRepairUndoHandlerRef.current();
         } else if (event.shiftKey) {
           redo();
@@ -3514,7 +3568,7 @@ export default function Home() {
     };
     window.addEventListener("keydown", handleShortcut);
     return () => window.removeEventListener("keydown", handleShortcut);
-  }, [backgroundRepair, captureHistory, cropDraft, isPaintLayerLocked, selectedImageId, selectedShapeId, selectedStrokeId, selectedTextId, syncStrokes]);
+  }, [backgroundRepair, captureHistory, cropDraft, imageErase, isPaintLayerLocked, selectedImageId, selectedShapeId, selectedStrokeId, selectedTextId, syncStrokes]);
 
   const drawStroke = (from: CanvasPoint, to: CanvasPoint) => {
     const context = canvasRef.current?.getContext("2d");
@@ -4579,6 +4633,7 @@ export default function Home() {
     const image = targetImage;
     if (!image?.backgroundSource || isPaintLayerLocked(image.paintLayerId)) return;
     try {
+      if (imageErase) cancelImageErase();
       if (!image.backgroundMask) {
         toast.error(tr("找不到可修補的去背遮罩，請重新執行去背", "The repair mask is unavailable. Run background removal again."));
         return;
@@ -4608,12 +4663,210 @@ export default function Home() {
     const image = selectedImage;
     setActiveDesktopTool(null);
     setOpenDesktopTool(null);
-    if (image?.backgroundMask && !isPaintLayerLocked(image.paintLayerId)) {
-      void startBackgroundRepair(image, "remove");
+    if (image && !isPaintLayerLocked(image.paintLayerId)) {
+      void startImageErase(image);
       return;
     }
     clearSelectedObjects();
     setTool("eraser");
+  };
+
+  const startImageErase = async (targetImage: ImageLayer | null = selectedImage) => {
+    const image = targetImage;
+    if (!image || isPaintLayerLocked(image.paintLayerId)) return;
+    if (imageErase && imageErase.imageId !== image.id) {
+      toast.info(tr("請先完成或取消目前的圖片擦除", "Apply or cancel the current image erase first"));
+      return;
+    }
+    try {
+      const source = await loadImageElement(image.src);
+      imageEraseSessionRef.current = { imageId: image.id, source };
+      imageEraseUndoRef.current = [];
+      setImageEraseUndoCount(0);
+      setBackgroundRepair(null);
+      backgroundRepairPointerRef.current = null;
+      setCropDraft(null);
+      setImageEditingId(image.id);
+      setImageErase({ imageId: image.id, brushSize: 24 });
+      setTool("eraser");
+      toast.info(tr("直接擦除圖片像素；完成後才會套用", "Erase image pixels directly; apply when you are done"));
+    } catch {
+      toast.error(tr("無法準備圖片擦布", "Unable to prepare the image eraser"));
+    }
+  };
+
+  const paintImageErase = (canvas: HTMLCanvasElement, image: ImageLayer, from: CanvasPoint, to: CanvasPoint) => {
+    const erase = imageErase;
+    const session = imageEraseSessionRef.current;
+    if (!erase || !session || erase.imageId !== image.id || session.imageId !== image.id) return;
+    const context = canvas.getContext("2d");
+    if (!context) return;
+    const scaleX = canvas.width / Math.max(1, image.width);
+    const scaleY = canvas.height / Math.max(1, image.height);
+    context.save();
+    context.scale(scaleX, scaleY);
+    context.globalCompositeOperation = "destination-out";
+    context.strokeStyle = "#000";
+    context.lineCap = "round";
+    context.lineJoin = "round";
+    context.lineWidth = erase.brushSize;
+    context.beginPath();
+    context.moveTo(from.x / scaleX, from.y / scaleY);
+    context.lineTo(to.x / scaleX, to.y / scaleY);
+    context.stroke();
+    context.restore();
+  };
+
+  const flushImageEraseStroke = () => {
+    if (imageErasePaintFrameRef.current !== null) {
+      window.cancelAnimationFrame(imageErasePaintFrameRef.current);
+      imageErasePaintFrameRef.current = null;
+    }
+    const pending = pendingImageEraseStrokeRef.current;
+    pendingImageEraseStrokeRef.current = null;
+    if (pending) paintImageErase(pending.canvas, pending.image, pending.from, pending.to);
+  };
+
+  const scheduleImageEraseStroke = (canvas: HTMLCanvasElement, image: ImageLayer, from: CanvasPoint, to: CanvasPoint) => {
+    const pending = pendingImageEraseStrokeRef.current;
+    pendingImageEraseStrokeRef.current = pending && pending.canvas === canvas
+      ? { ...pending, to }
+      : { canvas, image, from, to };
+    if (imageErasePaintFrameRef.current !== null) return;
+    imageErasePaintFrameRef.current = window.requestAnimationFrame(() => {
+      imageErasePaintFrameRef.current = null;
+      const next = pendingImageEraseStrokeRef.current;
+      pendingImageEraseStrokeRef.current = null;
+      if (next) paintImageErase(next.canvas, next.image, next.from, next.to);
+    });
+  };
+
+  const getImageErasePoint = (event: ReactPointerEvent<HTMLCanvasElement>) => {
+    const canvas = event.currentTarget;
+    const bounds = canvas.getBoundingClientRect();
+    return {
+      x: clamp(((event.clientX - bounds.left) / Math.max(1, bounds.width)) * canvas.width, 0, canvas.width),
+      y: clamp(((event.clientY - bounds.top) / Math.max(1, bounds.height)) * canvas.height, 0, canvas.height),
+    };
+  };
+
+  const handleImageErasePointerDown = (event: ReactPointerEvent<HTMLCanvasElement>, image: ImageLayer) => {
+    if (!imageErase || imageErase.imageId !== image.id || event.button !== 0) return;
+    event.stopPropagation();
+    event.preventDefault();
+    try {
+      event.currentTarget.setPointerCapture(event.pointerId);
+    } catch {
+      // 觸控瀏覽器若不支援捕捉，仍可透過元素上的移動事件完成筆觸。
+    }
+    const context = event.currentTarget.getContext("2d", { willReadFrequently: true });
+    if (context) {
+      const snapshot = context.getImageData(0, 0, event.currentTarget.width, event.currentTarget.height);
+      imageEraseUndoRef.current = [...imageEraseUndoRef.current.slice(-7), snapshot];
+      setImageEraseUndoCount(imageEraseUndoRef.current.length);
+    }
+    const point = getImageErasePoint(event);
+    imageErasePointerRef.current = { imageId: image.id, pointerId: event.pointerId, ...point };
+    paintImageErase(event.currentTarget, image, point, point);
+  };
+
+  const handleImageErasePointerMove = (event: ReactPointerEvent<HTMLCanvasElement>, image: ImageLayer) => {
+    const drag = imageErasePointerRef.current;
+    if (!drag || drag.imageId !== image.id || drag.pointerId !== event.pointerId) return;
+    const point = getImageErasePoint(event);
+    scheduleImageEraseStroke(event.currentTarget, image, drag, point);
+    imageErasePointerRef.current = { ...drag, ...point };
+  };
+
+  const finishImageEraseStroke = (event?: ReactPointerEvent<HTMLCanvasElement>) => {
+    if (event && imageErasePointerRef.current?.pointerId !== event.pointerId) return;
+    flushImageEraseStroke();
+    imageErasePointerRef.current = null;
+  };
+
+  const undoImageEraseStroke = () => {
+    const erase = imageErase;
+    if (!erase) return;
+    flushImageEraseStroke();
+    const snapshot = imageEraseUndoRef.current.pop();
+    const canvas = imageEraseCanvasRefs.current.get(erase.imageId);
+    const context = canvas?.getContext("2d");
+    if (!snapshot || !context) return;
+    context.putImageData(snapshot, 0, 0);
+    setImageEraseUndoCount(imageEraseUndoRef.current.length);
+  };
+
+  useEffect(() => {
+    imageEraseUndoHandlerRef.current = undoImageEraseStroke;
+  }, [imageErase]);
+
+  const commitImageErase = async () => {
+    const erase = imageErase;
+    const session = imageEraseSessionRef.current;
+    if (!erase || !session || erase.imageId !== session.imageId) return;
+    const targetImage = imagesRef.current.find((image) => image.id === erase.imageId);
+    const canvas = imageEraseCanvasRefs.current.get(erase.imageId);
+    if (!targetImage || !canvas) return;
+    try {
+      flushImageEraseStroke();
+      let nextSource = canvas.toDataURL("image/png");
+      let nextMask = targetImage.backgroundMask;
+      if (targetImage.backgroundMask && targetImage.backgroundSource) {
+        const [mask, backgroundSource] = await Promise.all([
+          loadImageElement(targetImage.backgroundMask),
+          loadImageElement(targetImage.backgroundSource),
+        ]);
+        const maskCanvas = document.createElement("canvas");
+        maskCanvas.width = canvas.width;
+        maskCanvas.height = canvas.height;
+        const maskContext = maskCanvas.getContext("2d", { willReadFrequently: true });
+        const canvasContext = canvas.getContext("2d", { willReadFrequently: true });
+        const sourceCanvas = document.createElement("canvas");
+        sourceCanvas.width = canvas.width;
+        sourceCanvas.height = canvas.height;
+        const sourceContext = sourceCanvas.getContext("2d", { willReadFrequently: true });
+        if (!maskContext || !canvasContext || !sourceContext) throw new Error("Canvas is unavailable");
+        maskContext.drawImage(mask, 0, 0, maskCanvas.width, maskCanvas.height);
+        sourceContext.drawImage(session.source, 0, 0, sourceCanvas.width, sourceCanvas.height);
+        const maskData = maskContext.getImageData(0, 0, maskCanvas.width, maskCanvas.height);
+        const erasedData = canvasContext.getImageData(0, 0, canvas.width, canvas.height);
+        const previousData = sourceContext.getImageData(0, 0, sourceCanvas.width, sourceCanvas.height);
+        for (let offset = 0; offset < erasedData.data.length; offset += 4) {
+          if (erasedData.data[offset + 3] + 3 < previousData.data[offset + 3]) maskData.data[offset + 3] = 0;
+        }
+        maskContext.putImageData(maskData, 0, 0);
+        nextMask = maskCanvas.toDataURL("image/png");
+        nextSource = compositeBackgroundRemoval(
+          backgroundSource,
+          maskCanvas,
+          targetImage.backgroundEdgeSoftness ?? BACKGROUND_REMOVAL_DEFAULT_EDGE_SOFTNESS,
+          targetImage.backgroundDecontamination ?? BACKGROUND_REMOVAL_DEFAULT_DECONTAMINATION,
+        );
+      }
+      syncImages(imagesRef.current.map((image) => image.id === erase.imageId ? {
+        ...image,
+        src: nextSource,
+        ...(nextMask ? { backgroundMask: nextMask } : {}),
+      } : image));
+      captureHistory();
+      setImageErase(null);
+      imageErasePointerRef.current = null;
+      imageEraseSessionRef.current = null;
+      imageEraseUndoRef.current = [];
+      setImageEraseUndoCount(0);
+      toast.success(tr("圖片擦除已完成", "Image erase applied"));
+    } catch {
+      toast.error(tr("無法儲存圖片擦除", "Unable to save the image erase"));
+    }
+  };
+
+  const cancelImageErase = () => {
+    flushImageEraseStroke();
+    setImageErase(null);
+    imageErasePointerRef.current = null;
+    imageEraseSessionRef.current = null;
+    imageEraseUndoRef.current = [];
+    setImageEraseUndoCount(0);
   };
 
   const paintBackgroundRepair = (canvas: HTMLCanvasElement, from: { x: number; y: number }, to: { x: number; y: number }) => {
@@ -5012,9 +5265,38 @@ export default function Home() {
         const crop = entry.item.crop ?? FULL_IMAGE_CROP;
         context.save();
         context.globalAlpha = (adjustments.opacity / 100) * (entry.item.opacity / 100);
-        context.filter = makeAdjustmentFilter(entry.item.exposure, entry.item.contrast, entry.item.saturation, entry.item.vibrancy);
         context.translate(entry.item.x + entry.item.width / 2, entry.item.y + entry.item.height / 2);
         context.rotate((entry.item.rotation * Math.PI) / 180);
+        if ((entry.item.outlineWidth ?? 0) > 0) {
+          const outlineSurface = document.createElement("canvas");
+          outlineSurface.width = Math.max(1, Math.round(entry.item.width));
+          outlineSurface.height = Math.max(1, Math.round(entry.item.height));
+          const outlineContext = outlineSurface.getContext("2d");
+          if (outlineContext) {
+            outlineContext.drawImage(
+              imageElement,
+              imageElement.naturalWidth * crop.x,
+              imageElement.naturalHeight * crop.y,
+              imageElement.naturalWidth * crop.width,
+              imageElement.naturalHeight * crop.height,
+              0,
+              0,
+              outlineSurface.width,
+              outlineSurface.height,
+            );
+              drawAlphaOutline(
+              context,
+              outlineSurface,
+              entry.item.width,
+              entry.item.height,
+              makeOutlineColor(entry.item.outlineColor ?? "#FFFDF8", entry.item.outlineExposure, entry.item.outlineContrast, entry.item.outlineSaturation, entry.item.outlineVibrancy, entry.item.outlineOpacity),
+              entry.item.outlineWidth ?? 0,
+              -entry.item.width / 2,
+              -entry.item.height / 2,
+            );
+          }
+        }
+        context.filter = makeAdjustmentFilter(entry.item.exposure, entry.item.contrast, entry.item.saturation, entry.item.vibrancy);
         if (entry.item.shadowOpacity > 0) {
           context.shadowColor = `rgba(0, 0, 0, ${entry.item.shadowOpacity / 100})`;
           context.shadowBlur = 14;
@@ -5334,8 +5616,8 @@ export default function Home() {
     setSelectedImageId(image.id);
     setSelectedTextId(null);
     setSelectedShapeId(null);
-    if (tool === "eraser" && image.backgroundMask) {
-      void startBackgroundRepair(image, "remove");
+    if (tool === "eraser") {
+      if (imageErase?.imageId !== image.id) void startImageErase(image);
       return;
     }
     const point = getCanvasPoint(event.clientX, event.clientY, true);
@@ -5978,7 +6260,7 @@ export default function Home() {
             <img src="/favicon.webp" alt="AbiPaint" />
           </span>
           <div className="brand-copy">
-            <h1 className="brand-name">AbiPaint</h1>
+            <h1 className="brand-name">AbiPaint<span className="brand-vermilion-slash" aria-hidden="true" /></h1>
           </div>
         </div>
 
@@ -6040,7 +6322,7 @@ export default function Home() {
         </div>
 
         <div className="top-actions">
-          <button type="button" className="icon-button" onClick={backgroundRepair ? undoBackgroundRepairStroke : undo} disabled={Boolean(backgroundRepair) && backgroundRepairUndoCount === 0} title={backgroundRepair ? tr("復原修補筆觸", "Undo repair stroke") : copy.undo} aria-label={backgroundRepair ? tr("復原修補筆觸", "Undo repair stroke") : copy.undo}>
+          <button type="button" className="icon-button" onClick={imageErase ? undoImageEraseStroke : backgroundRepair ? undoBackgroundRepairStroke : undo} disabled={Boolean(imageErase) ? imageEraseUndoCount === 0 : Boolean(backgroundRepair) && backgroundRepairUndoCount === 0} title={imageErase ? tr("復原擦除筆觸", "Undo erase stroke") : backgroundRepair ? tr("復原修補筆觸", "Undo repair stroke") : copy.undo} aria-label={imageErase ? tr("復原擦除筆觸", "Undo erase stroke") : backgroundRepair ? tr("復原修補筆觸", "Undo repair stroke") : copy.undo}>
             <Undo2 size={17} />
           </button>
           <button type="button" className="icon-button" onClick={redo} title="重做" aria-label="重做">
@@ -6415,6 +6697,25 @@ export default function Home() {
                 </div>
               </section>
             )}
+            {imageErase && (
+              <section ref={backgroundRepairToolbarRef} className={`background-repair-toolbar ${isBackgroundRepairToolbarDragging ? "is-dragging" : ""}`} style={backgroundRepairToolbarStyle} onPointerDown={(event) => event.stopPropagation()} aria-label={tr("圖片擦布控制", "Image eraser controls")}>
+                <button type="button" className="background-repair-toolbar-drag-handle" onPointerDown={handleBackgroundRepairToolbarPointerDown} aria-label={tr("拖拽移動擦布長條", "Move eraser toolbar")} title={tr("拖拽移動擦布長條", "Move eraser toolbar")}><GripVertical size={16} /></button>
+                <div className="background-repair-toolbar-title">
+                  <Eraser size={18} />
+                  <strong>{tr("擦布", "Eraser")}</strong>
+                </div>
+                <div className="background-repair-toolbar-actions">
+                  <button type="button" onClick={undoImageEraseStroke} disabled={imageEraseUndoCount === 0} title={tr("復原上一筆擦除", "Undo last erase")}><Undo2 size={14} /> {tr("上一步", "Undo")}</button>
+                  <span className="background-repair-toolbar-size" aria-label={tr("擦布大小", "Eraser size")}>
+                    <button type="button" onClick={() => setImageErase((current) => current ? { ...current, brushSize: clamp(current.brushSize - 6, 4, 160) } : current)} aria-label={tr("縮小擦布", "Decrease eraser size")}><Minus size={13} /></button>
+                    <output>{imageErase.brushSize}</output>
+                    <button type="button" onClick={() => setImageErase((current) => current ? { ...current, brushSize: clamp(current.brushSize + 6, 4, 160) } : current)} aria-label={tr("放大擦布", "Increase eraser size")}><Plus size={13} /></button>
+                  </span>
+                  <button type="button" className="is-confirm" onClick={() => void commitImageErase()}><Check size={14} /> {tr("完成", "Apply")}</button>
+                  <button type="button" className="is-cancel" onClick={cancelImageErase}>{tr("取消", "Cancel")}</button>
+                </div>
+              </section>
+            )}
             <div
               ref={mobileMiniToolRef}
               className={`mobile-mini-tools ${isMobileMiniToolDragging ? "is-dragging" : ""}`}
@@ -6528,10 +6829,12 @@ export default function Home() {
                       </svg>
                     );
                   })}
-                  {images.map((image, index) => (
+                  {images.map((image, index) => {
+                    const hasOutline = (image.outlineWidth ?? 0) > 0;
+                    return (
                     <div
                       key={image.id}
-                      className={`image-layer ${selectedImageId === image.id ? "is-selected" : ""} ${selectedImageId === image.id && (snapGuides.x !== null || snapGuides.y !== null) ? "is-snapped" : ""} ${isPaintLayerLocked(image.paintLayerId) ? "is-locked" : ""} ${imageEditingId === image.id ? "is-editing" : "is-passive"} ${cropDraft?.imageId === image.id ? "is-cropping" : ""}`}
+                      className={`image-layer ${selectedImageId === image.id ? "is-selected" : ""} ${selectedImageId === image.id && (snapGuides.x !== null || snapGuides.y !== null) ? "is-snapped" : ""} ${isPaintLayerLocked(image.paintLayerId) ? "is-locked" : ""} ${imageEditingId === image.id ? "is-editing" : "is-passive"} ${cropDraft?.imageId === image.id ? "is-cropping" : ""} ${imageErase?.imageId === image.id ? "is-erasing" : ""}`}
                       style={{
                         left: 0,
                         top: 0,
@@ -6544,18 +6847,51 @@ export default function Home() {
                         "--image-rotation-label-offset": `${40 * (100 / zoom)}px`,
                         zIndex: getMaterialStackOrder("image", image, index),
                         opacity: image.opacity / 100,
-                        filter: [
-                          makeAdjustmentFilter(image.exposure, image.contrast, image.saturation, image.vibrancy),
-                          makeAlphaOutlineFilter(makeOutlineColor(image.outlineColor ?? "#FFFDF8", image.outlineExposure, image.outlineContrast, image.outlineSaturation, image.outlineVibrancy, image.outlineOpacity), image.outlineWidth ?? 0),
-                          image.shadowOpacity > 0 ? `drop-shadow(0 0 14px rgba(0, 0, 0, ${image.shadowOpacity / 100}))` : "",
-                        ].filter((value) => value && value !== "none").join(" ") || "none",
+                        filter: image.shadowOpacity > 0 ? `drop-shadow(0 0 14px rgba(0, 0, 0, ${image.shadowOpacity / 100}))` : "none",
                       } as CSSProperties}
                       onPointerDown={(event) => handleImagePointerDown(event, image)}
                       role="button"
                       tabIndex={0}
                       aria-label={`圖片素材：${image.name}`}
                     >
-                      <img className="image-layer-content" src={image.src} alt={image.name} draggable={false} />
+                      {hasOutline && (
+                        <canvas
+                          ref={(node) => {
+                            if (node) imageOutlineCanvasRefs.current.set(image.id, node);
+                            else imageOutlineCanvasRefs.current.delete(image.id);
+                          }}
+                          className="image-alpha-outline-canvas"
+                          aria-hidden="true"
+                        />
+                      )}
+                      <img
+                        ref={(node) => {
+                          if (node) imageContentRefs.current.set(image.id, node);
+                          else imageContentRefs.current.delete(image.id);
+                        }}
+                        className="image-layer-content"
+                        style={{ filter: makeAdjustmentFilter(image.exposure, image.contrast, image.saturation, image.vibrancy) }}
+                        src={image.src}
+                        alt={image.name}
+                        draggable={false}
+                        onLoad={() => renderImageAlphaOutline(image)}
+                      />
+                      {imageErase?.imageId === image.id && (
+                        <canvas
+                          ref={(node) => {
+                            if (node) imageEraseCanvasRefs.current.set(image.id, node);
+                            else imageEraseCanvasRefs.current.delete(image.id);
+                          }}
+                          className="image-erase-canvas"
+                          data-image-erase-id={image.id}
+                          style={{ filter: makeAdjustmentFilter(image.exposure, image.contrast, image.saturation, image.vibrancy) }}
+                          onPointerDown={(event) => handleImageErasePointerDown(event, image)}
+                          onPointerMove={(event) => handleImageErasePointerMove(event, image)}
+                          onPointerUp={finishImageEraseStroke}
+                          onPointerCancel={finishImageEraseStroke}
+                          aria-label={tr("直接擦除圖片像素", "Erase image pixels directly")}
+                        />
+                      )}
                       {backgroundRepair?.imageId === image.id && (
                         <canvas
                           ref={(node) => {
@@ -6604,7 +6940,8 @@ export default function Home() {
                         </>
                       )}
                     </div>
-                  ))}
+                    );
+                  })}
                   {shapes.map((shape, index) => (
                     <svg
                       key={shape.id}
@@ -6820,7 +7157,7 @@ export default function Home() {
 
             {(tool === "brush" || tool === "eraser") && !selectedText && !selectedShape && !selectedImage && (
               <div className="inspector-section">
-                <div className="tool-panel-callout brush-lockup"><span className="field-label">{tool === "eraser" ? tr("擦布", "Eraser") : tr("筆刷", "Brush")}</span><p>{tool === "eraser" ? tr("選取已去背圖片時，擦布會開啟移除模式；未選取圖片時，則擦除目前筆刷圖層內容。", "On a background-removed image, Eraser opens Remove mode; otherwise it erases the active brush layer.") : tr("在目前筆刷圖層上繪製，可調整顏色、大小與透明度。", "Draw on the active brush layer and adjust color, size, and opacity.")}</p></div>
+                <div className="tool-panel-callout brush-lockup"><span className="field-label">{tool === "eraser" ? tr("擦布", "Eraser") : tr("筆刷", "Brush")}</span><p>{tool === "eraser" ? tr("選取圖片後，可直接擦除圖片像素；未選取圖片時，則擦除目前筆刷圖層內容。", "Select an image to erase its pixels directly; otherwise it erases the active brush layer.") : tr("在目前筆刷圖層上繪製，可調整顏色、大小與透明度。", "Draw on the active brush layer and adjust color, size, and opacity.")}</p></div>
                 {tool === "brush" && <div className="color-row">
                   <div>
                     <span className="field-label">前景色</span>
