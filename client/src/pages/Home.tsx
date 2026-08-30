@@ -485,6 +485,8 @@ const PAPER = "#F7F2E8";
 const GRAPHITE = "#1F2528";
 const MAX_PAINT_LAYERS = 5;
 const MOBILE_VIEWPORT_MEDIA_QUERY = "(max-width: 960px), (pointer: coarse) and (max-height: 600px)";
+const MOBILE_HYDRATION_GUARD_KEY = "abipaint-mobile-hydration-guard";
+const MOBILE_HYDRATION_GUARD_WINDOW_MS = 15_000;
 const TEXT_RASTER_VERSION = 4;
 const BASE_PAINT_LAYER_ID = "paint-layer-base";
 const ISNET_GENERAL_USE_MODEL_URLS = typeof window !== "undefined" && window.location.hostname.endsWith(".manus.computer")
@@ -2045,6 +2047,7 @@ export default function Home() {
   const textRasterTimersRef = useRef(new Map<string, number>());
   const projectImportInputRef = useRef<HTMLInputElement>(null);
   const isProjectHydratedRef = useRef(false);
+  const isMobileRecoveryStartupRef = useRef(false);
   const autosaveTimerRef = useRef<number | null>(null);
   const workingFilesRef = useRef<WorkingFile[]>([]);
   const activeWorkingFileIdRef = useRef("");
@@ -3172,10 +3175,24 @@ export default function Home() {
     let cancelled = false;
     void (async () => {
       try {
-        const savedWorkspace = await readAutoSavedWorkspace();
+        const mobileRuntime = window.matchMedia(MOBILE_VIEWPORT_MEDIA_QUERY).matches;
+        let useRecoveryWorkspace = false;
+        if (mobileRuntime) {
+          try {
+            const now = Date.now();
+            const previousBoot = Number(sessionStorage.getItem(MOBILE_HYDRATION_GUARD_KEY));
+            useRecoveryWorkspace = Number.isFinite(previousBoot) && now - previousBoot >= 0 && now - previousBoot < MOBILE_HYDRATION_GUARD_WINDOW_MS;
+            sessionStorage.setItem(MOBILE_HYDRATION_GUARD_KEY, String(now));
+            window.setTimeout(() => sessionStorage.removeItem(MOBILE_HYDRATION_GUARD_KEY), MOBILE_HYDRATION_GUARD_WINDOW_MS);
+          } catch {
+            // 私密瀏覽或受限 WebView 不可用 sessionStorage 時，照一般流程還原。
+          }
+        }
+        isMobileRecoveryStartupRef.current = useRecoveryWorkspace;
+        const savedWorkspace = useRecoveryWorkspace ? null : await readAutoSavedWorkspace();
         let workspace: AbiPaintWorkspace | null = isAbiPaintWorkspace(savedWorkspace) ? savedWorkspace : null;
         if (!workspace) {
-          const legacyProject = await readAutoSavedProject();
+          const legacyProject = useRecoveryWorkspace ? null : await readAutoSavedProject();
           const initialProject = isAbiPaintProject(legacyProject) ? legacyProject : createBlankProject(1);
           const initialId = makeId("working-file");
           workspace = {
@@ -3194,7 +3211,10 @@ export default function Home() {
           setActiveWorkingFileId(activeFile.id);
           isApplyingWorkingFileRef.current = true;
           await applyProjectSnapshot(activeFile.project);
-          void writeAutoSavedWorkspace(workspace).catch(() => undefined);
+          if (!useRecoveryWorkspace) void writeAutoSavedWorkspace(workspace).catch(() => undefined);
+          if (useRecoveryWorkspace) {
+            toast.info(tr("已安全啟動，舊工作檔暫存未變更", "Started safely; your saved working file was left unchanged"));
+          }
         }
       } catch {
         // 本機暫存不可用時，維持既有的新畫布流程。
@@ -3211,7 +3231,7 @@ export default function Home() {
   }, [applyProjectSnapshot, createBlankProject, syncWorkingFiles]);
 
   useEffect(() => {
-    if (!isProjectHydratedRef.current || isApplyingWorkingFileRef.current) return;
+    if (!isProjectHydratedRef.current || isApplyingWorkingFileRef.current || isMobileRecoveryStartupRef.current) return;
     if (autosaveTimerRef.current !== null) window.clearTimeout(autosaveTimerRef.current);
     autosaveTimerRef.current = window.setTimeout(() => {
       const snapshot = createProjectSnapshot();
@@ -6486,7 +6506,7 @@ export default function Home() {
       <div ref={studioLayoutRef} className="studio-layout">
         <aside className="tool-rail desktop-creative-rail" aria-label={copy.creative}>
           <div className="tool-group">
-            <ToolButton label={copy.select} active={tool === "move"} icon={<Move size={18} />} onClick={activateStrokeMoveMode} disabled={!hasMovableArtwork} />
+            <ToolButton label={copy.select} active={tool === "move" && hasSelectedObject} icon={<Move size={18} />} onClick={activateStrokeMoveMode} disabled={!hasMovableArtwork} />
             <ToolButton label={copy.brush} active={activeDesktopTool === "brush"} icon={<Pencil size={18} />} onClick={() => handleDesktopToolCreate("brush")} onDoubleActivate={() => handleDesktopToolSettings("brush")} />
             <ToolButton label={tr("擦布", "Eraser")} active={tool === "eraser"} icon={<Eraser size={18} />} onClick={activateEraserTool} disabled={!canUseEraser} disabledHint={eraserDisabledHint} />
             <ToolButton label={copy.shape} active={activeDesktopTool === "shape"} icon={<Shapes size={18} />} onClick={() => handleDesktopToolCreate("shape")} onDoubleActivate={() => handleDesktopToolSettings("shape")} />
@@ -6845,7 +6865,7 @@ export default function Home() {
               <span className="mobile-mini-separator" />
               <button type="button" className="mobile-mini-tool mobile-mini-settings" onClick={openDesktopTool ? handleMobileMiniToolSettings : hasSelectedObject ? handleSelectedObjectSettings : handleMobileMiniToolSettings} disabled={!hasSelectedObject && !activeDesktopTool} aria-label="開啟工具設定" title="開啟工具設定"><SlidersHorizontal size={16} /></button>
               <span className="mobile-mini-separator" />
-              <button type="button" className={`mobile-mini-tool ${tool === "move" ? "is-active" : ""}`} onClick={activateStrokeMoveMode} disabled={!hasMovableArtwork} aria-label="選取並移動筆觸" title="選取並移動筆觸"><Move size={16} /></button>
+              <button type="button" className={`mobile-mini-tool ${tool === "move" && hasSelectedObject ? "is-active" : ""}`} onClick={activateStrokeMoveMode} disabled={!hasMovableArtwork} aria-label="選取並移動筆觸" title="選取並移動筆觸"><Move size={16} /></button>
               <button type="button" className={`mobile-mini-tool ${activeDesktopTool === "brush" ? "is-active" : ""}`} onClick={() => handleMobileMiniToolCreate("brush")} aria-label="畫筆" title="畫筆"><Pencil size={16} /></button>
               <button type="button" className={`mobile-mini-tool ${tool === "eraser" ? "is-active" : ""}`} onClick={activateEraserTool} disabled={!canUseEraser} aria-label={tr("擦布", "Eraser")} title={canUseEraser ? tr("擦布", "Eraser") : eraserDisabledHint}><Eraser size={16} /></button>
               <button type="button" className={`mobile-mini-tool ${activeDesktopTool === "shape" ? "is-active" : ""}`} onClick={() => handleMobileMiniToolCreate("shape")} aria-label="新增圖形" title="新增圖形"><Shapes size={16} /></button>
