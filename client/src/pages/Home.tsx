@@ -6930,7 +6930,7 @@ export default function Home() {
                           }}
                           className="image-erase-canvas"
                           data-image-erase-id={image.id}
-                          style={{ filter: makeAdjustmentFilter(image.exposure, image.contrast, image.saturation, image.vibrancy) }}
+                          style={{ filter: makeAdjustmentFilter(image.exposure, image.contrast, image.saturation, image.vibrancy), pointerEvents: "auto" }}
                           onPointerDown={(event) => handleImageErasePointerDown(event, image)}
                           onPointerMove={(event) => handleImageErasePointerMove(event, image)}
                           onPointerUp={finishImageEraseStroke}
