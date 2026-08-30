@@ -487,6 +487,11 @@ const MAX_PAINT_LAYERS = 5;
 const MOBILE_VIEWPORT_MEDIA_QUERY = "(max-width: 960px), (pointer: coarse) and (max-height: 600px)";
 const MOBILE_HYDRATION_GUARD_KEY = "abipaint-mobile-hydration-guard";
 const MOBILE_HYDRATION_GUARD_WINDOW_MS = 15_000;
+// 手機同時持有原始解碼影像、畫布與 Data URL 時容易超出可用記憶體；此上限僅縮減行動版的工作副本。
+const MOBILE_WORKING_IMAGE_MAX_EDGE = 1920;
+const MOBILE_RESTORE_MAX_CANVAS_PIXELS = 6_000_000;
+const MOBILE_RESTORE_MAX_IMAGE_PIXELS = 9_000_000;
+const MOBILE_RESTORE_MAX_TOTAL_IMAGE_PIXELS = 12_000_000;
 const TEXT_RASTER_VERSION = 4;
 const BASE_PAINT_LAYER_ID = "paint-layer-base";
 const ISNET_GENERAL_USE_MODEL_URLS = typeof window !== "undefined" && window.location.hostname.endsWith(".manus.computer")
@@ -1760,6 +1765,75 @@ const loadImageElement = (src: string) => new Promise<HTMLImageElement>((resolve
   image.onerror = reject;
   image.src = src;
 });
+
+const getDataUrlImagePixels = (source?: string) => {
+  if (!source?.startsWith("data:image/")) return 0;
+  const delimiter = source.indexOf(",");
+  if (delimiter < 0) return 0;
+  try {
+    const binary = atob(source.slice(delimiter + 1, delimiter + 131_073));
+    const bytes = Uint8Array.from(binary, (value) => value.charCodeAt(0));
+    const read32 = (offset: number) => ((bytes[offset] << 24) | (bytes[offset + 1] << 16) | (bytes[offset + 2] << 8) | bytes[offset + 3]) >>> 0;
+    if (bytes.length >= 24 && bytes[0] === 0x89 && bytes[1] === 0x50 && bytes[2] === 0x4e && bytes[3] === 0x47) {
+      return read32(16) * read32(20);
+    }
+    if (bytes.length >= 10 && bytes[0] === 0xff && bytes[1] === 0xd8) {
+      let offset = 2;
+      while (offset + 8 < bytes.length) {
+        if (bytes[offset] !== 0xff) {
+          offset += 1;
+          continue;
+        }
+        while (bytes[offset] === 0xff) offset += 1;
+        const marker = bytes[offset];
+        offset += 1;
+        if (marker === 0xd8 || marker === 0xd9) continue;
+        const length = bytes[offset] * 256 + bytes[offset + 1];
+        if (length < 2 || offset + length > bytes.length) break;
+        if ([0xc0, 0xc1, 0xc2, 0xc3, 0xc5, 0xc6, 0xc7, 0xc9, 0xca, 0xcb, 0xcd, 0xce, 0xcf].includes(marker)) {
+          const height = bytes[offset + 3] * 256 + bytes[offset + 4];
+          const width = bytes[offset + 5] * 256 + bytes[offset + 6];
+          return width * height;
+        }
+        offset += length;
+      }
+    }
+  } catch {
+    // 無法解析的來源會沿用既有載入流程；此保護不阻止一般圖片操作。
+  }
+  return 0;
+};
+
+const hasMobileUnsafeProjectMedia = (project: AbiPaintProject) => {
+  const canvasPixels = Number(project.canvas.width) * Number(project.canvas.height);
+  if (Number.isFinite(canvasPixels) && canvasPixels > MOBILE_RESTORE_MAX_CANVAS_PIXELS) return true;
+  const sources = new Set(project.materials.images.flatMap((image) => [image.src, image.backgroundSource, image.backgroundMask].filter((source): source is string => Boolean(source))));
+  let totalPixels = 0;
+  for (const source of Array.from(sources)) {
+    const pixels = getDataUrlImagePixels(source);
+    if (pixels > MOBILE_RESTORE_MAX_IMAGE_PIXELS) return true;
+    totalPixels += pixels;
+  }
+  return totalPixels > MOBILE_RESTORE_MAX_TOTAL_IMAGE_PIXELS;
+};
+
+const createMobileWorkingImageSource = async (source: string, mimeType: string) => {
+  const image = await loadImageElement(source);
+  const sourceWidth = Math.max(1, image.naturalWidth || image.width);
+  const sourceHeight = Math.max(1, image.naturalHeight || image.height);
+  const scale = Math.min(1, MOBILE_WORKING_IMAGE_MAX_EDGE / Math.max(sourceWidth, sourceHeight));
+  if (scale >= 1) return { source, wasReduced: false };
+  const surface = document.createElement("canvas");
+  surface.width = Math.max(1, Math.round(sourceWidth * scale));
+  surface.height = Math.max(1, Math.round(sourceHeight * scale));
+  const context = surface.getContext("2d");
+  if (!context) return { source, wasReduced: false };
+  context.imageSmoothingEnabled = true;
+  context.imageSmoothingQuality = "high";
+  context.drawImage(image, 0, 0, surface.width, surface.height);
+  const outputMime = mimeType === "image/png" || mimeType === "image/webp" ? "image/png" : "image/jpeg";
+  return { source: surface.toDataURL(outputMime, outputMime === "image/jpeg" ? 0.92 : undefined), wasReduced: true };
+};
 
 function ToolButton({
   label,
@@ -3191,6 +3265,12 @@ export default function Home() {
         isMobileRecoveryStartupRef.current = useRecoveryWorkspace;
         const savedWorkspace = useRecoveryWorkspace ? null : await readAutoSavedWorkspace();
         let workspace: AbiPaintWorkspace | null = isAbiPaintWorkspace(savedWorkspace) ? savedWorkspace : null;
+        if (mobileRuntime && workspace?.files.some((file) => hasMobileUnsafeProjectMedia(file.project))) {
+          // 舊版本留下的原始大圖可能在套用快照時同時解碼多份；保留暫存但本次以安全空白工作檔啟動。
+          workspace = null;
+          useRecoveryWorkspace = true;
+          isMobileRecoveryStartupRef.current = true;
+        }
         if (!workspace) {
           const legacyProject = useRecoveryWorkspace ? null : await readAutoSavedProject();
           const initialProject = isAbiPaintProject(legacyProject) ? legacyProject : createBlankProject(1);
@@ -3213,7 +3293,7 @@ export default function Home() {
           await applyProjectSnapshot(activeFile.project);
           if (!useRecoveryWorkspace) void writeAutoSavedWorkspace(workspace).catch(() => undefined);
           if (useRecoveryWorkspace) {
-            toast.info(tr("已安全啟動，舊工作檔暫存未變更", "Started safely; your saved working file was left unchanged"));
+            toast.info(tr("已安全啟動，較大的舊工作檔暫存未變更", "Started safely; your larger saved working file was left unchanged"));
           }
         }
       } catch {
@@ -5230,6 +5310,7 @@ export default function Home() {
       return;
     }
     const image = new Image();
+    let mobileWorkingCopyReduced = false;
     image.onload = () => {
       const canvas = canvasRef.current;
       if (!canvas) return;
@@ -5291,10 +5372,23 @@ export default function Home() {
       toast.success(isFirstImportedImage
         ? tr(`影像已加入畫布，解析度 ${targetCanvasWidth} × ${targetCanvasHeight}`, `Image added. Canvas set to ${targetCanvasWidth} × ${targetCanvasHeight}`)
         : tr("影像已等比例置入既有畫布", "Image placed proportionally on the existing canvas"));
+      if (mobileWorkingCopyReduced) {
+        toast.info(tr("已為行動裝置建立較省記憶體的工作副本", "A memory-safe working copy was created for this mobile device"));
+      }
     };
     const reader = new FileReader();
-    reader.onload = () => {
-      if (typeof reader.result === "string") image.src = reader.result;
+    reader.onload = async () => {
+      if (typeof reader.result !== "string") return;
+      try {
+        const mobileRuntime = window.matchMedia(MOBILE_VIEWPORT_MEDIA_QUERY).matches;
+        const prepared = mobileRuntime
+          ? await createMobileWorkingImageSource(reader.result, file.type)
+          : { source: reader.result, wasReduced: false };
+        mobileWorkingCopyReduced = prepared.wasReduced;
+        image.src = prepared.source;
+      } catch {
+        toast.error(tr("影像讀取失敗，請再試一次", "Image could not be read. Please try again."));
+      }
     };
     reader.onerror = () => toast.error(tr("影像讀取失敗，請再試一次", "Image could not be read. Please try again."));
     reader.readAsDataURL(file);
