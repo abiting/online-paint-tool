@@ -489,6 +489,8 @@ const MOBILE_HYDRATION_GUARD_KEY = "abipaint-mobile-hydration-guard";
 const MOBILE_HYDRATION_GUARD_WINDOW_MS = 15_000;
 // 手機同時持有原始解碼影像、畫布與 Data URL 時容易超出可用記憶體；此上限僅縮減行動版的工作副本。
 const MOBILE_WORKING_IMAGE_MAX_EDGE = 1920;
+// PNG／WebP 常以 RGBA 顯示且無法有效用 JPEG 的壓縮比例估計峰值，改用更保守的上限。
+const MOBILE_RASTER_WORKING_IMAGE_MAX_EDGE = 1280;
 const MOBILE_RESTORE_MAX_CANVAS_PIXELS = 6_000_000;
 const MOBILE_RESTORE_MAX_IMAGE_PIXELS = 9_000_000;
 const MOBILE_RESTORE_MAX_TOTAL_IMAGE_PIXELS = 12_000_000;
@@ -1766,6 +1768,22 @@ const loadImageElement = (src: string) => new Promise<HTMLImageElement>((resolve
   image.src = src;
 });
 
+const readBlobAsDataUrl = (blob: Blob) => new Promise<string>((resolve, reject) => {
+  const reader = new FileReader();
+  reader.onload = () => typeof reader.result === "string"
+    ? resolve(reader.result)
+    : reject(new Error("Unable to read image data"));
+  reader.onerror = () => reject(reader.error ?? new Error("Unable to read image data"));
+  reader.readAsDataURL(blob);
+});
+
+const canvasToBlob = (canvas: HTMLCanvasElement, type: string, quality?: number) => new Promise<Blob>((resolve, reject) => {
+  canvas.toBlob((blob) => {
+    if (blob) resolve(blob);
+    else reject(new Error("Unable to encode image data"));
+  }, type, quality);
+});
+
 const getDataUrlImagePixels = (source?: string) => {
   if (!source?.startsWith("data:image/")) return 0;
   const delimiter = source.indexOf(",");
@@ -1817,22 +1835,42 @@ const hasMobileUnsafeProjectMedia = (project: AbiPaintProject) => {
   return totalPixels > MOBILE_RESTORE_MAX_TOTAL_IMAGE_PIXELS;
 };
 
-const createMobileWorkingImageSource = async (source: string, mimeType: string) => {
-  const image = await loadImageElement(source);
-  const sourceWidth = Math.max(1, image.naturalWidth || image.width);
-  const sourceHeight = Math.max(1, image.naturalHeight || image.height);
-  const scale = Math.min(1, MOBILE_WORKING_IMAGE_MAX_EDGE / Math.max(sourceWidth, sourceHeight));
-  if (scale >= 1) return { source, wasReduced: false };
-  const surface = document.createElement("canvas");
-  surface.width = Math.max(1, Math.round(sourceWidth * scale));
-  surface.height = Math.max(1, Math.round(sourceHeight * scale));
-  const context = surface.getContext("2d");
-  if (!context) return { source, wasReduced: false };
-  context.imageSmoothingEnabled = true;
-  context.imageSmoothingQuality = "high";
-  context.drawImage(image, 0, 0, surface.width, surface.height);
-  const outputMime = mimeType === "image/png" || mimeType === "image/webp" ? "image/png" : "image/jpeg";
-  return { source: surface.toDataURL(outputMime, outputMime === "image/jpeg" ? 0.92 : undefined), wasReduced: true };
+const createMobileWorkingImageSource = async (file: File) => {
+  const inputUrl = URL.createObjectURL(file);
+  let image: HTMLImageElement | null = null;
+  let surface: HTMLCanvasElement | null = null;
+  try {
+    image = await loadImageElement(inputUrl);
+    const sourceWidth = Math.max(1, image.naturalWidth || image.width);
+    const sourceHeight = Math.max(1, image.naturalHeight || image.height);
+    const mustPreserveAlpha = file.type === "image/png" || file.type === "image/webp";
+    const workingMaxEdge = mustPreserveAlpha
+      ? MOBILE_RASTER_WORKING_IMAGE_MAX_EDGE
+      : MOBILE_WORKING_IMAGE_MAX_EDGE;
+    const scale = Math.min(1, workingMaxEdge / Math.max(sourceWidth, sourceHeight));
+    if (scale >= 1) return { source: await readBlobAsDataUrl(file), wasReduced: false };
+
+    surface = document.createElement("canvas");
+    surface.width = Math.max(1, Math.round(sourceWidth * scale));
+    surface.height = Math.max(1, Math.round(sourceHeight * scale));
+    const context = surface.getContext("2d");
+    if (!context) throw new Error("Unable to create image working surface");
+    context.imageSmoothingEnabled = true;
+    context.imageSmoothingQuality = "high";
+    context.drawImage(image, 0, 0, surface.width, surface.height);
+
+    const outputMime = mustPreserveAlpha ? "image/png" : "image/jpeg";
+    const output = await canvasToBlob(surface, outputMime, outputMime === "image/jpeg" ? 0.92 : undefined);
+    return { source: await readBlobAsDataUrl(output), wasReduced: true };
+  } finally {
+    // 釋放原始檔解碼緩衝與重採樣畫布，避免它們與 React／IndexedDB 暫存同時常駐。
+    if (image) image.removeAttribute("src");
+    if (surface) {
+      surface.width = 1;
+      surface.height = 1;
+    }
+    URL.revokeObjectURL(inputUrl);
+  }
 };
 
 function ToolButton({
@@ -5376,22 +5414,22 @@ export default function Home() {
         toast.info(tr("已為行動裝置建立較省記憶體的工作副本", "A memory-safe working copy was created for this mobile device"));
       }
     };
-    const reader = new FileReader();
-    reader.onload = async () => {
-      if (typeof reader.result !== "string") return;
-      try {
-        const mobileRuntime = window.matchMedia(MOBILE_VIEWPORT_MEDIA_QUERY).matches;
-        const prepared = mobileRuntime
-          ? await createMobileWorkingImageSource(reader.result, file.type)
-          : { source: reader.result, wasReduced: false };
-        mobileWorkingCopyReduced = prepared.wasReduced;
-        image.src = prepared.source;
-      } catch {
-        toast.error(tr("影像讀取失敗，請再試一次", "Image could not be read. Please try again."));
-      }
-    };
-    reader.onerror = () => toast.error(tr("影像讀取失敗，請再試一次", "Image could not be read. Please try again."));
-    reader.readAsDataURL(file);
+    const mobileRuntime = window.matchMedia(MOBILE_VIEWPORT_MEDIA_QUERY).matches;
+    if (mobileRuntime) {
+      void createMobileWorkingImageSource(file)
+        .then((prepared) => {
+          mobileWorkingCopyReduced = prepared.wasReduced;
+          image.src = prepared.source;
+        })
+        .catch(() => toast.error(tr("影像讀取失敗，請再試一次", "Image could not be read. Please try again.")));
+    } else {
+      const reader = new FileReader();
+      reader.onload = () => {
+        if (typeof reader.result === "string") image.src = reader.result;
+      };
+      reader.onerror = () => toast.error(tr("影像讀取失敗，請再試一次", "Image could not be read. Please try again."));
+      reader.readAsDataURL(file);
+    }
     event.target.value = "";
   };
 
