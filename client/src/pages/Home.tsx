@@ -60,7 +60,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 
 type Tool = "brush" | "eraser" | "fill" | "text" | "shape" | "retouch" | "move" | "crop";
-type DesktopCreativeTool = Extract<Tool, "brush" | "shape" | "text"> | "outline";
+type DesktopCreativeTool = Extract<Tool, "brush" | "eraser" | "shape" | "text"> | "outline";
 type BrushKind = "oil" | "pencil" | "brush";
 type ShapeKind = "rectangle" | "circle" | "star" | "heart" | "triangle" | "pentagon";
 type ShapeResizeAxis = "left" | "right" | "top" | "bottom" | "top-left" | "top-right" | "bottom-left" | "bottom-right";
@@ -2134,6 +2134,7 @@ export default function Home() {
   const imageEraseCanvasRefs = useRef(new Map<string, HTMLCanvasElement>());
   const imageOutlineCanvasRefs = useRef(new Map<string, HTMLCanvasElement>());
   const imageContentRefs = useRef(new Map<string, HTMLImageElement>());
+  const imageOutlineMaskRefs = useRef(new Map<string, HTMLImageElement>());
   const imageEraseUndoRef = useRef<ImageData[]>([]);
   const imageEraseUndoHandlerRef = useRef<() => void>(() => undefined);
   const imageErasePaintFrameRef = useRef<number | null>(null);
@@ -2210,7 +2211,10 @@ export default function Home() {
 
   const renderImageAlphaOutline = useCallback((image: ImageLayer) => {
     const canvas = imageOutlineCanvasRefs.current.get(image.id);
-    const source = imageContentRefs.current.get(image.id);
+    // 已去背圖片一律由其 alpha 遮罩定義輪廓，不能回讀帶有原始背景色彩的來源圖。
+    const source = image.backgroundMask
+      ? imageOutlineMaskRefs.current.get(image.id)
+      : imageContentRefs.current.get(image.id);
     if (!canvas || !source || !source.complete || source.naturalWidth < 1 || source.naturalHeight < 1) return;
     canvas.width = source.naturalWidth;
     canvas.height = source.naturalHeight;
@@ -4660,15 +4664,10 @@ export default function Home() {
   };
 
   const activateEraserTool = () => {
-    const image = selectedImage;
-    setActiveDesktopTool(null);
-    setOpenDesktopTool(null);
-    if (image && !isPaintLayerLocked(image.paintLayerId)) {
-      void startImageErase(image);
-      return;
-    }
-    clearSelectedObjects();
+    if (backgroundRepair) cancelBackgroundRepair();
     setTool("eraser");
+    setActiveDesktopTool("eraser");
+    setOpenDesktopTool("eraser");
   };
 
   const startImageErase = async (targetImage: ImageLayer | null = selectedImage) => {
@@ -4679,17 +4678,18 @@ export default function Home() {
       return;
     }
     try {
+      if (backgroundRepair) cancelBackgroundRepair();
       const source = await loadImageElement(image.src);
       imageEraseSessionRef.current = { imageId: image.id, source };
       imageEraseUndoRef.current = [];
       setImageEraseUndoCount(0);
-      setBackgroundRepair(null);
-      backgroundRepairPointerRef.current = null;
       setCropDraft(null);
       setImageEditingId(image.id);
-      setImageErase({ imageId: image.id, brushSize: 24 });
+      setImageErase({ imageId: image.id, brushSize });
       setTool("eraser");
-      toast.info(tr("直接擦除圖片像素；完成後才會套用", "Erase image pixels directly; apply when you are done"));
+      setActiveDesktopTool("eraser");
+      setOpenDesktopTool("eraser");
+      toast.info(tr("直接擦除圖片像素；可由左側設定完成或取消", "Erase image pixels directly; apply or cancel from the Eraser settings"));
     } catch {
       toast.error(tr("無法準備圖片擦布", "Unable to prepare the image eraser"));
     }
@@ -5226,6 +5226,11 @@ export default function Home() {
       try { return await loadImageElement(image.src); } catch { return null; }
     }));
     const imageElements = new Map(imagesRef.current.map((image, index) => [image.id, loadedImages[index]]));
+    const loadedImageMasks = await Promise.all(imagesRef.current.map(async (image) => {
+      if (!image.backgroundMask) return null;
+      try { return await loadImageElement(image.backgroundMask); } catch { return null; }
+    }));
+    const imageMaskElements = new Map(imagesRef.current.map((image, index) => [image.id, loadedImageMasks[index]]));
     const loadedTextRasters = await Promise.all(layersRef.current.map(async (layer) => {
       if (!layer.rasterDataUrl) return null;
       try { return await loadImageElement(layer.rasterDataUrl); } catch { return null; }
@@ -5268,32 +5273,37 @@ export default function Home() {
         context.translate(entry.item.x + entry.item.width / 2, entry.item.y + entry.item.height / 2);
         context.rotate((entry.item.rotation * Math.PI) / 180);
         if ((entry.item.outlineWidth ?? 0) > 0) {
-          const outlineSurface = document.createElement("canvas");
-          outlineSurface.width = Math.max(1, Math.round(entry.item.width));
-          outlineSurface.height = Math.max(1, Math.round(entry.item.height));
-          const outlineContext = outlineSurface.getContext("2d");
-          if (outlineContext) {
-            outlineContext.drawImage(
-              imageElement,
-              imageElement.naturalWidth * crop.x,
-              imageElement.naturalHeight * crop.y,
-              imageElement.naturalWidth * crop.width,
-              imageElement.naturalHeight * crop.height,
-              0,
-              0,
-              outlineSurface.width,
-              outlineSurface.height,
-            );
+          const alphaSource = entry.item.backgroundMask
+            ? imageMaskElements.get(entry.item.id)
+            : imageElement;
+          if (alphaSource) {
+            const outlineSurface = document.createElement("canvas");
+            outlineSurface.width = Math.max(1, Math.round(entry.item.width));
+            outlineSurface.height = Math.max(1, Math.round(entry.item.height));
+            const outlineContext = outlineSurface.getContext("2d");
+            if (outlineContext) {
+              outlineContext.drawImage(
+                alphaSource,
+                alphaSource.naturalWidth * crop.x,
+                alphaSource.naturalHeight * crop.y,
+                alphaSource.naturalWidth * crop.width,
+                alphaSource.naturalHeight * crop.height,
+                0,
+                0,
+                outlineSurface.width,
+                outlineSurface.height,
+              );
               drawAlphaOutline(
-              context,
-              outlineSurface,
-              entry.item.width,
-              entry.item.height,
-              makeOutlineColor(entry.item.outlineColor ?? "#FFFDF8", entry.item.outlineExposure, entry.item.outlineContrast, entry.item.outlineSaturation, entry.item.outlineVibrancy, entry.item.outlineOpacity),
-              entry.item.outlineWidth ?? 0,
-              -entry.item.width / 2,
-              -entry.item.height / 2,
-            );
+                context,
+                outlineSurface,
+                entry.item.width,
+                entry.item.height,
+                makeOutlineColor(entry.item.outlineColor ?? "#FFFDF8", entry.item.outlineExposure, entry.item.outlineContrast, entry.item.outlineSaturation, entry.item.outlineVibrancy, entry.item.outlineOpacity),
+                entry.item.outlineWidth ?? 0,
+                -entry.item.width / 2,
+                -entry.item.height / 2,
+              );
+            }
           }
         }
         context.filter = makeAdjustmentFilter(entry.item.exposure, entry.item.contrast, entry.item.saturation, entry.item.vibrancy);
@@ -6595,6 +6605,34 @@ export default function Home() {
                 </div>
               )}
 
+              {openDesktopTool === "eraser" && (
+                <div className="desktop-tool-popover-content">
+                  <p className="empty-inspector compact-object-note">
+                    {selectedImage
+                      ? tr("在已選取圖片上拖曳，即可直接擦除圖片像素。", "Drag on the selected image to erase its pixels directly.")
+                      : tr("未選取圖片時，擦布會清除目前筆刷圖層內容。", "Without an image selected, Eraser clears the active brush layer.")}
+                  </p>
+                  <RangeControl
+                    label={tr("擦布大小", "Eraser size")}
+                    value={imageErase?.brushSize ?? brushSize}
+                    min={2}
+                    max={160}
+                    suffix=" px"
+                    onChange={(value) => {
+                      setBrushSize(value);
+                      setImageErase((current) => current ? { ...current, brushSize: value } : current);
+                    }}
+                  />
+                  {imageErase && (
+                    <div className="eraser-session-actions">
+                      <button type="button" className="secondary-button" onClick={undoImageEraseStroke} disabled={imageEraseUndoCount === 0}><Undo2 size={14} /> {tr("上一步", "Undo")}</button>
+                      <button type="button" className="secondary-button is-complete" onClick={() => void commitImageErase()}><Check size={14} /> {tr("完成", "Apply")}</button>
+                      <button type="button" className="secondary-button" onClick={cancelImageErase}>{tr("取消", "Cancel")}</button>
+                    </div>
+                  )}
+                </div>
+              )}
+
               {openDesktopTool === "shape" && (
                 <div className="desktop-tool-popover-content">
                   <div className="shape-choice-grid floating-shape-grid">
@@ -6694,25 +6732,6 @@ export default function Home() {
                   </span>
                   <button type="button" className="is-confirm" onClick={() => void commitBackgroundRepair()}><Check size={14} /> {tr("完成", "Apply")}</button>
                   <button type="button" className="is-cancel" onClick={cancelBackgroundRepair}>{tr("取消", "Cancel")}</button>
-                </div>
-              </section>
-            )}
-            {imageErase && (
-              <section ref={backgroundRepairToolbarRef} className={`background-repair-toolbar ${isBackgroundRepairToolbarDragging ? "is-dragging" : ""}`} style={backgroundRepairToolbarStyle} onPointerDown={(event) => event.stopPropagation()} aria-label={tr("圖片擦布控制", "Image eraser controls")}>
-                <button type="button" className="background-repair-toolbar-drag-handle" onPointerDown={handleBackgroundRepairToolbarPointerDown} aria-label={tr("拖拽移動擦布長條", "Move eraser toolbar")} title={tr("拖拽移動擦布長條", "Move eraser toolbar")}><GripVertical size={16} /></button>
-                <div className="background-repair-toolbar-title">
-                  <Eraser size={18} />
-                  <strong>{tr("擦布", "Eraser")}</strong>
-                </div>
-                <div className="background-repair-toolbar-actions">
-                  <button type="button" onClick={undoImageEraseStroke} disabled={imageEraseUndoCount === 0} title={tr("復原上一筆擦除", "Undo last erase")}><Undo2 size={14} /> {tr("上一步", "Undo")}</button>
-                  <span className="background-repair-toolbar-size" aria-label={tr("擦布大小", "Eraser size")}>
-                    <button type="button" onClick={() => setImageErase((current) => current ? { ...current, brushSize: clamp(current.brushSize - 6, 4, 160) } : current)} aria-label={tr("縮小擦布", "Decrease eraser size")}><Minus size={13} /></button>
-                    <output>{imageErase.brushSize}</output>
-                    <button type="button" onClick={() => setImageErase((current) => current ? { ...current, brushSize: clamp(current.brushSize + 6, 4, 160) } : current)} aria-label={tr("放大擦布", "Increase eraser size")}><Plus size={13} /></button>
-                  </span>
-                  <button type="button" className="is-confirm" onClick={() => void commitImageErase()}><Check size={14} /> {tr("完成", "Apply")}</button>
-                  <button type="button" className="is-cancel" onClick={cancelImageErase}>{tr("取消", "Cancel")}</button>
                 </div>
               </section>
             )}
@@ -6862,6 +6881,19 @@ export default function Home() {
                           }}
                           className="image-alpha-outline-canvas"
                           aria-hidden="true"
+                        />
+                      )}
+                      {hasOutline && image.backgroundMask && (
+                        <img
+                          ref={(node) => {
+                            if (node) imageOutlineMaskRefs.current.set(image.id, node);
+                            else imageOutlineMaskRefs.current.delete(image.id);
+                          }}
+                          className="image-alpha-outline-mask"
+                          src={image.backgroundMask}
+                          alt=""
+                          aria-hidden="true"
+                          onLoad={() => renderImageAlphaOutline(image)}
                         />
                       )}
                       <img

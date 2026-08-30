@@ -621,7 +621,9 @@ input[type="range"]::-moz-range-thumb { width: 11px; height: 11px; border: 2px s
 .snap-guide-vertical { top: 0; bottom: 0; width: 1px; transform: translateX(-0.5px); }
 .snap-guide-horizontal { right: 0; left: 0; height: 1px; transform: translateY(-0.5px); }
 .image-layer-content { display: block; width: 100%; height: 100%; object-fit: fill; pointer-events: none; user-select: none; }
-.image-alpha-outline-canvas { position: absolute; z-index: 0; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+.image-alpha-outline-canvas { position: absolute; z-index: 0; inset: 0; width: 100%; height: 100%; pointer-events: none; background: transparent !important; }
+.canvas-content .image-alpha-outline-canvas { background: transparent !important; }
+.image-alpha-outline-mask { position: absolute; width: 0; height: 0; overflow: hidden; visibility: hidden; pointer-events: none; }
 .image-layer.is-erasing .image-layer-content { opacity: 0; }
 .image-erase-canvas { position: absolute; z-index: 1; inset: 0; width: 100%; height: 100%; cursor: crosshair; touch-action: none; }
 .background-repair-canvas { position: absolute; inset: 0; width: 100%; height: 100%; cursor: crosshair; touch-action: none; }
