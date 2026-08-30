@@ -5941,31 +5941,17 @@ export default function Home() {
   useEffect(() => {
     if (!isMobileViewport) return;
     const frame = window.requestAnimationFrame(() => fitCanvasToViewport());
-    let refitFrame: number | null = null;
     let rotationTimer: number | null = null;
-    const refit = () => {
-      if (refitFrame !== null) window.cancelAnimationFrame(refitFrame);
-      refitFrame = window.requestAnimationFrame(() => {
-        refitFrame = null;
-        fitCanvasToViewport();
-      });
-    };
     const refitAfterRotation = () => {
       if (rotationTimer !== null) window.clearTimeout(rotationTimer);
       rotationTimer = window.setTimeout(() => {
-        window.scrollTo({ top: 0, left: 0, behavior: "auto" });
-        document.documentElement.scrollTop = 0;
-        document.body.scrollTop = 0;
-        refit();
-      }, 220);
+        window.requestAnimationFrame(() => fitCanvasToViewport());
+      }, 280);
     };
-    window.addEventListener("resize", refit);
     window.addEventListener("orientationchange", refitAfterRotation);
     return () => {
       window.cancelAnimationFrame(frame);
-      if (refitFrame !== null) window.cancelAnimationFrame(refitFrame);
       if (rotationTimer !== null) window.clearTimeout(rotationTimer);
-      window.removeEventListener("resize", refit);
       window.removeEventListener("orientationchange", refitAfterRotation);
     };
   }, [fitCanvasToViewport, isMobileViewport]);
