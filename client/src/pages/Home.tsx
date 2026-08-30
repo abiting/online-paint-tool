@@ -3537,7 +3537,10 @@ export default function Home() {
       if (modifier && key === "z") {
         event.preventDefault();
         if (imageErase) {
-          if (!event.shiftKey) imageEraseUndoHandlerRef.current();
+          if (!event.shiftKey) {
+            cancelImageErase();
+            undo();
+          }
         } else if (backgroundRepair) {
           if (!event.shiftKey) backgroundRepairUndoHandlerRef.current();
         } else if (event.shiftKey) {
@@ -4665,18 +4668,21 @@ export default function Home() {
 
   const activateEraserTool = () => {
     if (backgroundRepair) cancelBackgroundRepair();
-    setTool("eraser");
     setActiveDesktopTool("eraser");
     setOpenDesktopTool("eraser");
+  };
+
+  const confirmEraserTool = () => {
+    if (backgroundRepair) cancelBackgroundRepair();
+    setTool("eraser");
+    setActiveDesktopTool("eraser");
+    setOpenDesktopTool(null);
   };
 
   const startImageErase = async (targetImage: ImageLayer | null = selectedImage) => {
     const image = targetImage;
     if (!image || isPaintLayerLocked(image.paintLayerId)) return;
-    if (imageErase && imageErase.imageId !== image.id) {
-      toast.info(tr("請先完成或取消目前的圖片擦除", "Apply or cancel the current image erase first"));
-      return;
-    }
+    if (imageErase && imageErase.imageId !== image.id) cancelImageErase();
     try {
       if (backgroundRepair) cancelBackgroundRepair();
       const source = await loadImageElement(image.src);
@@ -4688,8 +4694,7 @@ export default function Home() {
       setImageErase({ imageId: image.id, brushSize });
       setTool("eraser");
       setActiveDesktopTool("eraser");
-      setOpenDesktopTool("eraser");
-      toast.info(tr("直接擦除圖片像素；可由左側設定完成或取消", "Erase image pixels directly; apply or cancel from the Eraser settings"));
+      setOpenDesktopTool(null);
     } catch {
       toast.error(tr("無法準備圖片擦布", "Unable to prepare the image eraser"));
     }
@@ -4759,12 +4764,6 @@ export default function Home() {
     } catch {
       // 觸控瀏覽器若不支援捕捉，仍可透過元素上的移動事件完成筆觸。
     }
-    const context = event.currentTarget.getContext("2d", { willReadFrequently: true });
-    if (context) {
-      const snapshot = context.getImageData(0, 0, event.currentTarget.width, event.currentTarget.height);
-      imageEraseUndoRef.current = [...imageEraseUndoRef.current.slice(-7), snapshot];
-      setImageEraseUndoCount(imageEraseUndoRef.current.length);
-    }
     const point = getImageErasePoint(event);
     imageErasePointerRef.current = { imageId: image.id, pointerId: event.pointerId, ...point };
     paintImageErase(event.currentTarget, image, point, point);
@@ -4782,6 +4781,7 @@ export default function Home() {
     if (event && imageErasePointerRef.current?.pointerId !== event.pointerId) return;
     flushImageEraseStroke();
     imageErasePointerRef.current = null;
+    void commitImageErase(true);
   };
 
   const undoImageEraseStroke = () => {
@@ -4813,7 +4813,7 @@ export default function Home() {
     imageEraseUndoHandlerRef.current = undoImageEraseStroke;
   }, [imageErase]);
 
-  const commitImageErase = async () => {
+  const commitImageErase = async (keepErasing = false) => {
     const erase = imageErase;
     const session = imageEraseSessionRef.current;
     if (!erase || !session || erase.imageId !== session.imageId) return;
@@ -4862,8 +4862,13 @@ export default function Home() {
         ...(nextMask ? { backgroundMask: nextMask } : {}),
       } : image));
       captureHistory();
-      leaveImageEraseMode();
-      toast.success(tr("圖片擦除已完成", "Image erase applied"));
+      if (keepErasing) {
+        imageEraseUndoRef.current = [];
+        setImageEraseUndoCount(0);
+      } else {
+        leaveImageEraseMode();
+        toast.success(tr("圖片擦除已完成", "Image erase applied"));
+      }
     } catch {
       toast.error(tr("無法儲存圖片擦除", "Unable to save the image erase"));
     }
@@ -6340,7 +6345,7 @@ export default function Home() {
         </div>
 
         <div className="top-actions">
-          <button type="button" className="icon-button" onClick={imageErase ? undoImageEraseStroke : backgroundRepair ? undoBackgroundRepairStroke : undo} disabled={Boolean(imageErase) ? imageEraseUndoCount === 0 : Boolean(backgroundRepair) && backgroundRepairUndoCount === 0} title={imageErase ? tr("復原擦除筆觸", "Undo erase stroke") : backgroundRepair ? tr("復原修補筆觸", "Undo repair stroke") : copy.undo} aria-label={imageErase ? tr("復原擦除筆觸", "Undo erase stroke") : backgroundRepair ? tr("復原修補筆觸", "Undo repair stroke") : copy.undo}>
+          <button type="button" className="icon-button" onClick={imageErase ? () => { cancelImageErase(); undo(); } : backgroundRepair ? undoBackgroundRepairStroke : undo} disabled={Boolean(backgroundRepair) && backgroundRepairUndoCount === 0} title={imageErase ? copy.undo : backgroundRepair ? tr("復原修補筆觸", "Undo repair stroke") : copy.undo} aria-label={imageErase ? copy.undo : backgroundRepair ? tr("復原修補筆觸", "Undo repair stroke") : copy.undo}>
             <Undo2 size={17} />
           </button>
           <button type="button" className="icon-button" onClick={redo} title="重做" aria-label="重做">
@@ -6561,7 +6566,7 @@ export default function Home() {
                       <button type="button" className="icon-button subtle material-delete-icon-button" onClick={deleteSelectedMaterial} disabled={selectedMaterialIsLocked} title={tr("刪除目前素材", "Delete object")} aria-label={tr("刪除目前素材", "Delete selected object")}><Trash2 size={15} /></button>
                     </>
                   )}
-                  <button type="button" className="icon-button subtle" onClick={() => openDesktopTool === "eraser" ? leaveImageEraseMode() : setOpenDesktopTool(null)} title={tr("完成設定", "Done")} aria-label={tr("完成設定", "Done")}><Check size={16} /></button>
+                  <button type="button" className="icon-button subtle" onClick={() => openDesktopTool === "eraser" ? confirmEraserTool() : setOpenDesktopTool(null)} title={tr("完成設定", "Done")} aria-label={tr("完成設定", "Done")}><Check size={16} /></button>
                 </div>
               </div>
 
@@ -6615,13 +6620,8 @@ export default function Home() {
 
               {openDesktopTool === "eraser" && (
                 <div className="desktop-tool-popover-content">
-                  <p className="empty-inspector compact-object-note">
-                    {selectedImage
-                      ? tr("在已選取圖片上拖曳，即可直接擦除圖片像素。", "Drag on the selected image to erase its pixels directly.")
-                      : tr("未選取圖片時，擦布會清除目前筆刷圖層內容。", "Without an image selected, Eraser clears the active brush layer.")}
-                  </p>
                   <RangeControl
-                    label={tr("擦布大小", "Eraser size")}
+                    label={tr("大小", "Size")}
                     value={imageErase?.brushSize ?? brushSize}
                     min={2}
                     max={160}
@@ -6631,13 +6631,6 @@ export default function Home() {
                       setImageErase((current) => current ? { ...current, brushSize: value } : current);
                     }}
                   />
-                  {imageErase && (
-                    <div className="eraser-session-actions">
-                      <button type="button" className="secondary-button" onClick={undoImageEraseStroke} disabled={imageEraseUndoCount === 0}><Undo2 size={14} /> {tr("上一步", "Undo")}</button>
-                      <button type="button" className="secondary-button is-complete" onClick={() => void commitImageErase()}><Check size={14} /> {tr("完成", "Apply")}</button>
-                      <button type="button" className="secondary-button" onClick={cancelImageErase}>{tr("取消", "Cancel")}</button>
-                    </div>
-                  )}
                 </div>
               )}
 
@@ -7208,7 +7201,7 @@ export default function Home() {
                     <span style={{ backgroundColor: brushColor }} />
                   </label>
                 </div>}
-                <RangeControl label={tool === "eraser" ? tr("擦布大小", "Eraser size") : tr("大小", "Size")} value={brushSize} min={2} max={160} suffix=" px" onChange={setBrushSize} />
+                <RangeControl label={tr("大小", "Size")} value={brushSize} min={2} max={160} suffix=" px" onChange={setBrushSize} />
                 {tool === "brush" && <><RangeControl label={tr("透明度", "Opacity")} value={brushOpacity} min={1} max={100} suffix="%" onChange={setBrushOpacity} />
                 <div className="swatch-row">
                   {["#000000", "#1F2528", "#555B5D", "#FFFFFF", "#FFFDF8", "#E4513B", "#B72F34", "#F07C41", "#D59B42", "#F4C95D", "#2F855A", "#82A480", "#426B8A", "#2D5B9B", "#8B5CF6", "#D26A9C"].map((color) => (
