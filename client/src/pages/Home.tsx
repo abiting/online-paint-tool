@@ -360,6 +360,7 @@ type BrushStroke = {
   id: string;
   paintLayerId: string;
   stackOrder?: number;
+  isEraser?: boolean;
   points: CanvasPoint[];
   x: number;
   y: number;
@@ -3803,7 +3804,7 @@ export default function Home() {
       return;
     }
     if (tool === "text") return;
-    if (tool === "brush" && activePaintLayer?.locked) {
+    if ((tool === "brush" || tool === "eraser") && activePaintLayer?.locked) {
       toast.info(tr("目前圖層已鎖定，請先解除鎖定", "This layer is locked. Unlock it before drawing"));
       return;
     }
@@ -3814,7 +3815,19 @@ export default function Home() {
     if (tool === "retouch") {
       healSpot(point);
     } else {
-      const nextStroke: BrushStroke = { id: makeId("stroke"), paintLayerId: activePaintLayer?.id ?? BASE_PAINT_LAYER_ID, stackOrder: getNextMaterialStackOrder(), points: [point], x: 0, y: 0, color: brushColor, size: brushSize, opacity: brushOpacity, kind: brushKind };
+      const nextStroke: BrushStroke = {
+        id: makeId("stroke"),
+        paintLayerId: activePaintLayer?.id ?? BASE_PAINT_LAYER_ID,
+        stackOrder: getNextMaterialStackOrder(),
+        isEraser: tool === "eraser",
+        points: [point],
+        x: 0,
+        y: 0,
+        color: tool === "eraser" ? "#000000" : brushColor,
+        size: brushSize,
+        opacity: tool === "eraser" ? 100 : brushOpacity,
+        kind: tool === "eraser" ? "oil" : brushKind,
+      };
       drawingStrokeRef.current = nextStroke;
       setDrawingStroke(nextStroke);
     }
@@ -5278,9 +5291,26 @@ export default function Home() {
     for (const entry of renderQueue) {
       if (isPaintLayerLocked(entry.item.paintLayerId)) continue;
       if (entry.type === "stroke") {
+        if (entry.item.isEraser) continue;
+        const strokeSurface = document.createElement("canvas");
+        strokeSurface.width = output.width;
+        strokeSurface.height = output.height;
+        const strokeContext = strokeSurface.getContext("2d");
+        if (!strokeContext) continue;
+        renderBrushStroke(strokeContext, entry.item);
+        const eraserStrokes = strokesRef.current.filter((stroke) => stroke.isEraser && stroke.paintLayerId === entry.item.paintLayerId);
+        if (eraserStrokes.length > 0) {
+          strokeContext.save();
+          strokeContext.globalCompositeOperation = "destination-out";
+          eraserStrokes.forEach((eraser) => {
+            const points = eraser.points.map((point) => ({ x: point.x + eraser.x, y: point.y + eraser.y }));
+            drawSmoothCanvasStroke(strokeContext, points, "#000000", eraser.size, 1, eraser.kind);
+          });
+          strokeContext.restore();
+        }
         context.save();
         context.globalAlpha = adjustments.opacity / 100;
-        renderBrushStroke(context, entry.item);
+        context.drawImage(strokeSurface, 0, 0);
         context.restore();
         continue;
       }
@@ -6576,7 +6606,7 @@ export default function Home() {
                   <h2>{desktopToolPanelTitle}</h2>
                 </div>
                 <div className="desktop-tool-popover-header-actions">
-                  {selectedMaterialStackEntry && openDesktopTool !== "outline" && openDesktopTool !== "eraser" && (
+                  {openDesktopTool === "object" && selectedMaterialStackEntry && (
                     <>
                       <button type="button" className="icon-button subtle" onClick={duplicateSelectedMaterial} disabled={selectedMaterialIsLocked} title={tr("在原物件旁建立相同素材", "Duplicate object")} aria-label={tr("複製目前素材", "Duplicate selected object")}><Copy size={15} /></button>
                       <button type="button" className="icon-button subtle material-delete-icon-button" onClick={deleteSelectedMaterial} disabled={selectedMaterialIsLocked} title={tr("刪除目前素材", "Delete object")} aria-label={tr("刪除目前素材", "Delete selected object")}><Trash2 size={15} /></button>
@@ -6586,7 +6616,7 @@ export default function Home() {
                 </div>
               </div>
 
-              {selectedMaterialStackEntry && openDesktopTool !== "outline" && openDesktopTool !== "eraser" && (
+              {openDesktopTool === "object" && selectedMaterialStackEntry && (
                 <div className="material-stack-controls" aria-label={tr("素材位置", "Stack order")}>
                   <span className="field-label">{tr("素材位置", "Stack order")}</span>
                   <div className="material-stack-actions">
@@ -6799,10 +6829,10 @@ export default function Home() {
                   transform: `scale(${zoom / 100})`,
                 }}
               >
-                <div ref={canvasContentRef} className={`canvas-content ${tool === "brush" ? "is-brush-painting" : ""}`} onPointerDown={handleCanvasBlankPointerDown}>
+                <div ref={canvasContentRef} className={`canvas-content ${tool === "brush" || (tool === "eraser" && !imageErase) ? "is-brush-painting" : ""}`} onPointerDown={handleCanvasBlankPointerDown}>
                   <canvas
                     ref={canvasRef}
-                    style={{ filter: canvasFilter, opacity: adjustments.opacity / 100, pointerEvents: tool === "brush" ? "auto" : "none" }}
+                    style={{ filter: canvasFilter, opacity: adjustments.opacity / 100, pointerEvents: tool === "brush" || (tool === "eraser" && !imageErase) ? "auto" : "none" }}
                     onPointerDown={handleCanvasPointerDown}
                     onPointerMove={handleCanvasPointerMove}
                     onPointerUp={finishStroke}
@@ -6822,6 +6852,8 @@ export default function Home() {
                   {snapGuides.x !== null && <div className="snap-guide snap-guide-vertical" style={{ left: `${snapGuides.x}px` }} />}
                   {snapGuides.y !== null && <div className="snap-guide snap-guide-horizontal" style={{ top: `${snapGuides.y}px` }} />}
                   {[...strokes, ...(drawingStroke ? [drawingStroke] : [])].map((stroke, index) => {
+                    const eraserStrokes = [...strokes, ...(drawingStroke ? [drawingStroke] : [])].filter((candidate) => candidate.isEraser && candidate.paintLayerId === stroke.paintLayerId);
+                    if (stroke.isEraser) return null;
                     const isDraftStroke = drawingStroke?.id === stroke.id;
                     const isStrokeLayerLocked = paintLayers.find((layer) => layer.id === stroke.paintLayerId)?.locked ?? false;
                     const isStrokeSelectable = !isDraftStroke && tool === "move" && !isStrokeLayerLocked;
@@ -6833,6 +6865,7 @@ export default function Home() {
                     const outlineWidth = stroke.outlineWidth ?? 0;
                     const outlineColor = makeOutlineColor(stroke.outlineColor ?? "#FFFDF8", stroke.outlineExposure, stroke.outlineContrast, stroke.outlineSaturation, stroke.outlineVibrancy, stroke.outlineOpacity);
                     const shadowFilter = (stroke.shadowOpacity ?? 0) > 0 ? `drop-shadow(0 0 10px rgba(0, 0, 0, ${(stroke.shadowOpacity ?? 0) / 100}))` : undefined;
+                    const eraserMaskId = `stroke-eraser-mask-${stroke.id}`;
                     return (
                       <svg
                         key={stroke.id}
@@ -6844,7 +6877,21 @@ export default function Home() {
                         tabIndex={isStrokeSelectable ? 0 : -1}
                         aria-label="畫筆筆觸"
                       >
-                        <g transform={`translate(${stroke.x} ${stroke.y})`} style={{ filter: shadowFilter }}>
+                        {eraserStrokes.length > 0 && (
+                          <defs>
+                            <mask id={eraserMaskId} maskUnits="userSpaceOnUse" x="0" y="0" width={canvasSize.width} height={canvasSize.height}>
+                              <rect x="0" y="0" width={canvasSize.width} height={canvasSize.height} fill="#ffffff" />
+                              {eraserStrokes.map((eraser) => {
+                                const eraserPath = buildSmoothSvgPath(eraser.points);
+                                const eraserWidth = eraser.kind === "pencil" ? Math.max(1, eraser.size * 0.78) : eraser.kind === "brush" ? Math.max(2, eraser.size * 1.32) : eraser.size;
+                                return eraser.points.length === 1
+                                  ? <circle key={eraser.id} cx={eraser.points[0].x + eraser.x} cy={eraser.points[0].y + eraser.y} r={eraserWidth / 2} fill="#000000" />
+                                  : <path key={eraser.id} d={eraserPath} transform={`translate(${eraser.x} ${eraser.y})`} fill="none" stroke="#000000" strokeWidth={eraserWidth} strokeLinecap="round" strokeLinejoin="round" />;
+                              })}
+                            </mask>
+                          </defs>
+                        )}
+                        <g transform={`translate(${stroke.x} ${stroke.y})`} style={{ filter: shadowFilter }} mask={eraserStrokes.length > 0 ? `url(#${eraserMaskId})` : undefined}>
                           {stroke.points.length === 1 ? (
                             <>
                               {outlineWidth > 0 && (isBrushStroke ? <ellipse cx={stroke.points[0].x} cy={stroke.points[0].y} rx={stroke.size * 0.66 + outlineWidth} ry={stroke.size * 0.5 + outlineWidth} fill={outlineColor} /> : <circle cx={stroke.points[0].x} cy={stroke.points[0].y} r={strokeWidth / 2 + outlineWidth} fill={outlineColor} />)}
