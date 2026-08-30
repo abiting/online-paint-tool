@@ -614,6 +614,8 @@ input[type="range"]::-moz-range-thumb { width: 11px; height: 11px; border: 2px s
 .image-layer.is-editing { cursor: grab; }
 .image-layer.is-cropping { cursor: crosshair; }
 .image-layer:active { cursor: grabbing; }
+.image-layer.is-erasing,
+.image-layer.is-erasing:active { cursor: crosshair; }
 .image-layer.is-selected { outline: 1px dashed #e4513b; outline-offset: 7px; }
 .image-layer.is-snapped { outline-color: rgba(255, 243, 220, 0.96); box-shadow: 0 0 0 2px rgba(228,81,59,0.84), 0 0 24px rgba(228,81,59,0.68); }
 .snap-guide { position: absolute; z-index: 5000; pointer-events: none; background: #e4513b; box-shadow: 0 0 10px rgba(228,81,59,0.88); }
