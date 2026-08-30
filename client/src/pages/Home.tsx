@@ -2082,6 +2082,7 @@ export default function Home() {
   const [backgroundRepair, setBackgroundRepair] = useState<BackgroundRepairState | null>(null);
   const [backgroundRepairUndoCount, setBackgroundRepairUndoCount] = useState(0);
   const [imageErase, setImageErase] = useState<ImageEraseState | null>(null);
+  const [imageEraseReadyId, setImageEraseReadyId] = useState<string | null>(null);
   const [imageEraseUndoCount, setImageEraseUndoCount] = useState(0);
   const [backgroundRepairToolbarPosition, setBackgroundRepairToolbarPosition] = useState({ x: 0, y: 0 });
   const [isBackgroundRepairToolbarDragging, setIsBackgroundRepairToolbarDragging] = useState(false);
@@ -2207,6 +2208,7 @@ export default function Home() {
     if (!context) return;
     context.clearRect(0, 0, width, height);
     context.drawImage(session.source, 0, 0, width, height);
+    setImageEraseReadyId(erase.imageId);
   }, [imageErase?.imageId]);
 
   const renderImageAlphaOutline = useCallback((image: ImageLayer) => {
@@ -4693,6 +4695,7 @@ export default function Home() {
       imageEraseSessionRef.current = { imageId: image.id, source };
       imageEraseUndoRef.current = [];
       setImageEraseUndoCount(0);
+      setImageEraseReadyId(null);
       setCropDraft(null);
       setImageEditingId(image.id);
       setImageErase({ imageId: image.id, brushSize });
@@ -4807,6 +4810,7 @@ export default function Home() {
     imageEraseSessionRef.current = null;
     imageEraseUndoRef.current = [];
     setImageEraseUndoCount(0);
+    setImageEraseReadyId(null);
     setImageEditingId(null);
     setTool("move");
     setActiveDesktopTool(null);
@@ -6646,12 +6650,12 @@ export default function Home() {
               {openDesktopTool === "shape" && (
                 <div className="desktop-tool-popover-content">
                   <div className="shape-choice-grid floating-shape-grid">
-                    <button type="button" className={`shape-choice ${shapeKind === "rectangle" ? "is-active" : ""}`} onClick={() => { setShapeKind("rectangle"); addShape("rectangle"); }}><Square size={18} /><span>{tr("方塊", "Rectangle")}</span></button>
-                    <button type="button" className={`shape-choice ${shapeKind === "circle" ? "is-active" : ""}`} onClick={() => { setShapeKind("circle"); addShape("circle"); }}><Circle size={18} /><span>{tr("圓形", "Circle")}</span></button>
-                    <button type="button" className={`shape-choice ${shapeKind === "star" ? "is-active" : ""}`} onClick={() => { setShapeKind("star"); addShape("star"); }}><Star size={18} /><span>{tr("星星", "Star")}</span></button>
-                    <button type="button" className={`shape-choice ${shapeKind === "heart" ? "is-active" : ""}`} onClick={() => { setShapeKind("heart"); addShape("heart"); }}><Heart size={18} /><span>{tr("愛心", "Heart")}</span></button>
-                    <button type="button" className={`shape-choice ${shapeKind === "triangle" ? "is-active" : ""}`} onClick={() => { setShapeKind("triangle"); addShape("triangle"); }}><Triangle size={18} /><span>{tr("三角形", "Triangle")}</span></button>
-                    <button type="button" className={`shape-choice ${shapeKind === "pentagon" ? "is-active" : ""}`} onClick={() => { setShapeKind("pentagon"); addShape("pentagon"); }}><Pentagon size={18} /><span>{tr("五邊形", "Pentagon")}</span></button>
+                    <button type="button" className={`shape-choice ${selectedShape?.kind === "rectangle" ? "is-active" : ""}`} onClick={() => { setShapeKind("rectangle"); addShape("rectangle"); }}><Square size={18} /><span>{tr("方塊", "Rectangle")}</span></button>
+                    <button type="button" className={`shape-choice ${selectedShape?.kind === "circle" ? "is-active" : ""}`} onClick={() => { setShapeKind("circle"); addShape("circle"); }}><Circle size={18} /><span>{tr("圓形", "Circle")}</span></button>
+                    <button type="button" className={`shape-choice ${selectedShape?.kind === "star" ? "is-active" : ""}`} onClick={() => { setShapeKind("star"); addShape("star"); }}><Star size={18} /><span>{tr("星星", "Star")}</span></button>
+                    <button type="button" className={`shape-choice ${selectedShape?.kind === "heart" ? "is-active" : ""}`} onClick={() => { setShapeKind("heart"); addShape("heart"); }}><Heart size={18} /><span>{tr("愛心", "Heart")}</span></button>
+                    <button type="button" className={`shape-choice ${selectedShape?.kind === "triangle" ? "is-active" : ""}`} onClick={() => { setShapeKind("triangle"); addShape("triangle"); }}><Triangle size={18} /><span>{tr("三角形", "Triangle")}</span></button>
+                    <button type="button" className={`shape-choice ${selectedShape?.kind === "pentagon" ? "is-active" : ""}`} onClick={() => { setShapeKind("pentagon"); addShape("pentagon"); }}><Pentagon size={18} /><span>{tr("五邊形", "Pentagon")}</span></button>
                   </div>
                   <div className="color-row"><span className="field-label">{tr("顏色", "Color")}</span><label className="color-picker"><input type="color" value={shapeFill} onChange={(event) => { setShapeFill(event.target.value); if (selectedShape) updateShape({ fill: event.target.value }); }} aria-label={tr("圖形顏色", "Shape color")} /><span style={{ backgroundColor: shapeFill }} /></label></div>
                   {(selectedShape?.kind ?? shapeKind) === "rectangle" && <RangeControl label={tr("圓角半徑", "Corner radius")} value={selectedShape?.kind === "rectangle" ? selectedShape.cornerRadius : shapeCornerRadius} min={0} max={72} suffix=" px" onChange={(value) => { setShapeCornerRadius(value); if (selectedShape?.kind === "rectangle") updateShape({ cornerRadius: value }); }} />}
@@ -6792,7 +6796,7 @@ export default function Home() {
                   transform: `scale(${zoom / 100})`,
                 }}
               >
-                <div ref={canvasContentRef} className="canvas-content" onPointerDown={handleCanvasBlankPointerDown}>
+                <div ref={canvasContentRef} className={`canvas-content ${tool === "brush" ? "is-brush-painting" : ""}`} onPointerDown={handleCanvasBlankPointerDown}>
                   <canvas
                     ref={canvasRef}
                     style={{ filter: canvasFilter, opacity: adjustments.opacity / 100, pointerEvents: tool === "brush" ? "auto" : "none" }}
@@ -6863,7 +6867,7 @@ export default function Home() {
                     return (
                     <div
                       key={image.id}
-                      className={`image-layer ${selectedImageId === image.id ? "is-selected" : ""} ${selectedImageId === image.id && (snapGuides.x !== null || snapGuides.y !== null) ? "is-snapped" : ""} ${isPaintLayerLocked(image.paintLayerId) ? "is-locked" : ""} ${imageEditingId === image.id ? "is-editing" : "is-passive"} ${cropDraft?.imageId === image.id ? "is-cropping" : ""} ${imageErase?.imageId === image.id ? "is-erasing" : ""}`}
+                      className={`image-layer ${selectedImageId === image.id ? "is-selected" : ""} ${selectedImageId === image.id && (snapGuides.x !== null || snapGuides.y !== null) ? "is-snapped" : ""} ${isPaintLayerLocked(image.paintLayerId) ? "is-locked" : ""} ${imageEditingId === image.id ? "is-editing" : "is-passive"} ${cropDraft?.imageId === image.id ? "is-cropping" : ""} ${imageErase?.imageId === image.id ? "is-erasing" : ""} ${imageEraseReadyId === image.id ? "is-erasing-ready" : ""}`}
                       style={{
                         left: 0,
                         top: 0,
@@ -7247,12 +7251,12 @@ export default function Home() {
               <div className="inspector-section shape-inspector-section">
                 <SectionTitle eyebrow="SHAPES" title={tr("圖形", "Shapes")} action={<Shapes size={15} className="section-icon" />} />
                 <div className="shape-choice-grid">
-                  <button type="button" className={`shape-choice ${shapeKind === "rectangle" ? "is-active" : ""}`} onClick={() => { setShapeKind("rectangle"); addShape("rectangle"); }}><Square size={18} /><span>{tr("方塊", "Rectangle")}</span></button>
-                  <button type="button" className={`shape-choice ${shapeKind === "circle" ? "is-active" : ""}`} onClick={() => { setShapeKind("circle"); addShape("circle"); }}><Circle size={18} /><span>{tr("圓形", "Circle")}</span></button>
-                  <button type="button" className={`shape-choice ${shapeKind === "star" ? "is-active" : ""}`} onClick={() => { setShapeKind("star"); addShape("star"); }}><Star size={18} /><span>{tr("星星", "Star")}</span></button>
-                  <button type="button" className={`shape-choice ${shapeKind === "heart" ? "is-active" : ""}`} onClick={() => { setShapeKind("heart"); addShape("heart"); }}><Heart size={18} /><span>{tr("愛心", "Heart")}</span></button>
-                  <button type="button" className={`shape-choice ${shapeKind === "triangle" ? "is-active" : ""}`} onClick={() => { setShapeKind("triangle"); addShape("triangle"); }}><Triangle size={18} /><span>{tr("三角形", "Triangle")}</span></button>
-                  <button type="button" className={`shape-choice ${shapeKind === "pentagon" ? "is-active" : ""}`} onClick={() => { setShapeKind("pentagon"); addShape("pentagon"); }}><Pentagon size={18} /><span>{tr("五邊形", "Pentagon")}</span></button>
+                  <button type="button" className={`shape-choice ${selectedShape?.kind === "rectangle" ? "is-active" : ""}`} onClick={() => { setShapeKind("rectangle"); addShape("rectangle"); }}><Square size={18} /><span>{tr("方塊", "Rectangle")}</span></button>
+                  <button type="button" className={`shape-choice ${selectedShape?.kind === "circle" ? "is-active" : ""}`} onClick={() => { setShapeKind("circle"); addShape("circle"); }}><Circle size={18} /><span>{tr("圓形", "Circle")}</span></button>
+                  <button type="button" className={`shape-choice ${selectedShape?.kind === "star" ? "is-active" : ""}`} onClick={() => { setShapeKind("star"); addShape("star"); }}><Star size={18} /><span>{tr("星星", "Star")}</span></button>
+                  <button type="button" className={`shape-choice ${selectedShape?.kind === "heart" ? "is-active" : ""}`} onClick={() => { setShapeKind("heart"); addShape("heart"); }}><Heart size={18} /><span>{tr("愛心", "Heart")}</span></button>
+                  <button type="button" className={`shape-choice ${selectedShape?.kind === "triangle" ? "is-active" : ""}`} onClick={() => { setShapeKind("triangle"); addShape("triangle"); }}><Triangle size={18} /><span>{tr("三角形", "Triangle")}</span></button>
+                  <button type="button" className={`shape-choice ${selectedShape?.kind === "pentagon" ? "is-active" : ""}`} onClick={() => { setShapeKind("pentagon"); addShape("pentagon"); }}><Pentagon size={18} /><span>{tr("五邊形", "Pentagon")}</span></button>
                 </div>
                 {!selectedShape && <p className="empty-inspector">{tr("選擇圖形或按上方按鈕，把形狀放到畫布中央。", "Select a shape or use a button above to place one in the center of the canvas.")}</p>}
                 {selectedShape && (
