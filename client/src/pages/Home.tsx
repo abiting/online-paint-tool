@@ -5281,7 +5281,7 @@ export default function Home() {
     event.target.value = "";
   };
 
-  const renderExportCanvas = async () => {
+  const renderExportCanvas = async (format: ExportFormat = "png") => {
     const source = canvasRef.current;
     if (!source) throw new Error("Canvas workspace unavailable");
     await document.fonts?.ready;
@@ -5290,9 +5290,30 @@ export default function Home() {
     output.height = source.height;
     const context = output.getContext("2d");
     if (!context) throw new Error("Export canvas context unavailable");
-    context.filter = canvasFilter;
-    context.globalAlpha = adjustments.opacity / 100;
-    context.drawImage(source, 0, 0);
+    const sourceContext = source.getContext("2d", { willReadFrequently: true });
+    const sourcePixels = sourceContext?.getImageData(0, 0, source.width, source.height).data;
+    const defaultPaper = hexToRgb(PAPER);
+    const sourceOnlyContainsDefaultPaper = Boolean(sourcePixels && defaultPaper && (() => {
+      for (let offset = 0; offset < sourcePixels.length; offset += 4) {
+        if (
+          sourcePixels[offset + 3] !== 255
+          || Math.abs(sourcePixels[offset] - defaultPaper.r) > 1
+          || Math.abs(sourcePixels[offset + 1] - defaultPaper.g) > 1
+          || Math.abs(sourcePixels[offset + 2] - defaultPaper.b) > 1
+        ) return false;
+      }
+      return true;
+    })());
+    if (format !== "png") {
+      context.fillStyle = PAPER;
+      context.fillRect(0, 0, output.width, output.height);
+    }
+    // 工作區的紙白是介面視覺底色；PNG 遇到未主動填色的預設紙面時，應保留去背與擦除的透明 alpha。
+    if (format !== "png" || !sourceOnlyContainsDefaultPaper) {
+      context.filter = canvasFilter;
+      context.globalAlpha = adjustments.opacity / 100;
+      context.drawImage(source, 0, 0);
+    }
     context.filter = "none";
     context.globalAlpha = 1;
 
@@ -5494,7 +5515,7 @@ export default function Home() {
   const exportImage = async (format: ExportFormat = "png") => {
     setIsExportRendering(true);
     try {
-      const output = await renderExportCanvas();
+      const output = await renderExportCanvas(format);
       const baseName = fileMeta.name.replace(/\.[^.]+$/, "") || "abipaint";
       const isMobileExport = window.matchMedia("(max-width: 767px)").matches;
       const shareOrDownload = async (blob: Blob, filename: string) => {
