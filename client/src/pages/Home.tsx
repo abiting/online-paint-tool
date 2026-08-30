@@ -4796,6 +4796,19 @@ export default function Home() {
     setImageEraseUndoCount(imageEraseUndoRef.current.length);
   };
 
+  const leaveImageEraseMode = () => {
+    flushImageEraseStroke();
+    setImageErase(null);
+    imageErasePointerRef.current = null;
+    imageEraseSessionRef.current = null;
+    imageEraseUndoRef.current = [];
+    setImageEraseUndoCount(0);
+    setImageEditingId(null);
+    setTool("move");
+    setActiveDesktopTool(null);
+    setOpenDesktopTool(null);
+  };
+
   useEffect(() => {
     imageEraseUndoHandlerRef.current = undoImageEraseStroke;
   }, [imageErase]);
@@ -4849,11 +4862,7 @@ export default function Home() {
         ...(nextMask ? { backgroundMask: nextMask } : {}),
       } : image));
       captureHistory();
-      setImageErase(null);
-      imageErasePointerRef.current = null;
-      imageEraseSessionRef.current = null;
-      imageEraseUndoRef.current = [];
-      setImageEraseUndoCount(0);
+      leaveImageEraseMode();
       toast.success(tr("圖片擦除已完成", "Image erase applied"));
     } catch {
       toast.error(tr("無法儲存圖片擦除", "Unable to save the image erase"));
@@ -4861,12 +4870,7 @@ export default function Home() {
   };
 
   const cancelImageErase = () => {
-    flushImageEraseStroke();
-    setImageErase(null);
-    imageErasePointerRef.current = null;
-    imageEraseSessionRef.current = null;
-    imageEraseUndoRef.current = [];
-    setImageEraseUndoCount(0);
+    leaveImageEraseMode();
   };
 
   const paintBackgroundRepair = (canvas: HTMLCanvasElement, from: { x: number; y: number }, to: { x: number; y: number }) => {
@@ -6209,6 +6213,8 @@ export default function Home() {
   };
   const activeWorkspaceToolLabel = activeDesktopTool === "brush"
     ? copy.brush
+    : activeDesktopTool === "eraser"
+      ? tr("擦布", "Eraser")
     : activeDesktopTool === "shape"
       ? copy.shape
       : activeDesktopTool === "text"
@@ -6260,6 +6266,8 @@ export default function Home() {
                     : "移動工具";
   const desktopToolPanelTitle = openDesktopTool === "object"
     ? tr("素材設定", "Object settings")
+    : openDesktopTool === "eraser"
+      ? tr("擦布", "Eraser")
     : activeWorkspaceToolLabel;
 
   return (
@@ -6547,17 +6555,17 @@ export default function Home() {
                   <h2>{desktopToolPanelTitle}</h2>
                 </div>
                 <div className="desktop-tool-popover-header-actions">
-                  {selectedMaterialStackEntry && openDesktopTool !== "outline" && (
+                  {selectedMaterialStackEntry && openDesktopTool !== "outline" && openDesktopTool !== "eraser" && (
                     <>
                       <button type="button" className="icon-button subtle" onClick={duplicateSelectedMaterial} disabled={selectedMaterialIsLocked} title={tr("在原物件旁建立相同素材", "Duplicate object")} aria-label={tr("複製目前素材", "Duplicate selected object")}><Copy size={15} /></button>
                       <button type="button" className="icon-button subtle material-delete-icon-button" onClick={deleteSelectedMaterial} disabled={selectedMaterialIsLocked} title={tr("刪除目前素材", "Delete object")} aria-label={tr("刪除目前素材", "Delete selected object")}><Trash2 size={15} /></button>
                     </>
                   )}
-                  <button type="button" className="icon-button subtle" onClick={() => setOpenDesktopTool(null)} title={tr("完成設定", "Done")} aria-label={tr("完成設定", "Done")}><Check size={16} /></button>
+                  <button type="button" className="icon-button subtle" onClick={() => openDesktopTool === "eraser" ? leaveImageEraseMode() : setOpenDesktopTool(null)} title={tr("完成設定", "Done")} aria-label={tr("完成設定", "Done")}><Check size={16} /></button>
                 </div>
               </div>
 
-              {selectedMaterialStackEntry && openDesktopTool !== "outline" && (
+              {selectedMaterialStackEntry && openDesktopTool !== "outline" && openDesktopTool !== "eraser" && (
                 <div className="material-stack-controls" aria-label={tr("素材位置", "Stack order")}>
                   <span className="field-label">{tr("素材位置", "Stack order")}</span>
                   <div className="material-stack-actions">
