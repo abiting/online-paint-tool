@@ -81,20 +81,34 @@
       (() => {
         const retryKey = "abipaint-asset-retry";
         const params = new URLSearchParams(window.location.search);
+        let didRetry = params.has("abipaint_asset_retry") || sessionStorage.getItem(retryKey) === "1";
         if (params.has("abipaint_asset_retry")) {
           params.delete("abipaint_asset_retry");
           const query = params.toString();
           window.history.replaceState(null, "", `${window.location.pathname}${query ? `?${query}` : ""}${window.location.hash}`);
         }
-        window.addEventListener("error", (event) => {
-          const target = event.target;
-          const source = target instanceof HTMLScriptElement ? target.src : "";
-          if (!source.includes("/assets/") || sessionStorage.getItem(retryKey) === "1") return;
+
+        const isModuleLoadFailure = (value) => {
+          const message = typeof value === "string" ? value : value && typeof value.message === "string" ? value.message : "";
+          return /Failed to fetch dynamically imported module|ChunkLoadError|Loading chunk [\w-]+ failed|Importing a module script failed/i.test(message);
+        };
+        const retryOnce = () => {
+          if (didRetry) return;
+          didRetry = true;
           sessionStorage.setItem(retryKey, "1");
           const nextUrl = new URL(window.location.href);
           nextUrl.searchParams.set("abipaint_asset_retry", String(Date.now()));
           window.location.replace(nextUrl.toString());
+        };
+
+        window.addEventListener("error", (event) => {
+          const target = event.target;
+          const source = target instanceof HTMLScriptElement ? target.src : "";
+          if (source.includes("/assets/") || isModuleLoadFailure(event)) retryOnce();
         }, true);
+        window.addEventListener("unhandledrejection", (event) => {
+          if (isModuleLoadFailure(event.reason)) retryOnce();
+        });
         window.setTimeout(() => sessionStorage.removeItem(retryKey), 15_000);
       })();
     </script>
