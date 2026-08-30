@@ -629,8 +629,8 @@ input[type="range"]::-moz-range-thumb { width: 11px; height: 11px; border: 2px s
 .canvas-content.is-brush-painting .shape-layer,
 .canvas-content.is-brush-painting .text-layer,
 .canvas-content.is-brush-painting .stroke-layer { pointer-events: none; }
-.canvas-content .image-layer.is-erasing,
-.canvas-content .image-layer.is-erasing .image-erase-canvas { pointer-events: auto !important; }
+.canvas-content .image-layer.is-erasing { pointer-events: auto !important; touch-action: none; }
+.canvas-content .image-layer.is-erasing .image-erase-canvas { pointer-events: none !important; }
 .background-repair-canvas { position: absolute; inset: 0; width: 100%; height: 100%; cursor: crosshair; touch-action: none; }
 .background-repair-canvas.is-keep { cursor: copy; }
 .background-repair-canvas.is-remove { cursor: crosshair; }

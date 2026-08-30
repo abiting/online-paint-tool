@@ -4753,17 +4753,18 @@ export default function Home() {
     });
   };
 
-  const getImageErasePoint = (event: ReactPointerEvent<HTMLCanvasElement>) => {
-    const canvas = event.currentTarget;
-    const bounds = canvas.getBoundingClientRect();
+  const getImageErasePoint = (event: ReactPointerEvent<HTMLElement>, canvas: HTMLCanvasElement) => {
+    const bounds = event.currentTarget.getBoundingClientRect();
     return {
       x: clamp(((event.clientX - bounds.left) / Math.max(1, bounds.width)) * canvas.width, 0, canvas.width),
       y: clamp(((event.clientY - bounds.top) / Math.max(1, bounds.height)) * canvas.height, 0, canvas.height),
     };
   };
 
-  const handleImageErasePointerDown = (event: ReactPointerEvent<HTMLCanvasElement>, image: ImageLayer) => {
+  const handleImageErasePointerDown = (event: ReactPointerEvent<HTMLDivElement>, image: ImageLayer) => {
     if (!imageErase || imageErase.imageId !== image.id || event.button !== 0) return;
+    const canvas = imageEraseCanvasRefs.current.get(image.id);
+    if (!canvas) return;
     event.stopPropagation();
     event.preventDefault();
     try {
@@ -4771,16 +4772,18 @@ export default function Home() {
     } catch {
       // 觸控瀏覽器若不支援捕捉，仍可透過元素上的移動事件完成筆觸。
     }
-    const point = getImageErasePoint(event);
+    const point = getImageErasePoint(event, canvas);
     imageErasePointerRef.current = { imageId: image.id, pointerId: event.pointerId, ...point };
-    paintImageErase(event.currentTarget, image, point, point);
+    paintImageErase(canvas, image, point, point);
   };
 
-  const handleImageErasePointerMove = (event: ReactPointerEvent<HTMLCanvasElement>, image: ImageLayer) => {
+  const handleImageErasePointerMove = (event: ReactPointerEvent<HTMLDivElement>, image: ImageLayer) => {
     const drag = imageErasePointerRef.current;
     if (!drag || drag.imageId !== image.id || drag.pointerId !== event.pointerId) return;
-    const point = getImageErasePoint(event);
-    scheduleImageEraseStroke(event.currentTarget, image, drag, point);
+    const canvas = imageEraseCanvasRefs.current.get(image.id);
+    if (!canvas) return;
+    const point = getImageErasePoint(event, canvas);
+    scheduleImageEraseStroke(canvas, image, drag, point);
     imageErasePointerRef.current = { ...drag, ...point };
   };
 
@@ -6882,7 +6885,10 @@ export default function Home() {
                         opacity: image.opacity / 100,
                         filter: image.shadowOpacity > 0 ? `drop-shadow(0 0 14px rgba(0, 0, 0, ${image.shadowOpacity / 100}))` : "none",
                       } as CSSProperties}
-                      onPointerDown={(event) => handleImagePointerDown(event, image)}
+                      onPointerDown={(event) => imageErase?.imageId === image.id ? handleImageErasePointerDown(event, image) : handleImagePointerDown(event, image)}
+                      onPointerMove={(event) => imageErase?.imageId === image.id ? handleImageErasePointerMove(event, image) : undefined}
+                      onPointerUp={(event) => imageErase?.imageId === image.id ? finishImageEraseStroke(event as unknown as ReactPointerEvent<HTMLCanvasElement>) : undefined}
+                      onPointerCancel={(event) => imageErase?.imageId === image.id ? finishImageEraseStroke(event as unknown as ReactPointerEvent<HTMLCanvasElement>) : undefined}
                       role="button"
                       tabIndex={0}
                       aria-label={`圖片素材：${image.name}`}
@@ -6930,11 +6936,7 @@ export default function Home() {
                           }}
                           className="image-erase-canvas"
                           data-image-erase-id={image.id}
-                          style={{ filter: makeAdjustmentFilter(image.exposure, image.contrast, image.saturation, image.vibrancy), pointerEvents: "auto" }}
-                          onPointerDown={(event) => handleImageErasePointerDown(event, image)}
-                          onPointerMove={(event) => handleImageErasePointerMove(event, image)}
-                          onPointerUp={finishImageEraseStroke}
-                          onPointerCancel={finishImageEraseStroke}
+                          style={{ filter: makeAdjustmentFilter(image.exposure, image.contrast, image.saturation, image.vibrancy), pointerEvents: "none" }}
                           aria-label={tr("直接擦除圖片像素", "Erase image pixels directly")}
                         />
                       )}
