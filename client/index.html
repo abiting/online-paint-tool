@@ -78,10 +78,18 @@
   <body>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
-    <script
-      defer
-      src="%VITE_ANALYTICS_ENDPOINT%/umami"
-      data-website-id="%VITE_ANALYTICS_WEBSITE_ID%"></script>
+    <script>
+      (function () {
+        const endpoint = "%VITE_ANALYTICS_ENDPOINT%";
+        const websiteId = "%VITE_ANALYTICS_WEBSITE_ID%";
+        if (!endpoint || !websiteId || endpoint.includes("%VITE_") || websiteId.includes("%VITE_")) return;
+        const analytics = document.createElement("script");
+        analytics.defer = true;
+        analytics.src = `${endpoint.replace(/\/$/, "")}/umami`;
+        analytics.dataset.websiteId = websiteId;
+        document.head.appendChild(analytics);
+      })();
+    </script>
   </body>
 
 </html>

@@ -7242,8 +7242,8 @@ export default function Home() {
             </div>
             <div className="product-footer-meta">
               <p className="product-copyright">Copyright © 2026 <a href={isEnglish ? "/en" : "/"}>AbiPaint</a></p>
-              <div className="product-build-meta" aria-label="AbiPaint version 1.0.3">
-                <a className="product-version-label" href={isEnglish ? "/en/guide/" : "/guide/"} title={isEnglish ? "Read the AbiPaint guide" : "閱讀 AbiPaint 使用指南"}>v1.0.3</a>
+              <div className="product-build-meta" aria-label="AbiPaint version 1.0.4">
+                <a className="product-version-label" href={isEnglish ? "/en/guide/" : "/guide/"} title={isEnglish ? "Read the AbiPaint guide" : "閱讀 AbiPaint 使用指南"}>v1.0.4</a>
                 <a
                   className="startupbase-badge"
                   href="https://startupbase.io/products/abipaint?utm_source=startupbase&utm_medium=badge&utm_campaign=launch-badge-light"

@@ -115,7 +115,7 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 
 .studio-app {
   min-height: 100vh;
-  background: #2a2924 url("/manus-storage/workbench-paper-texture_df8fcf94.png") center / cover fixed;
+  background: #2a2924;
   color: #f5f0e5;
   letter-spacing: 0.01em;
 }
