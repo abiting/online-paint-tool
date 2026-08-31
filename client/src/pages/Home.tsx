@@ -481,7 +481,8 @@ type AbiPaintWorkspace = {
 };
 
 const BRAND_RED = "#E4513B";
-const PAPER = "#F7F2E8";
+// New Modern Craft：工作紙色刻意比白色主體更暖，讓去背後的白邊與透明缺口可被看見。
+const PAPER = "#EFE3CC";
 const GRAPHITE = "#1F2528";
 const MAX_PAINT_LAYERS = 5;
 const MOBILE_VIEWPORT_MEDIA_QUERY = "(max-width: 960px), (pointer: coarse) and (max-height: 600px)";
