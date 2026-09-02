@@ -21,6 +21,8 @@ import {
   Download,
   Eraser,
   ExternalLink,
+  FlipHorizontal,
+  FlipVertical,
   GripVertical,
   Heart,
   ImagePlus,
@@ -284,6 +286,8 @@ type TextLayer = OutlineAdjustments & {
   rasterWidth?: number;
   rasterHeight?: number;
   rasterVersion?: number;
+  flipX?: boolean;
+  flipY?: boolean;
 };
 
 type ShapeLayer = OutlineAdjustments & {
@@ -311,6 +315,8 @@ type ShapeLayer = OutlineAdjustments & {
   shadowBlur: number;
   shadowX: number;
   shadowY: number;
+  flipX?: boolean;
+  flipY?: boolean;
 };
 
 type ImageLayer = OutlineAdjustments & {
@@ -336,6 +342,8 @@ type ImageLayer = OutlineAdjustments & {
   shadowOpacity: number;
   outlineColor?: string;
   crop?: ImageCrop;
+  flipX?: boolean;
+  flipY?: boolean;
 };
 
 type ImageCrop = {
@@ -376,6 +384,8 @@ type BrushStroke = {
   outlineSaturation?: number;
   outlineVibrancy?: number;
   outlineOpacity?: number;
+  flipX?: boolean;
+  flipY?: boolean;
 };
 
 type PaintLayer = {
@@ -2447,6 +2457,8 @@ export default function Home() {
       outlineSaturation: layer.outlineSaturation ?? 0,
       outlineVibrancy: layer.outlineVibrancy ?? 0,
       outlineOpacity: layer.outlineOpacity ?? 100,
+      flipX: layer.flipX ?? false,
+      flipY: layer.flipY ?? false,
     }));
     layersRef.current = normalizedLayers;
     setLayers(normalizedLayers);
@@ -2461,6 +2473,8 @@ export default function Home() {
       saturation: shape.saturation ?? 0,
       vibrancy: shape.vibrancy ?? 0,
       rotation: shape.rotation ?? 0,
+      flipX: shape.flipX ?? false,
+      flipY: shape.flipY ?? false,
       outlineWidth: shape.outlineWidth ?? 0,
       outlineExposure: shape.outlineExposure ?? 0,
       outlineContrast: shape.outlineContrast ?? 0,
@@ -2482,6 +2496,8 @@ export default function Home() {
       vibrancy: image.vibrancy ?? 0,
       shadowOpacity: clamp(typeof image.shadowOpacity === "number" ? image.shadowOpacity : 0, 0, 100),
       rotation: image.rotation ?? 0,
+      flipX: image.flipX ?? false,
+      flipY: image.flipY ?? false,
       crop: image.crop ?? FULL_IMAGE_CROP,
       outlineColor: image.outlineColor ?? "#FFFDF8",
       outlineWidth: image.outlineWidth ?? 0,
@@ -2507,6 +2523,8 @@ export default function Home() {
       outlineSaturation: stroke.outlineSaturation ?? 0,
       outlineVibrancy: stroke.outlineVibrancy ?? 0,
       outlineOpacity: stroke.outlineOpacity ?? 100,
+      flipX: stroke.flipX ?? false,
+      flipY: stroke.flipY ?? false,
     }));
     strokesRef.current = normalizedStrokes;
     setStrokes(normalizedStrokes);
@@ -2747,28 +2765,28 @@ export default function Home() {
     return { width, height: Math.ceil(layer.fontSize * 1.12) + 4 };
   }, []);
 
-  const mobileSelectionToolbar = useMemo(() => {
-    if (!isMobileViewport || selectedMaterialIsLocked) return null;
-    let bounds: { x: number; y: number; width: number; height: number } | null = null;
-    if (selectedImage) bounds = { x: selectedImage.x, y: selectedImage.y, width: selectedImage.width, height: selectedImage.height };
-    else if (selectedShape) bounds = { x: selectedShape.x, y: selectedShape.y, width: selectedShape.width, height: selectedShape.height };
-    else if (selectedText) {
+  const selectedMaterialBounds = useMemo(() => {
+    if (selectedImage) return { x: selectedImage.x, y: selectedImage.y, width: selectedImage.width, height: selectedImage.height };
+    if (selectedShape) return { x: selectedShape.x, y: selectedShape.y, width: selectedShape.width, height: selectedShape.height };
+    if (selectedText) {
       const dimensions = getTextLayerDimensions(selectedText);
-      bounds = { x: selectedText.x, y: selectedText.y, ...dimensions };
-    } else if (selectedStroke && selectedStroke.points.length) {
-      const xValues = selectedStroke.points.map((point) => point.x + selectedStroke.x);
-      const yValues = selectedStroke.points.map((point) => point.y + selectedStroke.y);
-      const padding = Math.max(18, selectedStroke.size * 1.4);
-      const minX = Math.min(...xValues) - padding;
-      const minY = Math.min(...yValues) - padding;
-      bounds = { x: minX, y: minY, width: Math.max(1, Math.max(...xValues) - Math.min(...xValues) + padding * 2), height: Math.max(1, Math.max(...yValues) - Math.min(...yValues) + padding * 2) };
+      return { x: selectedText.x, y: selectedText.y, ...dimensions };
     }
-    if (!bounds) return null;
+    if (!selectedStroke?.points.length) return null;
+    const xs = selectedStroke.points.map((point) => point.x + selectedStroke.x);
+    const ys = selectedStroke.points.map((point) => point.y + selectedStroke.y);
+    const minX = Math.min(...xs);
+    const minY = Math.min(...ys);
+    return { x: minX, y: minY, width: Math.max(...xs) - minX, height: Math.max(...ys) - minY };
+  }, [getTextLayerDimensions, selectedImage, selectedShape, selectedStroke, selectedText]);
+
+  const mobileSelectionToolbar = useMemo(() => {
+    if (!isMobileViewport || selectedMaterialIsLocked || !selectedMaterialBounds) return null;
     return {
-      x: clamp(bounds.x + bounds.width / 2, 58, canvasSize.width - 58),
-      y: Math.max(10, bounds.y - 14),
+      x: clamp(selectedMaterialBounds.x + selectedMaterialBounds.width / 2, 126, Math.max(126, canvasSize.width - 126)),
+      y: Math.max(10, selectedMaterialBounds.y - 14),
     };
-  }, [canvasSize.width, getTextLayerDimensions, isMobileViewport, selectedImage, selectedMaterialIsLocked, selectedShape, selectedStroke, selectedText]);
+  }, [canvasSize.width, isMobileViewport, selectedMaterialBounds, selectedMaterialIsLocked]);
 
   const centerTextLayerByVisibleBounds = (textId: string, target: { x: number; y: number; width: number; height: number }, axis: "horizontal" | "vertical" | "both" = "both") => {
     window.requestAnimationFrame(() => {
@@ -4397,6 +4415,26 @@ export default function Home() {
     }
   };
 
+  const flipSelectedMaterial = (axis: "horizontal" | "vertical") => {
+    if (selectedMaterialIsLocked) return;
+    const flipKey = axis === "horizontal" ? "flipX" : "flipY";
+    if (selectedShape) {
+      syncShapes(shapesRef.current.map((shape) => shape.id === selectedShape.id ? { ...shape, [flipKey]: !shape[flipKey] } : shape));
+    } else if (selectedImage) {
+      syncImages(imagesRef.current.map((image) => image.id === selectedImage.id ? { ...image, [flipKey]: !image[flipKey] } : image));
+    } else if (selectedStroke) {
+      syncStrokes(strokesRef.current.map((stroke) => stroke.id === selectedStroke.id ? { ...stroke, [flipKey]: !stroke[flipKey] } : stroke));
+    } else if (selectedText) {
+      syncLayers(layersRef.current.map((layer) => layer.id === selectedText.id ? { ...layer, [flipKey]: !layer[flipKey] } : layer));
+    } else {
+      return;
+    }
+    captureHistory();
+    toast.success(axis === "horizontal"
+      ? tr("素材已水平翻轉", "Object flipped horizontally")
+      : tr("素材已垂直翻轉", "Object flipped vertically"));
+  };
+
   const alignSelected = (axis: "horizontal" | "vertical" | "both") => {
     if (selectedShape) {
       updateShape({
@@ -4940,11 +4978,13 @@ export default function Home() {
     });
   };
 
-  const getImageErasePoint = (event: ReactPointerEvent<HTMLElement>, canvas: HTMLCanvasElement) => {
+  const getImageErasePoint = (event: ReactPointerEvent<HTMLElement>, canvas: HTMLCanvasElement, image: ImageLayer) => {
     const bounds = event.currentTarget.getBoundingClientRect();
+    const xRatio = clamp((event.clientX - bounds.left) / Math.max(1, bounds.width), 0, 1);
+    const yRatio = clamp((event.clientY - bounds.top) / Math.max(1, bounds.height), 0, 1);
     return {
-      x: clamp(((event.clientX - bounds.left) / Math.max(1, bounds.width)) * canvas.width, 0, canvas.width),
-      y: clamp(((event.clientY - bounds.top) / Math.max(1, bounds.height)) * canvas.height, 0, canvas.height),
+      x: (image.flipX ? 1 - xRatio : xRatio) * canvas.width,
+      y: (image.flipY ? 1 - yRatio : yRatio) * canvas.height,
     };
   };
 
@@ -4959,7 +4999,7 @@ export default function Home() {
     } catch {
       // 觸控瀏覽器若不支援捕捉，仍可透過元素上的移動事件完成筆觸。
     }
-    const point = getImageErasePoint(event, canvas);
+    const point = getImageErasePoint(event, canvas, image);
     const context = canvas.getContext("2d", { willReadFrequently: true });
     if (context) {
       imageEraseUndoRef.current.push(context.getImageData(0, 0, canvas.width, canvas.height));
@@ -4974,7 +5014,7 @@ export default function Home() {
     if (!drag || drag.imageId !== image.id || drag.pointerId !== event.pointerId) return;
     const canvas = imageEraseCanvasRefs.current.get(image.id);
     if (!canvas) return;
-    const point = getImageErasePoint(event, canvas);
+    const point = getImageErasePoint(event, canvas, image);
     scheduleImageEraseStroke(canvas, image, drag, point);
     imageErasePointerRef.current = { ...drag, ...point };
   };
@@ -5110,12 +5150,14 @@ export default function Home() {
     context.restore();
   };
 
-  const getBackgroundRepairPoint = (event: ReactPointerEvent<HTMLCanvasElement>) => {
+  const getBackgroundRepairPoint = (event: ReactPointerEvent<HTMLCanvasElement>, image: ImageLayer) => {
     const canvas = event.currentTarget;
     const bounds = canvas.getBoundingClientRect();
+    const xRatio = clamp((event.clientX - bounds.left) / Math.max(1, bounds.width), 0, 1);
+    const yRatio = clamp((event.clientY - bounds.top) / Math.max(1, bounds.height), 0, 1);
     return {
-      x: clamp(((event.clientX - bounds.left) / Math.max(1, bounds.width)) * canvas.width, 0, canvas.width),
-      y: clamp(((event.clientY - bounds.top) / Math.max(1, bounds.height)) * canvas.height, 0, canvas.height),
+      x: (image.flipX ? 1 - xRatio : xRatio) * canvas.width,
+      y: (image.flipY ? 1 - yRatio : yRatio) * canvas.height,
     };
   };
 
@@ -5129,7 +5171,7 @@ export default function Home() {
       backgroundRepairUndoRef.current = [...backgroundRepairUndoRef.current.slice(-7), snapshot];
       setBackgroundRepairUndoCount(backgroundRepairUndoRef.current.length);
     }
-    const point = getBackgroundRepairPoint(event);
+    const point = getBackgroundRepairPoint(event, image);
     backgroundRepairPointerRef.current = { imageId: image.id, pointerId: event.pointerId, ...point };
     paintBackgroundRepair(event.currentTarget, point, point);
   };
@@ -5137,7 +5179,7 @@ export default function Home() {
   const handleBackgroundRepairPointerMove = (event: ReactPointerEvent<HTMLCanvasElement>, image: ImageLayer) => {
     const drag = backgroundRepairPointerRef.current;
     if (!drag || drag.imageId !== image.id || drag.pointerId !== event.pointerId) return;
-    const point = getBackgroundRepairPoint(event);
+    const point = getBackgroundRepairPoint(event, image);
     paintBackgroundRepair(event.currentTarget, drag, point);
     backgroundRepairPointerRef.current = { ...drag, ...point };
   };
@@ -5529,6 +5571,16 @@ export default function Home() {
         }
         context.save();
         context.globalAlpha = adjustments.opacity / 100;
+        if (entry.item.flipX || entry.item.flipY) {
+          const strokePoints = entry.item.points.map((point) => ({ x: point.x + entry.item.x, y: point.y + entry.item.y }));
+          const xs = strokePoints.map((point) => point.x);
+          const ys = strokePoints.map((point) => point.y);
+          const centerX = (Math.min(...xs) + Math.max(...xs)) / 2;
+          const centerY = (Math.min(...ys) + Math.max(...ys)) / 2;
+          context.translate(centerX, centerY);
+          context.scale(entry.item.flipX ? -1 : 1, entry.item.flipY ? -1 : 1);
+          context.translate(-centerX, -centerY);
+        }
         context.drawImage(strokeSurface, 0, 0);
         context.restore();
         continue;
@@ -5541,6 +5593,7 @@ export default function Home() {
         context.globalAlpha = (adjustments.opacity / 100) * (entry.item.opacity / 100);
         context.translate(entry.item.x + entry.item.width / 2, entry.item.y + entry.item.height / 2);
         context.rotate((entry.item.rotation * Math.PI) / 180);
+        context.scale(entry.item.flipX ? -1 : 1, entry.item.flipY ? -1 : 1);
         if ((entry.item.outlineWidth ?? 0) > 0) {
           const alphaSource = entry.item.backgroundMask
             ? imageMaskElements.get(entry.item.id)
@@ -5591,7 +5644,9 @@ export default function Home() {
           context.globalAlpha = (adjustments.opacity / 100) * (entry.item.opacity / 100);
           context.filter = makeAdjustmentFilter(entry.item.exposure, entry.item.contrast, entry.item.saturation, entry.item.vibrancy);
           if (entry.item.shadowOpacity > 0) { context.shadowColor = `rgba(0, 0, 0, ${entry.item.shadowOpacity / 100})`; context.shadowBlur = 14; }
-          context.drawImage(rasterElement, entry.item.x, entry.item.y, entry.item.rasterWidth, entry.item.rasterHeight);
+          context.translate(entry.item.x + entry.item.rasterWidth / 2, entry.item.y + entry.item.rasterHeight / 2);
+          context.scale(entry.item.flipX ? -1 : 1, entry.item.flipY ? -1 : 1);
+          context.drawImage(rasterElement, -entry.item.rasterWidth / 2, -entry.item.rasterHeight / 2, entry.item.rasterWidth, entry.item.rasterHeight);
           context.restore();
           continue;
         }
@@ -5623,6 +5678,12 @@ export default function Home() {
         context.globalAlpha = (adjustments.opacity / 100) * (entry.item.opacity / 100);
         context.filter = makeAdjustmentFilter(entry.item.exposure, entry.item.contrast, entry.item.saturation, entry.item.vibrancy);
         if (entry.item.shadowOpacity > 0) { context.shadowColor = `rgba(0, 0, 0, ${entry.item.shadowOpacity / 100})`; context.shadowBlur = 14; }
+        const textDimensions = getTextLayerDimensions(entry.item);
+        const textCenterX = entry.item.x + textDimensions.width / 2 + offsetX;
+        const textCenterY = entry.item.y + textDimensions.height / 2 + offsetY;
+        context.translate(textCenterX, textCenterY);
+        context.scale(entry.item.flipX ? -1 : 1, entry.item.flipY ? -1 : 1);
+        context.translate(-textCenterX, -textCenterY);
         context.drawImage(textRaster, offsetX, offsetY);
         context.restore();
         continue;
@@ -5637,6 +5698,7 @@ export default function Home() {
       context.lineWidth = shape.outlineWidth;
       context.translate(shape.x + shape.width / 2, shape.y + shape.height / 2);
       context.rotate((shape.rotation * Math.PI) / 180);
+      context.scale(shape.flipX ? -1 : 1, shape.flipY ? -1 : 1);
       if (shape.kind === "rectangle") {
         const radius = Math.min(shape.cornerRadius, Math.min(shape.width, shape.height) / 2);
         context.beginPath(); context.roundRect(-shape.width / 2, -shape.height / 2, shape.width, shape.height, radius); context.fill();
@@ -5772,9 +5834,16 @@ export default function Home() {
     setSelectedShapeId(null);
     setSelectedImageId(null);
     textDragRef.current = null;
+    const flippedAxis = axis.split("-").map((part) => {
+      if (layer.flipX && part === "left") return "right";
+      if (layer.flipX && part === "right") return "left";
+      if (layer.flipY && part === "top") return "bottom";
+      if (layer.flipY && part === "bottom") return "top";
+      return part;
+    }).join("-") as "top-left" | "top-right" | "bottom-left" | "bottom-right";
     textResizeRef.current = {
       id: layer.id,
-      axis,
+      axis: flippedAxis,
       startPointX: point.x,
       startPointY: point.y,
       startFontSize: layer.fontSize,
@@ -5884,7 +5953,7 @@ export default function Home() {
   const handleImagePointerDown = (event: ReactPointerEvent<HTMLDivElement>, image: ImageLayer) => {
     event.stopPropagation();
     if (isPaintLayerLocked(image.paintLayerId)) return;
-    if ((event.target as Element).classList.contains("image-resize-handle") || (event.target as Element).classList.contains("image-rotation-handle")) return;
+    if ((event.target as Element).closest(".image-resize-handle, .image-rotation-handle")) return;
     event.preventDefault();
     try {
       event.currentTarget.setPointerCapture(event.pointerId);
@@ -5921,9 +5990,19 @@ export default function Home() {
     setSelectedShapeId(null);
     imageDragRef.current = null;
     imageRotateRef.current = null;
+    const flippedAxis = (() => {
+      const parts = axis.split("-").map((part) => {
+        if (image.flipX && part === "left") return "right";
+        if (image.flipX && part === "right") return "left";
+        if (image.flipY && part === "top") return "bottom";
+        if (image.flipY && part === "bottom") return "top";
+        return part;
+      });
+      return parts.join("-") as ShapeResizeAxis;
+    })();
     imageResizeRef.current = {
       id: image.id,
-      axis,
+      axis: flippedAxis,
       startPointX: point.x,
       startPointY: point.y,
       startWidth: image.width,
@@ -6813,6 +6892,8 @@ export default function Home() {
                 <div className="desktop-tool-popover-header-actions">
                   {openDesktopTool === "object" && selectedMaterialStackEntry && (
                     <>
+                      <button type="button" className="icon-button subtle" onClick={() => flipSelectedMaterial("horizontal")} disabled={selectedMaterialIsLocked} title={tr("水平翻轉", "Flip horizontally")} aria-label={tr("水平翻轉目前素材", "Flip selected object horizontally")}><FlipHorizontal size={15} /></button>
+                      <button type="button" className="icon-button subtle" onClick={() => flipSelectedMaterial("vertical")} disabled={selectedMaterialIsLocked} title={tr("垂直翻轉", "Flip vertically")} aria-label={tr("垂直翻轉目前素材", "Flip selected object vertically")}><FlipVertical size={15} /></button>
                       <button type="button" className="icon-button subtle" onClick={duplicateSelectedMaterial} disabled={selectedMaterialIsLocked} title={tr("在原物件旁建立相同素材", "Duplicate object")} aria-label={tr("複製目前素材", "Duplicate selected object")}><Copy size={15} /></button>
                       <button type="button" className="icon-button subtle material-delete-icon-button" onClick={deleteSelectedMaterial} disabled={selectedMaterialIsLocked} title={tr("刪除目前素材", "Delete object")} aria-label={tr("刪除目前素材", "Delete selected object")}><Trash2 size={15} /></button>
                     </>
@@ -7074,6 +7155,9 @@ export default function Home() {
                     const isBrushStroke = stroke.kind === "brush";
                     const strokeWidth = isPencilStroke ? Math.max(1, stroke.size * 0.78) : isBrushStroke ? Math.max(2, stroke.size * 1.32) : stroke.size;
                     const brushStamps = isBrushStroke ? buildBrushStamps(stroke.points, stroke.size) : [];
+                    const strokeCenterX = stroke.points.length ? (Math.min(...stroke.points.map((point) => point.x)) + Math.max(...stroke.points.map((point) => point.x))) / 2 : 0;
+                    const strokeCenterY = stroke.points.length ? (Math.min(...stroke.points.map((point) => point.y)) + Math.max(...stroke.points.map((point) => point.y))) / 2 : 0;
+                    const strokeTransform = `translate(${stroke.x} ${stroke.y}) translate(${strokeCenterX} ${strokeCenterY}) scale(${stroke.flipX ? -1 : 1} ${stroke.flipY ? -1 : 1}) translate(${-strokeCenterX} ${-strokeCenterY})`;
                     const outlineWidth = stroke.outlineWidth ?? 0;
                     const outlineColor = makeOutlineColor(stroke.outlineColor ?? "#FFFDF8", stroke.outlineExposure, stroke.outlineContrast, stroke.outlineSaturation, stroke.outlineVibrancy, stroke.outlineOpacity);
                     const shadowFilter = (stroke.shadowOpacity ?? 0) > 0 ? `drop-shadow(0 0 10px rgba(0, 0, 0, ${(stroke.shadowOpacity ?? 0) / 100}))` : undefined;
@@ -7103,7 +7187,7 @@ export default function Home() {
                             </mask>
                           </defs>
                         )}
-                        <g transform={`translate(${stroke.x} ${stroke.y})`} style={{ filter: shadowFilter }} mask={eraserStrokes.length > 0 ? `url(#${eraserMaskId})` : undefined}>
+                        <g transform={strokeTransform} style={{ filter: shadowFilter }} mask={eraserStrokes.length > 0 ? `url(#${eraserMaskId})` : undefined}>
                           {stroke.points.length === 1 ? (
                             <>
                               {outlineWidth > 0 && (isBrushStroke ? <ellipse cx={stroke.points[0].x} cy={stroke.points[0].y} rx={stroke.size * 0.66 + outlineWidth} ry={stroke.size * 0.5 + outlineWidth} fill={outlineColor} /> : <circle cx={stroke.points[0].x} cy={stroke.points[0].y} r={strokeWidth / 2 + outlineWidth} fill={outlineColor} />)}
@@ -7136,7 +7220,7 @@ export default function Home() {
                         top: 0,
                         width: `${image.width}px`,
                         height: `${image.height}px`,
-                        transform: `translate3d(${image.x}px, ${image.y}px, 0) rotate(${image.rotation}deg)`,
+                        transform: `translate3d(${image.x}px, ${image.y}px, 0) rotate(${image.rotation}deg) scale(${image.flipX ? -1 : 1}, ${image.flipY ? -1 : 1})`,
                         "--image-control-scale": 100 / zoom,
                         "--image-rotation-stem-length": `${18 * (100 / zoom)}px`,
                         "--image-rotation-handle-offset": `${24 * (100 / zoom)}px`,
@@ -7261,7 +7345,7 @@ export default function Home() {
                         width: `${shape.width}px`,
                         height: `${shape.height}px`,
                         zIndex: getMaterialStackOrder("shape", shape, index),
-                        transform: `translate3d(${shape.x}px, ${shape.y}px, 0) rotate(${shape.rotation}deg)`,
+                        transform: `translate3d(${shape.x}px, ${shape.y}px, 0) rotate(${shape.rotation}deg) scale(${shape.flipX ? -1 : 1}, ${shape.flipY ? -1 : 1})`,
                         opacity: shape.opacity / 100,
                         filter: [
                           makeAdjustmentFilter(shape.exposure, shape.contrast, shape.saturation, shape.vibrancy),
@@ -7348,7 +7432,8 @@ export default function Home() {
                       style={{
                         left: 0,
                         top: 0,
-                        transform: `translate3d(${layer.x}px, ${layer.y}px, 0)`,
+                        transform: `translate3d(${layer.x}px, ${layer.y}px, 0) scale(${layer.flipX ? -1 : 1}, ${layer.flipY ? -1 : 1})`,
+                        transformOrigin: "center",
                         ...(layer.rasterDataUrl && editingTextId !== layer.id ? { width: `${layer.rasterWidth ?? 0}px`, height: `${layer.rasterHeight ?? 0}px`, minWidth: 0, minHeight: 0, padding: 0, lineHeight: 1 } : {}),
                         zIndex: getMaterialStackOrder("text", layer, index),
                         color: hexToRgba(layer.color, layer.opacity / 100),
@@ -7410,6 +7495,17 @@ export default function Home() {
                       )}
                     </div>
                   ))}
+                  {selectedMaterialBounds && selectedMaterialStackEntry && !selectedMaterialIsLocked && !cropDraft && !backgroundRepair && !imageErase && (
+                    <div
+                      className="canvas-flip-controls"
+                      style={{ left: `${selectedMaterialBounds.x + selectedMaterialBounds.width / 2}px`, top: `${Math.max(24 * (100 / zoom), selectedMaterialBounds.y - 8 * (100 / zoom))}px`, "--canvas-flip-control-scale": 100 / zoom } as CSSProperties}
+                      onPointerDown={(event) => event.stopPropagation()}
+                      aria-label={tr("素材翻轉", "Object flip controls")}
+                    >
+                      <button type="button" onClick={() => flipSelectedMaterial("horizontal")} title={tr("水平翻轉", "Flip horizontally")} aria-label={tr("水平翻轉目前素材", "Flip selected object horizontally")}><FlipHorizontal size={12} /></button>
+                      <button type="button" onClick={() => flipSelectedMaterial("vertical")} title={tr("垂直翻轉", "Flip vertically")} aria-label={tr("垂直翻轉目前素材", "Flip selected object vertically")}><FlipVertical size={12} /></button>
+                    </div>
+                  )}
                   {mobileSelectionToolbar && (
                     <div
                       className="mobile-object-toolbar"
@@ -7417,6 +7513,8 @@ export default function Home() {
                       onPointerDown={(event) => event.stopPropagation()}
                       aria-label={tr("素材操作", "Object actions")}
                     >
+                      <button type="button" onClick={() => flipSelectedMaterial("horizontal")} title={tr("水平翻轉", "Flip horizontally")} aria-label={tr("水平翻轉目前素材", "Flip selected object horizontally")}><FlipHorizontal size={22} /></button>
+                      <button type="button" onClick={() => flipSelectedMaterial("vertical")} title={tr("垂直翻轉", "Flip vertically")} aria-label={tr("垂直翻轉目前素材", "Flip selected object vertically")}><FlipVertical size={22} /></button>
                       <button type="button" onClick={duplicateSelectedMaterial} title={tr("在原物件旁建立相同素材", "Duplicate object")} aria-label={tr("複製目前素材", "Duplicate selected object")}><Copy size={23} /></button>
                       <button type="button" onClick={deleteSelectedMaterial} title={tr("刪除目前素材", "Delete object")} aria-label={tr("刪除目前素材", "Delete selected object")}><Trash2 size={24} /></button>
                       <button type="button" onClick={handleSelectedObjectSettings} title={tr("更多設定", "More settings")} aria-label={tr("更多設定", "More settings")}><MoreHorizontal size={25} /></button>
