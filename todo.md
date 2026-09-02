@@ -472,3 +472,4 @@
 - [x] 將工作台與雙語 Guide 的公開版本標記同步更新為 v1.0.5
 - [x] 將作者介紹的繁簡中文轉換器替換為短網址產生器，並同步雙語 Guide
 - [x] 將雙語 Guide 的 Person Schema 統一為阿比丁的正式網址與 CoAi、AbiURL、Facebook sameAs 連結
+- [x] 將作者實際社群連結與 Person Schema 由 LinkedIn 統一改為 GitHub

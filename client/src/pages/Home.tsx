@@ -23,6 +23,7 @@ import {
   ExternalLink,
   FlipHorizontal,
   FlipVertical,
+  Github,
   GripVertical,
   Heart,
   ImagePlus,
@@ -6776,7 +6777,7 @@ export default function Home() {
                 </div>
                 <div className="developer-header-actions">
                   <a className="developer-social-link developer-social-facebook" href="https://www.facebook.com/shimokitazawa.news/" target="_blank" rel="noopener noreferrer" aria-label="Facebook" title="Facebook">f</a>
-                  <a className="developer-social-link developer-social-linkedin" href="https://www.linkedin.com/in/abiting1998/" target="_blank" rel="noopener noreferrer" aria-label="LinkedIn" title="LinkedIn">in</a>
+                  <a className="developer-social-link developer-social-github" href="https://github.com/abiting" target="_blank" rel="noopener noreferrer" aria-label="GitHub" title="GitHub"><Github size={13} strokeWidth={2.3} /></a>
                   <button type="button" className="faq-close" onClick={() => setIsDeveloperOpen(false)} aria-label={copy.developerClose}><ChevronDown size={16} /></button>
                 </div>
               </header>
