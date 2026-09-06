@@ -223,7 +223,7 @@ const localeCopy = {
 const developerWorks = [
   { href: "https://coai.abiting.cc/japan-address-generator", zh: "日本地址產生器", en: "Japan Address Generator" },
   { href: "https://coai.abiting.cc/blank-line-generator", zh: "空白符號產生器", en: "Blank Line Generator" },
-  { href: "https://coai.abiting.cc/traditional_simplified_converter", zh: "繁簡中文轉換器", en: "Chinese Traditional/Simplified Converter" },
+  { href: "https://abiurl.me", hrefEnglish: "https://abiurl.me/en", zh: "短網址產生器", en: "Short URL Generator" },
   { href: "https://abitingpokedex.com", zh: "寶可夢能力點數計算器", en: "Pokémon Stat Points Calculator" },
   { href: "https://coai.abiting.cc", zh: "名偵探柯南集數列表", en: "List of Detective Conan episodes" },
 ] as const;
@@ -6788,8 +6788,9 @@ export default function Home() {
                   <div className="developer-work-list">
                     {developerWorks.map((work) => {
                       const workTitle = isEnglish ? work.en : work.zh;
+                      const workHref = isEnglish && "hrefEnglish" in work ? work.hrefEnglish : work.href;
                       return (
-                        <a key={work.href} className="developer-work" href={work.href} target="_blank" rel="noopener noreferrer">
+                        <a key={work.href} className="developer-work" href={workHref} target="_blank" rel="noopener noreferrer">
                           <span className="developer-work-title">{workTitle}</span>
                           <ExternalLink size={13} aria-hidden="true" />
                         </a>
