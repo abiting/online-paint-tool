@@ -223,7 +223,7 @@ const localeCopy = {
 const developerWorks = [
   { href: "https://coai.abiting.cc/japan-address-generator", zh: "日本地址產生器", en: "Japan Address Generator" },
   { href: "https://coai.abiting.cc/blank-line-generator", zh: "空白符號產生器", en: "Blank Line Generator" },
-  { href: "https://abiurl.me", hrefEnglish: "https://abiurl.me/en", zh: "短網址產生器", en: "Short URL Generator" },
+  { href: "https://abiurl.me", hrefEnglish: "https://abiurl.me/en", zh: "短網址產生器", en: "URL Shortener" },
   { href: "https://abitingpokedex.com", zh: "寶可夢能力點數計算器", en: "Pokémon Stat Points Calculator" },
   { href: "https://coai.abiting.cc", zh: "名偵探柯南集數列表", en: "List of Detective Conan episodes" },
 ] as const;

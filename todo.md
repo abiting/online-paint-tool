@@ -474,3 +474,4 @@
 - [x] 將雙語 Guide 的 Person Schema 統一為阿比丁的正式網址與 CoAi、AbiURL、Facebook sameAs 連結
 - [x] 將作者實際社群連結與 Person Schema 由 LinkedIn 統一改為 GitHub
 - [x] 將工作台開發者彈出面板的繁簡中文轉換器作品卡替換為短網址產生器，並依語言導向正確網址
+- [x] 將英文工作台與 Guide 的短網址產生器名稱統一為 URL Shortener
