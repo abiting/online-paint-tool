@@ -131,6 +131,7 @@ const localeCopy = {
     contrast: "對比度",
     saturation: "飽和度",
     vibrancy: "亮麗度",
+    clarity: "清晰度",
     opacity: "不透明度",
     faqTitle: "使用說明",
     faqClose: "關閉常見問題",
@@ -199,6 +200,7 @@ const localeCopy = {
     contrast: "Contrast",
     saturation: "Saturation",
     vibrancy: "Vibrancy",
+    clarity: "Clarity",
     opacity: "Opacity",
     faqTitle: "How it works",
     faqClose: "Close FAQ",
@@ -279,6 +281,7 @@ type TextLayer = OutlineAdjustments & {
   contrast: number;
   saturation: number;
   vibrancy: number;
+  clarity?: number;
   shadowOpacity: number;
   outlineColor?: string;
   fontFamily: "Noto Sans TC" | "Noto Serif TC" | "LXGW WenKai TC" | "PMingLiU" | "Arial" | "DM Sans" | "IBM Plex Mono" | "Kaisei Decol" | "Klee One" | "Kosugi Maru" | "M PLUS Rounded 1c" | "Shippori Mincho" | "Times New Roman" | "Yomogi" | "Zen Kaku Gothic New";
@@ -308,6 +311,7 @@ type ShapeLayer = OutlineAdjustments & {
   contrast: number;
   saturation: number;
   vibrancy: number;
+  clarity?: number;
   outline: string;
   outlineWidth: number;
   shadow: boolean;
@@ -340,6 +344,7 @@ type ImageLayer = OutlineAdjustments & {
   contrast: number;
   saturation: number;
   vibrancy: number;
+  clarity?: number;
   shadowOpacity: number;
   outlineColor?: string;
   crop?: ImageCrop;
@@ -434,6 +439,7 @@ type Adjustments = {
   contrast: number;
   saturation: number;
   vibrancy: number;
+  clarity: number;
   opacity: number;
 };
 type AdjustmentPatch = Partial<Adjustments>;
@@ -1311,6 +1317,9 @@ const normalizeProjectSaturation = (value: unknown, version: AbiPaintProject["ve
 const normalizeProjectVibrancy = (value: unknown) =>
   clamp(typeof value === "number" ? value : 0, -100, 100);
 
+const normalizeProjectClarity = (value: unknown) =>
+  clamp(typeof value === "number" ? value : 100, 0, 100);
+
 const migrateProjectAdjustments = (project: AbiPaintProject): AbiPaintProject => {
   if (project.version === 5) return project;
   const migrate = (value: unknown) => normalizeProjectSaturation(value, project.version);
@@ -1444,9 +1453,10 @@ const TEXT_FONT_OPTIONS: Array<{ value: TextLayer["fontFamily"]; label: string; 
   { value: "Yomogi", label: "Yomogi" },
   { value: "Zen Kaku Gothic New", label: "Zen Kaku Gothic New" },
 ];
-const makeAdjustmentFilter = (exposure: number, contrast: number, saturation: number, vibrancy = 0) => {
+const makeAdjustmentFilter = (exposure: number, contrast: number, saturation: number, vibrancy = 0, clarity = 100) => {
   const vibrancySaturation = vibrancy >= 0 ? vibrancy * 0.35 : vibrancy * 0.5;
-  return `brightness(${100 + exposure}%) contrast(${100 + contrast}%) saturate(${100 + saturation + vibrancySaturation}%)`;
+  const blurRadius = ((100 - clamp(clarity, 0, 100)) / 10).toFixed(1);
+  return `brightness(${100 + exposure}%) contrast(${100 + contrast}%) saturate(${100 + saturation + vibrancySaturation}%) blur(${blurRadius}px)`;
 };
 
 const hexToRgba = (hex: string, opacity: number) => {
@@ -2232,6 +2242,7 @@ export default function Home() {
     contrast: 0,
     saturation: 0,
     vibrancy: 0,
+    clarity: 100,
     opacity: 100,
   });
   const [fileMeta, setFileMeta] = useState<{ name: string; size: string }>({ name: copy.documentName, size: "—" });
@@ -2419,11 +2430,11 @@ export default function Home() {
     [paintLayers],
   );
   const activeAdjustmentValues: Adjustments = selectedShape
-    ? { exposure: selectedShape.exposure ?? 0, contrast: selectedShape.contrast ?? 0, saturation: selectedShape.saturation ?? 0, vibrancy: selectedShape.vibrancy ?? 0, opacity: selectedShape.opacity }
+    ? { exposure: selectedShape.exposure ?? 0, contrast: selectedShape.contrast ?? 0, saturation: selectedShape.saturation ?? 0, vibrancy: selectedShape.vibrancy ?? 0, clarity: selectedShape.clarity ?? 100, opacity: selectedShape.opacity }
     : selectedImage
-      ? { exposure: selectedImage.exposure ?? 0, contrast: selectedImage.contrast ?? 0, saturation: selectedImage.saturation ?? 0, vibrancy: selectedImage.vibrancy ?? 0, opacity: selectedImage.opacity }
+      ? { exposure: selectedImage.exposure ?? 0, contrast: selectedImage.contrast ?? 0, saturation: selectedImage.saturation ?? 0, vibrancy: selectedImage.vibrancy ?? 0, clarity: selectedImage.clarity ?? 100, opacity: selectedImage.opacity }
       : selectedText
-      ? { exposure: selectedText.exposure ?? 0, contrast: selectedText.contrast ?? 0, saturation: selectedText.saturation ?? 0, vibrancy: selectedText.vibrancy ?? 0, opacity: selectedText.opacity }
+      ? { exposure: selectedText.exposure ?? 0, contrast: selectedText.contrast ?? 0, saturation: selectedText.saturation ?? 0, vibrancy: selectedText.vibrancy ?? 0, clarity: selectedText.clarity ?? 100, opacity: selectedText.opacity }
       : adjustments;
   const activeShadowOpacity = selectedShape ? selectedShape.shadowOpacity : selectedImage ? selectedImage.shadowOpacity : selectedText ? selectedText.shadowOpacity : null;
   const activeOutlineSettings = selectedShape
@@ -2438,7 +2449,7 @@ export default function Home() {
   const activeAdjustmentTarget = selectedShape ? tr("目前圖形", "Current shape") : selectedImage ? tr("目前圖片", "Current image") : selectedText ? tr("目前文字卡", "Current text") : tr("整個畫布", "Entire canvas");
 
   const canvasFilter = useMemo(
-    () => makeAdjustmentFilter(adjustments.exposure, adjustments.contrast, adjustments.saturation, adjustments.vibrancy),
+    () => makeAdjustmentFilter(adjustments.exposure, adjustments.contrast, adjustments.saturation, adjustments.vibrancy, adjustments.clarity),
     [adjustments],
   );
 
@@ -2450,6 +2461,7 @@ export default function Home() {
       contrast: layer.contrast ?? 0,
       saturation: layer.saturation ?? 0,
       vibrancy: layer.vibrancy ?? 0,
+      clarity: clamp(typeof layer.clarity === "number" ? layer.clarity : 100, 0, 100),
       shadowOpacity: layer.shadowOpacity ?? 0,
       outlineColor: layer.outlineColor ?? "#FFFDF8",
       outlineWidth: layer.outlineWidth ?? 0,
@@ -2473,6 +2485,7 @@ export default function Home() {
       contrast: shape.contrast ?? 0,
       saturation: shape.saturation ?? 0,
       vibrancy: shape.vibrancy ?? 0,
+      clarity: clamp(typeof shape.clarity === "number" ? shape.clarity : 100, 0, 100),
       rotation: shape.rotation ?? 0,
       flipX: shape.flipX ?? false,
       flipY: shape.flipY ?? false,
@@ -2495,6 +2508,7 @@ export default function Home() {
       contrast: image.contrast ?? 0,
       saturation: image.saturation ?? 0,
       vibrancy: image.vibrancy ?? 0,
+      clarity: clamp(typeof image.clarity === "number" ? image.clarity : 100, 0, 100),
       shadowOpacity: clamp(typeof image.shadowOpacity === "number" ? image.shadowOpacity : 0, 0, 100),
       rotation: image.rotation ?? 0,
       flipX: image.flipX ?? false,
@@ -3063,7 +3077,7 @@ export default function Home() {
         height,
         baseImage: surface.toDataURL("image/png"),
         bleedGuide: null,
-        adjustments: { exposure: 0, contrast: 0, saturation: 0, vibrancy: 0, opacity: 100 },
+        adjustments: { exposure: 0, contrast: 0, saturation: 0, vibrancy: 0, clarity: 100, opacity: 100 },
       },
       document: {
         name,
@@ -3134,6 +3148,7 @@ export default function Home() {
       contrast: typeof project.canvas.adjustments?.contrast === "number" ? project.canvas.adjustments.contrast : 0,
       saturation: normalizeProjectSaturation(project.canvas.adjustments?.saturation, project.version),
       vibrancy: normalizeProjectVibrancy(project.canvas.adjustments?.vibrancy),
+      clarity: normalizeProjectClarity(project.canvas.adjustments?.clarity),
       opacity: clamp(typeof project.canvas.adjustments?.opacity === "number" ? project.canvas.adjustments.opacity : 100, 1, 100),
     });
     setScaleImagesWithCanvas(Boolean(project.document.scaleImagesWithCanvas));
@@ -5293,6 +5308,7 @@ export default function Home() {
       contrast: 0,
       saturation: 0,
       vibrancy: 0,
+      clarity: 100,
       opacity: 100,
     });
     toast.info("影像調整已重設");
@@ -5379,7 +5395,7 @@ export default function Home() {
   };
 
   const resetActiveAdjustment = () => {
-    updateActiveAdjustment({ exposure: 0, contrast: 0, saturation: 0, vibrancy: 0, opacity: 100 });
+    updateActiveAdjustment({ exposure: 0, contrast: 0, saturation: 0, vibrancy: 0, clarity: 100, opacity: 100 });
     toast.info(`${activeAdjustmentTarget}的影像調整已重設`);
   };
 
@@ -5629,7 +5645,7 @@ export default function Home() {
             }
           }
         }
-        context.filter = makeAdjustmentFilter(entry.item.exposure, entry.item.contrast, entry.item.saturation, entry.item.vibrancy);
+        context.filter = makeAdjustmentFilter(entry.item.exposure, entry.item.contrast, entry.item.saturation, entry.item.vibrancy, entry.item.clarity);
         if (entry.item.shadowOpacity > 0) {
           context.shadowColor = `rgba(0, 0, 0, ${entry.item.shadowOpacity / 100})`;
           context.shadowBlur = 14;
@@ -5643,7 +5659,7 @@ export default function Home() {
         if (rasterElement && entry.item.rasterWidth && entry.item.rasterHeight) {
           context.save();
           context.globalAlpha = (adjustments.opacity / 100) * (entry.item.opacity / 100);
-          context.filter = makeAdjustmentFilter(entry.item.exposure, entry.item.contrast, entry.item.saturation, entry.item.vibrancy);
+          context.filter = makeAdjustmentFilter(entry.item.exposure, entry.item.contrast, entry.item.saturation, entry.item.vibrancy, entry.item.clarity);
           if (entry.item.shadowOpacity > 0) { context.shadowColor = `rgba(0, 0, 0, ${entry.item.shadowOpacity / 100})`; context.shadowBlur = 14; }
           context.translate(entry.item.x + entry.item.rasterWidth / 2, entry.item.y + entry.item.rasterHeight / 2);
           context.scale(entry.item.flipX ? -1 : 1, entry.item.flipY ? -1 : 1);
@@ -5677,7 +5693,7 @@ export default function Home() {
         const offsetY = anchorShape && visibleBounds ? anchorShape.y + anchorShape.height / 2 - visibleBounds.centerY : 0;
         context.save();
         context.globalAlpha = (adjustments.opacity / 100) * (entry.item.opacity / 100);
-        context.filter = makeAdjustmentFilter(entry.item.exposure, entry.item.contrast, entry.item.saturation, entry.item.vibrancy);
+        context.filter = makeAdjustmentFilter(entry.item.exposure, entry.item.contrast, entry.item.saturation, entry.item.vibrancy, entry.item.clarity);
         if (entry.item.shadowOpacity > 0) { context.shadowColor = `rgba(0, 0, 0, ${entry.item.shadowOpacity / 100})`; context.shadowBlur = 14; }
         const textDimensions = getTextLayerDimensions(entry.item);
         const textCenterX = entry.item.x + textDimensions.width / 2 + offsetX;
@@ -5692,7 +5708,7 @@ export default function Home() {
       const shape = entry.item;
       context.save();
       context.globalAlpha = (adjustments.opacity / 100) * (shape.opacity / 100);
-      context.filter = makeAdjustmentFilter(shape.exposure, shape.contrast, shape.saturation, shape.vibrancy);
+      context.filter = makeAdjustmentFilter(shape.exposure, shape.contrast, shape.saturation, shape.vibrancy, shape.clarity);
       if (shape.shadow && shape.shadowOpacity > 0) { context.shadowColor = hexToRgba(shape.shadowColor, shape.shadowOpacity / 100); context.shadowBlur = shape.shadowBlur; }
       context.fillStyle = shape.fill;
       context.strokeStyle = makeOutlineColor(shape.outline, shape.outlineExposure, shape.outlineContrast, shape.outlineSaturation, shape.outlineVibrancy, shape.outlineOpacity);
@@ -7268,7 +7284,7 @@ export default function Home() {
                           else imageContentRefs.current.delete(image.id);
                         }}
                         className="image-layer-content"
-                        style={{ filter: makeAdjustmentFilter(image.exposure, image.contrast, image.saturation, image.vibrancy) }}
+                        style={{ filter: makeAdjustmentFilter(image.exposure, image.contrast, image.saturation, image.vibrancy, image.clarity) }}
                         src={image.src}
                         alt={image.name}
                         draggable={false}
@@ -7282,7 +7298,7 @@ export default function Home() {
                           }}
                           className="image-erase-canvas"
                           data-image-erase-id={image.id}
-                          style={{ filter: makeAdjustmentFilter(image.exposure, image.contrast, image.saturation, image.vibrancy), pointerEvents: "none" }}
+                          style={{ filter: makeAdjustmentFilter(image.exposure, image.contrast, image.saturation, image.vibrancy, image.clarity), pointerEvents: "none" }}
                           aria-label={tr("直接擦除圖片像素", "Erase image pixels directly")}
                         />
                       )}
@@ -7350,7 +7366,7 @@ export default function Home() {
                         transform: `translate3d(${shape.x}px, ${shape.y}px, 0) rotate(${shape.rotation}deg) scale(${shape.flipX ? -1 : 1}, ${shape.flipY ? -1 : 1})`,
                         opacity: shape.opacity / 100,
                         filter: [
-                          makeAdjustmentFilter(shape.exposure, shape.contrast, shape.saturation, shape.vibrancy),
+                          makeAdjustmentFilter(shape.exposure, shape.contrast, shape.saturation, shape.vibrancy, shape.clarity),
                           shape.shadow && shape.shadowOpacity > 0 ? `drop-shadow(0 0 ${shape.shadowBlur}px ${hexToRgba(shape.shadowColor, shape.shadowOpacity / 100)})` : "",
                         ].filter((value) => value && value !== "none").join(" ") || "none",
                       }}
@@ -7444,7 +7460,7 @@ export default function Home() {
                         fontFamily: `"${layer.fontFamily}", "Noto Sans TC", sans-serif`,
                         opacity: 1,
                         filter: [
-                          makeAdjustmentFilter(layer.exposure, layer.contrast, layer.saturation, layer.vibrancy),
+                          makeAdjustmentFilter(layer.exposure, layer.contrast, layer.saturation, layer.vibrancy, layer.clarity),
                           layer.shadowOpacity > 0 ? `drop-shadow(0 0 14px rgba(0, 0, 0, ${layer.shadowOpacity / 100}))` : "",
                         ].filter((value) => value && value !== "none").join(" ") || "none",
                         WebkitTextStroke: (layer.outlineWidth ?? 0) > 0 ? `${layer.outlineWidth}px ${makeOutlineColor(layer.outlineColor ?? "#FFFDF8", layer.outlineExposure, layer.outlineContrast, layer.outlineSaturation, layer.outlineVibrancy, layer.outlineOpacity)}` : "0 transparent",
@@ -7759,6 +7775,7 @@ export default function Home() {
               <RangeControl label={copy.contrast} value={activeAdjustmentValues.contrast} min={-100} max={100} suffix="%" editable onChange={(value) => updateActiveAdjustment({ contrast: value })} />
               <RangeControl label={copy.saturation} value={activeAdjustmentValues.saturation} min={-100} max={100} suffix="%" editable onChange={(value) => updateActiveAdjustment({ saturation: value })} />
               <RangeControl label={copy.vibrancy} value={activeAdjustmentValues.vibrancy} min={-100} max={100} suffix="%" editable onChange={(value) => updateActiveAdjustment({ vibrancy: value })} />
+              <RangeControl label={copy.clarity} value={activeAdjustmentValues.clarity} min={0} max={100} suffix="%" editable onChange={(value) => updateActiveAdjustment({ clarity: value })} />
               <RangeControl label={copy.opacity} value={activeAdjustmentValues.opacity} min={1} max={100} suffix="%" editable onChange={(value) => updateActiveAdjustment({ opacity: value })} />
               {activeShadowOpacity !== null ? (
                 <RangeControl label={tr("陰影強度", "Shadow")} value={activeShadowOpacity} min={0} max={100} suffix="%" editable onChange={updateActiveShadowOpacity} />
@@ -7840,6 +7857,7 @@ export default function Home() {
             <RangeControl label={copy.contrast} value={activeAdjustmentValues.contrast} min={-100} max={100} suffix="%" editable onChange={(value) => updateActiveAdjustment({ contrast: value })} />
             <RangeControl label={copy.saturation} value={activeAdjustmentValues.saturation} min={-100} max={100} suffix="%" editable onChange={(value) => updateActiveAdjustment({ saturation: value })} />
             <RangeControl label={copy.vibrancy} value={activeAdjustmentValues.vibrancy} min={-100} max={100} suffix="%" editable onChange={(value) => updateActiveAdjustment({ vibrancy: value })} />
+            <RangeControl label={copy.clarity} value={activeAdjustmentValues.clarity} min={0} max={100} suffix="%" editable onChange={(value) => updateActiveAdjustment({ clarity: value })} />
             <RangeControl label={copy.opacity} value={activeAdjustmentValues.opacity} min={1} max={100} suffix="%" editable onChange={(value) => updateActiveAdjustment({ opacity: value })} />
             <button type="button" className="link-button" onClick={resetActiveAdjustment}><RotateCcw size={13} /> {isEnglish ? "Reset adjustments" : "重設目前調整"}</button>
             </div>
