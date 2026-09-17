@@ -209,7 +209,7 @@ const localeCopy = {
     developerTitle: "Abiting",
     developerClose: "Close developer profile",
     developerAria: "AbiPaint developer profile",
-    developerBio: "Taiwanese developer and creator, graduate of National Yang Ming Chiao Tung University. Has independently created a range of free online tools, with the hope of benefiting more people through technology.",
+    developerBio: "Taiwanese developer & creator, independently building a wide range of free online tools 🇹🇼",
     developerWorks: "Other featured projects",
     faq: [
       ["What is AbiPaint?", "AbiPaint is a free online image resizer. Resize photos, adjust pixels and resolution right in your browser—no Adobe installation or Canva account required."],
