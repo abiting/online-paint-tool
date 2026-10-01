@@ -293,7 +293,7 @@ kbd { min-width: 19px; padding: 3px 4px; text-align: center; color: #aab1aa; bac
 .stage-note-top { top: 25px; left: 28px; }
 .stage-note-bottom { right: 28px; bottom: 28px; }
 .canvas-shell-outer { position: absolute; left: 0; top: 0; flex: none; }
-.canvas-shell { position: absolute; left: 0; top: 0; border: 1px solid rgba(236,225,198,0.62); transform-origin: top left; background: #efe3cc; box-shadow: 0 22px 44px rgba(7,10,10,0.36), 0 5px 12px rgba(9,13,14,0.22), inset 0 0 0 3px rgba(132,111,78,0.045); }
+.canvas-shell { position: absolute; left: 0; top: 0; border: 0; transform-origin: top left; background: #efe3cc; box-shadow: 0 22px 44px rgba(7,10,10,0.36), 0 5px 12px rgba(9,13,14,0.22), inset 0 0 0 3px rgba(132,111,78,0.045); }
 .canvas-shell::before { content: ""; position: absolute; z-index: 7; inset: -12px; pointer-events: none; background: linear-gradient(#e4513b,#e4513b) left top / 30px 1px no-repeat, linear-gradient(#d9d0bd,#d9d0bd) left top / 1px 30px no-repeat, linear-gradient(#e4513b,#e4513b) right bottom / 30px 1px no-repeat, linear-gradient(#d9d0bd,#d9d0bd) right bottom / 1px 30px no-repeat, linear-gradient(#d9d0bd,#d9d0bd) right top / 22px 1px no-repeat, linear-gradient(#d9d0bd,#d9d0bd) right top / 1px 22px no-repeat, linear-gradient(#d9d0bd,#d9d0bd) left bottom / 22px 1px no-repeat, linear-gradient(#d9d0bd,#d9d0bd) left bottom / 1px 22px no-repeat; opacity: 0.74; }
 .canvas-shell::after { content: ""; position: absolute; z-index: 6; top: -18px; right: 10px; width: 42px; height: 7px; pointer-events: none; opacity: 0.55; background: repeating-linear-gradient(90deg, rgba(227,213,187,0.9) 0 1px, transparent 1px 7px); }
 .canvas-content { position: relative; width: 100%; height: 100%; transform-origin: center; }
